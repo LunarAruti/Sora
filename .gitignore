@@ -1,0 +1,36 @@
+### ─── Core Gradle ───
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew
+!gradlew.bat
+
+### ─── IntelliJ IDEA ───
+.idea/
+out/
+*.iml
+
+### ─── Database + Logs ───
+database/
+*.log
+
+### ─── OS junk ───
+.DS_Store
+Thumbs.db
+
+### ─── Project structure ───
+# Keep only these core files
+!build.gradle.kts
+!settings.gradle.kts
+!.gitignore
+!src/**
+
+# Optional: keep the readme or notes
+!src/main/java/ucadmin/notes.txt
+
+# Optional: keep any docs
+!README.md
+
+# EXCEPT: ignore Security.java specifically
+src/main/java/ucadmin/main/Security.java
