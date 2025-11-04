@@ -43,6 +43,9 @@ public final class QueueManager {
         /** Inactive + dirty for this long ⇒ maintenance schedules a NON-FORCED flush. */
         public static volatile long CACHE_TTL_MILLIS = 5 * 60_000; // 5 minutes
 
+        /**  Long idle → compact/materialize (write base + truncate journal) */
+        public static int MATERIALIZE_INACTIVE_SECS = 600; // ~10 minutes default
+
         /** Soft cap on number of cached files (0 = unlimited; use memory cap instead). */
         public static volatile int CACHE_MAX_FILES = 0;
 
@@ -604,6 +607,17 @@ public final class QueueManager {
 
     /* ===================== State ===================== */
 
+    // 1) Per-path materialize set + helper
+    private static final java.util.Set<String> MATERIALIZE_REQUESTS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static void requestMaterialize(String path) {
+        if (path == null || path.isBlank()) return;
+        final String npath = normalizeFsPath(path);
+        MATERIALIZE_REQUESTS.add(npath);
+        requestFlush(npath, /*force=*/true); // ensure it runs promptly
+    }
+
     /**
      * Holds all active file cache entries and manages the global flush queue.
      *
@@ -963,7 +977,7 @@ public final class QueueManager {
         }
         final boolean prev = FINAL_MATERIALIZE.getAndSet(true);
         try {
-            flushFile(path, false);  // existing method (no materialize param)
+            flushFile(path, true);  // existing method (no materialize param)
         } finally {
             FINAL_MATERIALIZE.set(prev);
         }
@@ -1157,7 +1171,7 @@ public final class QueueManager {
         // --- 1) Snapshot under lock and flag flushing --------------------------------
         final List<WriteOp> ops;
         final JSONObject cachedSnapshot; // authoritative in-memory snapshot to commit
-        final boolean finalPass = FINAL_MATERIALIZE.get();
+        final boolean finalPass = FINAL_MATERIALIZE.get() || MATERIALIZE_REQUESTS.remove(npath);
         e.lock.lock();
         try {
             // NEW: allow compaction when finalPass==true even if entry is clean,
@@ -1417,33 +1431,67 @@ public final class QueueManager {
         final long now = System.nanoTime();
         Logger.log(Logger.TAG.DEBUG, "QueueManager.maintenance() cycle started.");
 
-        // TTL scheduling & opportunistic memory enforcement
+        // Collect actions out of locks to avoid re-entrancy surprises.
+        final List<String> toPatchFlush = new ArrayList<>();
+        final List<String> toMaterialize = new ArrayList<>();
+
         for (Map.Entry<String, CacheEntry> it : ENTRIES.entrySet()) {
-            String path = it.getKey();
-            CacheEntry e = it.getValue();
+            final String path = it.getKey();
+            final CacheEntry e = it.getValue();
 
             e.lock.lock();
             try {
-                if (e.dirty && !e.flushing) {
-                    // Respect transient backoff window
-                    if (e.nextEligibleNanos > 0 && now < e.nextEligibleNanos) {
-                        long ms = TimeUnit.NANOSECONDS.toMillis(e.nextEligibleNanos - now);
-                        Logger.log(Logger.TAG.DEBUG, "Maintenance: skip (backoff " + ms + " ms) for " + path);
-                    } else {
-                        long ageMs = TimeUnit.NANOSECONDS.toMillis(now - e.lastAccessNanos);
-                        if (ageMs >= Config.CACHE_TTL_MILLIS) {
-                            Logger.log(Logger.TAG.DEBUG, "Scheduling TTL flush for " + path);
-                            requestFlush(path, false); // non-forced background write
-                        }
-                        if (e.pendingOps.size() >= Config.BATCH_JOB_FLUSH_THRESHOLD) {
-                            Logger.log(Logger.TAG.DEBUG, "Scheduling flush (batch threshold) for " + path);
-                            requestFlush(path, false); // non-forced background write
-                        }
+                // Respect transient backoff window for any writes
+                if (e.nextEligibleNanos > 0 && now < e.nextEligibleNanos) {
+                    long ms = TimeUnit.NANOSECONDS.toMillis(e.nextEligibleNanos - now);
+                    Logger.log(Logger.TAG.DEBUG, "Maintenance: skip (backoff " + ms + " ms) for " + path);
+                    continue;
+                }
+
+                final boolean isDirty = e.dirty && !e.pendingOps.isEmpty();
+                final long ageMs = TimeUnit.NANOSECONDS.toMillis(now - e.lastAccessNanos);
+
+                // --- 1) Existing behavior: schedule a non-forced patch write after TTL ---
+                if (isDirty && !e.flushing) {
+                    if (ageMs >= Config.CACHE_TTL_MILLIS) {
+                        Logger.log(Logger.TAG.DEBUG, "Scheduling TTL flush for " + path);
+                        toPatchFlush.add(path); // non-forced background write (patch)
+                    }
+                    if (e.pendingOps.size() >= Config.BATCH_JOB_FLUSH_THRESHOLD) {
+                        Logger.log(Logger.TAG.DEBUG, "Scheduling flush (batch threshold) for " + path);
+                        toPatchFlush.add(path); // non-forced background write (patch)
                     }
                 }
+
+                // --- 2) NEW: long-idle compaction/materialize after X seconds ---
+                // Trigger if long idle AND (still dirty OR journal has content).
+                // We check journal content best-effort (exceptions ignored).
+                if (!e.flushing) {
+                    boolean hasJournal = false;
+                    try {
+                        hasJournal = QueueManager.RawIO.journalHasContent(path);
+                    } catch (Throwable ignore) { /* best effort */ }
+
+                    final long ageSec = TimeUnit.NANOSECONDS.toSeconds(now - e.lastAccessNanos);
+                    if (ageSec >= Math.max(1, Config.MATERIALIZE_INACTIVE_SECS)
+                            && (isDirty || hasJournal)) {
+                        Logger.log(Logger.TAG.DEBUG, "Scheduling MATERIALIZE (long idle) for " + path
+                                + " [ageSec=" + ageSec + ", dirty=" + isDirty + ", journal=" + hasJournal + "]");
+                        toMaterialize.add(path);
+                    }
+                }
+
             } finally {
                 e.lock.unlock();
             }
+        }
+
+        // Perform actions outside of locks.
+        for (String p : toPatchFlush) {
+            requestFlush(p, /*force=*/false);       // patch-only; normal lane
+        }
+        for (String p : toMaterialize) {
+            requestMaterialize(p);                  // forced; per-path final/materialize
         }
 
         // Enforce memory cap (flush oldest dirty first; if none, evict oldest clean)
