@@ -37,7 +37,11 @@ public class ShutdownCommand extends ListenerAdapter {
             Logger.log(TAG.INFO, "Graceful shutdown complete. Exiting process.");
 
             // Give Discord a second to send replies before exiting
-            Thread.sleep(5000);
+            Thread.sleep(2000);
+
+            event.getJDA().shutdown();
+
+            Thread.sleep(2000);
 
             Logger.log(TAG.SYSTEM, "System exiting cleanly.");
             System.exit(0);
