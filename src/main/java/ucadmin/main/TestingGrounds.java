@@ -11,112 +11,140 @@ import ucadmin.util.Logger;
 public class TestingGrounds {
     public static void TestingGrounds() {
         try {
-            final String path = "C:\\Users\\lunar\\Documents\\CS152l\\UC_Admin\\database\\test_recovery\\users\\3001.json";
+            // ================== ULTIMATE INTEGRATION TEST (single final flush) ==================
+            final String ROOT       = "C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\corrupt";
+            final String SUITE      = ROOT + "\\dm_suite_stress";
+            final String SUB_A      = SUITE + "\\A";
+            final String SUB_B      = SUITE + "\\B";
+            final String SUB_C      = SUITE + "\\C";
+            final String COPIES     = SUITE + "\\copies";
 
-// 0) Ensure file exists with your base content (only if missing)
-            if (!DatabaseManager.fileExists(path)) {
-                JSONObject base = new JSONObject()
-                        .put("profile", new JSONObject()
-                                .put("level", 1)
-                                .put("name", "Old"))
-                        .put("startup_count", 41)
-                        .put("last_updated", 0);
-                DatabaseManager.createJSON(path, base);
-            }
+            final String TXT_1      = SUITE + "\\notes.txt";
+            final String TXT_2      = SUITE + "\\renamed.txt";
+            final String TXT_COPY   = COPIES + "\\notes_copy.txt";
 
-// 1) Scalar updates (simple writes)
-            DatabaseManager.writeJSONPath(path, "profile.name", "New", true);
-            DatabaseManager.writeJSONPath(path, "startup_count", 42, true);
-            DatabaseManager.writeJSONPath(path, "last_updated", System.currentTimeMillis(), true);
+            final String JSON_A     = SUITE + "\\main.json";
+            final String JSON_B     = SUITE + "\\backup.json";
+            final String JSON_C     = SUITE + "\\alt.json";
 
-// 2) Add a nested object tree (creates any missing parents)
-            DatabaseManager.writeJSONPath(path, "profile.meta.created_by", "fabricator", true);
-            DatabaseManager.writeJSONPath(path, "profile.meta.created_at", System.currentTimeMillis(), true);
-            DatabaseManager.writeJSONPath(path, "profile.meta.flags.active", true, true);
-            DatabaseManager.writeJSONPath(path, "profile.meta.flags.trust", 3, true);
+            DatabaseManager.createFolder(SUITE);
+            DatabaseManager.createFolder(SUB_A);
+            DatabaseManager.createFolder(SUB_B);
+            DatabaseManager.createFolder(COPIES);
 
-// (optional) snapshot
-            System.out.println("=== TREE SNAPSHOT A (after meta/flags writes) ===");
-            System.out.println(DatabaseManager.buildJSONTree(path, true));
+            DatabaseManager.folderExists(SUITE);
+            DatabaseManager.folderExists(SUB_C);                 // expect false (not created)
 
-// 3) Create arrays and append a bunch of values
-            DatabaseManager.writeJSONPath(path, "tags", new JSONArray(), true);
-            DatabaseManager.appendJSONArray(path, "tags", "alpha");
-            DatabaseManager.appendJSONArray(path, "tags", "beta");
-            DatabaseManager.appendJSONArray(path, "tags", "gamma");
+            DatabaseManager.createFile(TXT_1);
+            DatabaseManager.fileExists(TXT_1);
+            DatabaseManager.getExtension(TXT_1);
+            DatabaseManager.getParentPath(TXT_1);
+            DatabaseManager.getFileName(TXT_1);
 
-            DatabaseManager.writeJSONPath(path, "activities", new JSONArray(), true);
-            DatabaseManager.appendJSONArray(path, "activities", new JSONObject().put("id", 1001).put("type", "login"));
-            DatabaseManager.appendJSONArray(path, "activities", new JSONObject().put("id", 1002).put("type", "update"));
-            DatabaseManager.appendJSONArray(path, "activities", new JSONObject().put("id", 1003).put("type", "logout"));
+            DatabaseManager.renameFile(TXT_1, TXT_2);
+            DatabaseManager.copyFile(TXT_2, TXT_COPY);
 
-// 4) Insert & replace within arrays
-            DatabaseManager.insertJSONArray(path, "tags", 1, "inserted"); // tags: alpha, inserted, beta, gamma
-            DatabaseManager.replaceJSONArray(path, "activities", 1, new JSONObject().put("id", 2002).put("type", "update+"));
+            DatabaseManager.listFiles(SUITE);
+            DatabaseManager.listFolders(SUITE);
 
-// 5) Create a complex subtree and exercise rename/move/copy
-            DatabaseManager.writeJSONPath(path, "settings", new JSONObject()
-                    .put("ui", new JSONObject()
-                            .put("theme", "dark")
-                            .put("accent", "blue"))
-                    .put("privacy", new JSONObject()
-                            .put("share_usage", false)
-                            .put("ads_personalization", false)), true);
+// --- JSON creation (both overloads) + integrity pass ---
+            org.json.JSONObject seed = new org.json.JSONObject()
+                    .put("version", 1)
+                    .put("meta", new org.json.JSONObject()
+                            .put("owner", "root")
+                            .put("tags", new org.json.JSONArray().put("alpha").put("beta")))
+                    .put("records", new org.json.JSONArray());
 
-// Rename a key inside "settings.ui": accent -> accentColor
-            DatabaseManager.renameJSONKey(path, "settings.ui", "accent", "accentColor");
+            DatabaseManager.createJSON(JSON_A, seed);            // with defaults
+            DatabaseManager.createJSON(JSON_B);                  // empty object
+            DatabaseManager.createJSON(JSON_C, new org.json.JSONObject().put("hello", "world"));
 
-// Move a subtree: settings.privacy -> profile.privacy
-            DatabaseManager.moveJSONPath(path, "settings.privacy", "profile.privacy");
+            DatabaseManager.ensureJSONIntegrity(JSON_A, true, true);
 
-// Copy a subtree: profile -> backups.profile_snapshot
-            DatabaseManager.copyJSONPath(path, "profile", "backups.profile_snapshot");
+// --- JSON path writes/reads/types/contains/list-keys ---
+            DatabaseManager.writeJSONPath(JSON_A, "version", 2, false);           // update existing
+            DatabaseManager.writeJSONPath(JSON_A, "meta.flags.audit.enabled", true, true); // deep create
+            DatabaseManager.writeJSONPath(JSON_A, "meta.owner", "admin", false);  // overwrite
 
-// 6) Clear then re-populate arrays/objects to generate more deltas
-            DatabaseManager.clearJSONArray(path, "tags");
-            DatabaseManager.appendJSONArray(path, "tags", "omega");
-            DatabaseManager.appendJSONArray(path, "tags", "delta");
+            DatabaseManager.readJSONPath(JSON_A, "version");
+            DatabaseManager.readJSONPath(JSON_A, "meta.owner");
 
-            DatabaseManager.clearJSONObject(path, "settings.ui"); // clears theme & accentColor
-            DatabaseManager.writeJSONPath(path, "settings.ui.theme", "light", true);
-            DatabaseManager.writeJSONPath(path, "settings.ui.zoom", 1.25, true);
+            DatabaseManager.getTypeAtPath(JSON_A, "meta");        // "object"
+            DatabaseManager.getTypeAtPath(JSON_A, "meta.tags");    // "array"
+            DatabaseManager.getTypeAtPath(JSON_A, "records");      // "array"
 
-// 7) Deletes: remove a few paths (guarded to avoid strict failures)
-            if (DatabaseManager.containsJSONPath(path, "backups.profile_snapshot.meta")) {
-                DatabaseManager.removeJSONPath(path, "backups.profile_snapshot.meta");
-            } else {
-                System.out.println("skip remove: backups.profile_snapshot.meta (not present)");
-            }
-            if (DatabaseManager.containsJSONPath(path, "profile.meta.flags.trust")) {
-                DatabaseManager.removeJSONPath(path, "profile.meta.flags.trust");
-            } else {
-                System.out.println("skip remove: profile.meta.flags.trust (not present)");
-            }
+            DatabaseManager.containsJSONPath(JSON_A, "meta.flags.audit.enabled"); // true
+            DatabaseManager.containsJSONPath(JSON_A, "meta.missing");             // false
+            DatabaseManager.listJSONKeys(JSON_A, "meta");
 
-// (optional) snapshot
-            System.out.println("=== TREE SNAPSHOT B (post-conditional removes) ===");
-            System.out.println(DatabaseManager.buildJSONTree(path, true));
+// --- Array ops: append / insert / replace / count / find / clear ---
+            DatabaseManager.appendJSONArray(JSON_A, "records", new org.json.JSONObject().put("id", 1).put("name", "one"));
+            DatabaseManager.appendJSONArray(JSON_A, "records", new org.json.JSONObject().put("id", 2).put("name", "two"));
+            DatabaseManager.appendJSONArray(JSON_A, "records", new org.json.JSONObject().put("id", 3).put("name", "three"));
+            DatabaseManager.countJSONArray(JSON_A, "records");                           // expect 3
 
-// 8) More nested writes to ensure mixed-type ops are covered
-            DatabaseManager.writeJSONPath(path, "profile.stats.login_count", 7, true);
-            DatabaseManager.writeJSONPath(path, "profile.stats.last_ip", "127.0.0.1", true);
+            DatabaseManager.insertJSONArray(JSON_A, "records", 1, new org.json.JSONObject().put("id", 99).put("name", "ninety-nine"));
+            DatabaseManager.replaceJSONArray(JSON_A, "records", 0, new org.json.JSONObject().put("id", 11).put("name", "eleven"));
+            DatabaseManager.readJSONPath(JSON_A, "records[1].name");                     // expect "ninety-nine"
+            DatabaseManager.findJSONArray(JSON_A, "records", "id", 99);                  // should find
 
-// 9) A small object clone and replace in array to exercise structure changes
-            JSONObject act = new JSONObject().put("id", 3004).put("type", "heartbeat").put("ok", true);
-            DatabaseManager.appendJSONArray(path, "activities", act);
-            DatabaseManager.replaceJSONArray(path, "activities", 0,
-                    new JSONObject().put("id", 1000).put("type", "boot"));
+            DatabaseManager.clearJSONArray(JSON_A, "meta.tags");
+            DatabaseManager.countJSONArray(JSON_A, "meta.tags");                         // expect 0
 
-// 10) Optional: create another array with objects and insert middle
-            DatabaseManager.writeJSONPath(path, "devices", new JSONArray(), true);
-            DatabaseManager.appendJSONArray(path, "devices", new JSONObject().put("name", "laptop").put("trusted", true));
-            DatabaseManager.appendJSONArray(path, "devices", new JSONObject().put("name", "phone").put("trusted", false));
-            DatabaseManager.insertJSONArray(path, "devices", 1, new JSONObject().put("name", "tablet").put("trusted", true));
+// --- Moves / copies / renames / removes / clears (objects) ---
+            DatabaseManager.writeJSONPath(JSON_A, "scratch.bucket.alpha", "A", true);
+            DatabaseManager.writeJSONPath(JSON_A, "scratch.bucket.beta",  "B", true);
 
-// 11) Sprinkle in some keys for later rename/copy/delete by recovery tests (no flush here)
-            DatabaseManager.writeJSONPath(path, "tmp.scratch", new JSONObject().put("note", "transient"), true);
-            DatabaseManager.copyJSONPath(path, "tmp.scratch", "backups.latest_tmp");
-            DatabaseManager.renameJSONKey(path, "tmp", "scratch", "scratchpad");
+            DatabaseManager.moveJSONPath(JSON_A, "scratch.bucket", "meta.moved");        // move subtree into existing parent
+            DatabaseManager.containsJSONPath(JSON_A, "scratch.bucket");                   // expect false
+            DatabaseManager.containsJSONPath(JSON_A, "meta.moved.alpha");                 // expect true
+
+            DatabaseManager.copyJSONPath(JSON_A, "meta.moved.alpha", "meta.copyOfAlpha");
+            DatabaseManager.readJSONPath(JSON_A, "meta.copyOfAlpha");                     // "A"
+
+            DatabaseManager.renameJSONKey(JSON_A, "meta", "owner", "ownerName");
+            DatabaseManager.listJSONKeys(JSON_A, "meta");
+
+            DatabaseManager.removeJSONPath(JSON_A, "meta.moved.beta");                    // remove single key
+            DatabaseManager.containsJSONPath(JSON_A, "meta.moved.beta");                  // expect false
+
+            DatabaseManager.clearJSONObject(JSON_A, "meta.moved");                        // clear subtree to { }
+            DatabaseManager.listJSONKeys(JSON_A, "meta.moved");                           // expect empty
+
+// --- Sanitize + trees (compact & pretty) ---
+            DatabaseManager.sanitizeJSON(JSON_A, true);
+            DatabaseManager.buildJSONTree(JSON_A, true);    // compact form
+            DatabaseManager.buildJSONTree(JSON_A, false);   // pretty form
+            DatabaseManager.printJSONTree(JSON_A);          // one console print to verify
+
+// --- Cross-file actions (copy/rename/delete/list) ---
+            DatabaseManager.copyFile(JSON_A, SUB_A + "\\main_copy.json");
+            DatabaseManager.fileExists(SUB_A + "\\main_copy.json");
+
+            DatabaseManager.renameFile(JSON_C, SUB_B + "\\alt_renamed.json");
+            DatabaseManager.listFiles(SUITE);
+            DatabaseManager.listFolders(SUITE);
+
+            DatabaseManager.deleteFile(TXT_COPY);
+            DatabaseManager.fileExists(TXT_COPY);                                         // expect false
+
+            DatabaseManager.deleteFolder(SUB_B);
+            DatabaseManager.folderExists(SUB_B);                                          // expect false
+
+// --- Utility that throws on miss (operate on raw JSONObject, not a file) ---
+            org.json.JSONObject probe = new org.json.JSONObject()
+                    .put("grid", new org.json.JSONArray()
+                            .put(new org.json.JSONArray().put(1).put(2))
+                            .put(new org.json.JSONArray().put(3).put(4)));
+            DatabaseManager.pathExistsOrThrow(probe, "grid[1][0]");                        // expect 3
+
+// --- Final verify helpers ---
+            DatabaseManager.getExtension(SUB_A + "\\main_copy.json");
+            DatabaseManager.getParentPath(SUB_A + "\\main_copy.json");
+            DatabaseManager.getFileName(SUB_A + "\\main_copy.json");
+
+// ================== SINGLE MATERIALIZATION FLUSH (do this once) ==================
+            QueueManager.flushAll(true);
 
         } catch (Exception e) {
             Logger.log(Logger.TAG.ERROR, "Database test failed: " + e.getMessage());

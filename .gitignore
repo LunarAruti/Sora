@@ -27,7 +27,7 @@ Thumbs.db
 !src/**
 
 # Optional: keep the readme or notes
-!src/main/java/ucadmin/notes.txt
+src/main/java/ucadmin/notes.txt
 
 # Optional: keep any docs
 !README.md

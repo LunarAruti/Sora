@@ -600,6 +600,17 @@ public final class QueueManager {
 
         final Deque<WriteOp> pendingOps = new ArrayDeque<>();
 
+        // ==== TEMP MODE FIELDS ====
+        // When true, this entry is treated as a temporary cache:
+        // - never enqueued for patch/materialize by threshold logic
+        // - will be expired by maintenance() if inactive (read and write)
+        // - if it ever reaches a forced flush path, it must be deleted (handled elsewhere)
+        boolean isTemp = false;
+
+        // Updated whenever a write operation mutates the cached JSON.
+        // maintenance() will use both lastAccessNanos and lastWriteNanos to determine inactivity.
+        long lastWriteNanos = 0L;
+
         CacheEntry() {
             Logger.log(Logger.TAG.DEBUG, "CacheEntry created.");
         }
@@ -614,6 +625,32 @@ public final class QueueManager {
     private static void requestMaterialize(String path) {
         if (path == null || path.isBlank()) return;
         final String npath = normalizeFsPath(path);
+
+        // TEMP guard: materialize requests for TEMP entries delete them instead.
+        final CacheEntry e = ENTRIES.get(npath);
+        if (e != null) {
+            e.lock.lock();
+            try {
+                if (e.isTemp) {
+                    long bytes = e.approxBytes;
+                    e.data = null;
+                    e.approxBytes = 0;
+                    e.pendingOps.clear();
+                    e.dirty = false;
+                    e.flushing = false;
+                    ENTRIES.remove(npath);
+                    ENQUEUED.remove(npath);
+                    synchronized (MEM_LOCK) {
+                        TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                    }
+                    Logger.log(Logger.TAG.INFO, "requestMaterialize: deleted TEMP entry (no materialize): " + npath);
+                    return;
+                }
+            } finally {
+                e.lock.unlock();
+            }
+        }
+
         MATERIALIZE_REQUESTS.add(npath);
         requestFlush(npath, /*force=*/true); // ensure it runs promptly
     }
@@ -851,9 +888,21 @@ public final class QueueManager {
 
             ensureCacheLoaded(e, npath, rawLoader);
 
+            // Detect TEMP marker op (DBM should add a no-op WriteOp named "__TEMP__" for temp writes)
+            boolean tempMarkerPresent = false;
+
+            // Apply ops to cache and queue them
             for (WriteOp op : batch.ops()) {
+                // TEMP marker: record and skip queuing/mutation
+                if ("__TEMP__".equals(op.name)) {
+                    tempMarkerPresent = true;
+                    Logger.log(Logger.TAG.DEBUG, "TEMP marker detected for " + npath);
+                    continue;
+                }
+
                 try {
                     op.apply.accept(e.data);
+                    e.lastWriteNanos = System.nanoTime(); // record mutation time
                     Logger.log(Logger.TAG.DEBUG, "Applied batch op '" + op.name + "' to " + npath);
                 } catch (Throwable t) {
                     Logger.log(Logger.TAG.ERROR, "Batch operation '" + op.name + "' failed for " + npath + ": " + t.getMessage());
@@ -862,15 +911,26 @@ public final class QueueManager {
                 e.pendingOps.addLast(op);
             }
 
-            e.dirty = true;
+            // If marker present, set TEMP mode; this affects later scheduling choices
+            if (tempMarkerPresent) {
+                e.isTemp = true;
+            }
+
+            // Mark dirty only if we actually staged mutations
+            if (!e.pendingOps.isEmpty()) {
+                e.dirty = true;
+            }
+
             e.lastAccessNanos = System.nanoTime();
             refreshSize(e);
 
-            if (e.pendingOps.size() >= Config.BATCH_JOB_FLUSH_THRESHOLD) {
+            // Only schedule a flush due to batch threshold for NON-TEMP entries.
+            if (!e.isTemp && e.pendingOps.size() >= Config.BATCH_JOB_FLUSH_THRESHOLD) {
                 Logger.log(Logger.TAG.INFO, "Flush threshold reached for " + npath + "; requesting flush.");
                 requestFlush(npath, false);
             }
 
+            // Enforce memory cap (temp-specific behavior handled elsewhere)
             enforceMemoryCap();
 
             T result = computeAfter.apply(e.data);
@@ -904,6 +964,36 @@ public final class QueueManager {
             return;
         }
         final String npath = normalizeFsPath(path);
+
+        // TEMP guard: never enqueue TEMP; if forced, delete it.
+        final CacheEntry tempCheck = ENTRIES.get(npath);
+        if (tempCheck != null) {
+            tempCheck.lock.lock();
+            try {
+                if (tempCheck.isTemp) {
+                    if (force) {
+                        // Delete TEMP entry instead of persisting.
+                        long bytes = tempCheck.approxBytes;
+                        tempCheck.data = null;
+                        tempCheck.approxBytes = 0;
+                        tempCheck.pendingOps.clear();
+                        tempCheck.dirty = false;
+                        tempCheck.flushing = false;
+                        ENTRIES.remove(npath);
+                        ENQUEUED.remove(npath);
+                        synchronized (MEM_LOCK) {
+                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                        }
+                        Logger.log(Logger.TAG.INFO, "requestFlush(FORCED): deleted TEMP entry: " + npath);
+                    } else {
+                        Logger.log(Logger.TAG.DEBUG, "requestFlush: TEMP entry ignored (no enqueue): " + npath);
+                    }
+                    return; // never enqueue TEMP
+                }
+            } finally {
+                tempCheck.lock.unlock();
+            }
+        }
 
         if (ENQUEUED.add(npath)) {
             if (force) {
@@ -1004,21 +1094,45 @@ public final class QueueManager {
             // Enqueue:
             // - materialize == true → enqueue EVERY entry (dirty or clean) so flushOne can compact/journal-truncate
             // - materialize == false → enqueue only dirty entries
+            // For TEMP entries: NEVER enqueue. Delete TEMP entries instead (forced op rule).
             for (String path : paths) {
                 final CacheEntry e = ENTRIES.computeIfAbsent(path, p -> new CacheEntry());
+                boolean deletedTemp = false;
+
                 e.lock.lock();
                 try {
-                    final boolean shouldEnqueue = materialize || e.dirty;
-                    if (shouldEnqueue) {
-                        requestFlush(path, /*force=*/true);
-                        queued.add(path);
-                        Logger.log(
-                                Logger.TAG.DEBUG,
-                                "flushAll queued " + (e.dirty ? "dirty" : "clean") + " file (FORCED): " + path
-                        );
+                    if (e.isTemp) {
+                        long bytes = e.approxBytes;
+                        e.data = null;
+                        e.approxBytes = 0;
+                        e.pendingOps.clear();
+                        e.dirty = false;
+                        e.flushing = false;
+                        ENTRIES.remove(path);
+                        ENQUEUED.remove(path);
+                        synchronized (MEM_LOCK) {
+                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                        }
+                        Logger.log(Logger.TAG.INFO, "flushAll: deleted TEMP entry (no enqueue): " + path);
+                        deletedTemp = true;
+                    } else {
+                        final boolean shouldEnqueue = materialize || e.dirty;
+                        if (shouldEnqueue) {
+                            requestFlush(path, /*force=*/true);
+                            queued.add(path);
+                            Logger.log(
+                                    Logger.TAG.DEBUG,
+                                    "flushAll queued " + (e.dirty ? "dirty" : "clean") + " file (FORCED): " + path
+                            );
+                        }
                     }
                 } finally {
                     e.lock.unlock();
+                }
+
+                // If it was TEMP and deleted, we simply don't enqueue or wait on it.
+                if (deletedTemp) {
+                    continue;
                 }
             }
 
@@ -1152,6 +1266,31 @@ public final class QueueManager {
     private static void flushOne(String path) throws QueueException {
         final String npath = normalizeFsPath(path);
         final CacheEntry e = ENTRIES.computeIfAbsent(npath, p -> new CacheEntry());
+
+        // --- (-1) EARLY TEMP GUARD: TEMP entries are never persisted -------------------
+        e.lock.lock();
+        try {
+            if (e.isTemp) {
+                long bytes = e.approxBytes;
+                e.data = null;
+                e.approxBytes = 0;
+                e.pendingOps.clear();
+                e.dirty = false;
+                e.flushing = false;
+
+                ENTRIES.remove(npath);
+                ENQUEUED.remove(npath);
+                MATERIALIZE_REQUESTS.remove(npath);
+
+                synchronized (MEM_LOCK) {
+                    TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                }
+                Logger.log(Logger.TAG.INFO, "flushOne: TEMP entry encountered → deleted instead of persisting: " + npath);
+                return;
+            }
+        } finally {
+            e.lock.unlock();
+        }
 
         // --- 0) Honor transient backoff window (e.g., locked file) -----------------
         final long now = System.nanoTime();
@@ -1434,6 +1573,8 @@ public final class QueueManager {
         // Collect actions out of locks to avoid re-entrancy surprises.
         final List<String> toPatchFlush = new ArrayList<>();
         final List<String> toMaterialize = new ArrayList<>();
+        // TEMP-only: collect entries to delete (cannot remove from ENTRIES while iterating)
+        final List<String> toDeleteTemp = new ArrayList<>();
 
         for (Map.Entry<String, CacheEntry> it : ENTRIES.entrySet()) {
             final String path = it.getKey();
@@ -1451,6 +1592,27 @@ public final class QueueManager {
                 final boolean isDirty = e.dirty && !e.pendingOps.isEmpty();
                 final long ageMs = TimeUnit.NANOSECONDS.toMillis(now - e.lastAccessNanos);
 
+                // ===== TEMP MODE: expiry & scheduling suppression =====
+                if (e.isTemp) {
+                    // Compute inactivity by BOTH read and write. If lastWriteNanos is 0 (never written), treat it as lastAccess.
+                    long writeRef = (e.lastWriteNanos > 0L) ? e.lastWriteNanos : e.lastAccessNanos;
+                    final long ageSecAccess = TimeUnit.NANOSECONDS.toSeconds(now - e.lastAccessNanos);
+                    final long ageSecWrite  = TimeUnit.NANOSECONDS.toSeconds(now - writeRef);
+
+                    // Delete TEMP if inactive for MATERIALIZE_INACTIVE_SECS on BOTH axes
+                    if (ageSecAccess >= Math.max(1, Config.MATERIALIZE_INACTIVE_SECS)
+                            && ageSecWrite >= Math.max(1, Config.MATERIALIZE_INACTIVE_SECS)) {
+                        Logger.log(Logger.TAG.INFO, "TEMP expired (inactive) → delete: " + path
+                                + " [ageAccessSec=" + ageSecAccess + ", ageWriteSec=" + ageSecWrite + "]");
+                        toDeleteTemp.add(path);
+                    }
+
+                    // Do NOT schedule TTL patch flush for TEMP
+                    // Do NOT schedule long-idle materialize for TEMP
+                    // Continue to next entry
+                    continue;
+                }
+
                 // --- 1) Existing behavior: schedule a non-forced patch write after TTL ---
                 if (isDirty && !e.flushing) {
                     if (ageMs >= Config.CACHE_TTL_MILLIS) {
@@ -1463,9 +1625,7 @@ public final class QueueManager {
                     }
                 }
 
-                // --- 2) NEW: long-idle compaction/materialize after X seconds ---
-                // Trigger if long idle AND (still dirty OR journal has content).
-                // We check journal content best-effort (exceptions ignored).
+                // --- 2) Long-idle compaction/materialize after X seconds ---
                 if (!e.flushing) {
                     boolean hasJournal = false;
                     try {
@@ -1494,10 +1654,74 @@ public final class QueueManager {
             requestMaterialize(p);                  // forced; per-path final/materialize
         }
 
+        // TEMP deletions outside locks and map-iteration
+        for (String p : toDeleteTemp) {
+            final String npath = normalizeFsPath(p);
+            final CacheEntry e = ENTRIES.remove(npath);
+            if (e != null) {
+                e.lock.lock();
+                try {
+                    long bytes = e.approxBytes;
+                    e.data = null;
+                    e.approxBytes = 0;
+                    e.pendingOps.clear();
+                    e.dirty = false;
+                    e.flushing = false;
+                    synchronized (MEM_LOCK) {
+                        TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                    }
+                    Logger.log(Logger.TAG.INFO, "TEMP cache entry deleted: " + npath);
+                } finally {
+                    e.lock.unlock();
+                }
+            }
+        }
+
         // Enforce memory cap (flush oldest dirty first; if none, evict oldest clean)
         enforceMemoryCap();
 
         Logger.log(Logger.TAG.DEBUG, "QueueManager.maintenance() cycle complete.");
+    }
+
+    /**
+     * Clears the TEMP flag on a cached entry so it behaves like a regular cache file.
+     * No flush is scheduled or forced here; the entry will be handled by maintenance as usual.
+     *
+     * Semantics:
+     * - If the entry doesn't exist: returns false.
+     * - If the entry exists but is already non-TEMP: returns true (idempotent).
+     * - If the entry exists and is TEMP: sets isTemp=false, bumps lastAccessNanos, returns true.
+     *
+     * @param path the logical cache key (file path)
+     * @return true if the entry exists and is now non-TEMP; false if no such entry
+     */
+    public static boolean promoteTemp(String path) {
+        if (path == null || path.isBlank()) {
+            Logger.log(Logger.TAG.ERROR, "promoteTemp: path is null/blank");
+            return false;
+        }
+        final String npath = normalizeFsPath(path);
+        final CacheEntry e = ENTRIES.get(npath);
+        if (e == null) {
+            Logger.log(Logger.TAG.DEBUG, "promoteTemp: no cache entry found for: " + npath);
+            return false;
+        }
+
+        e.lock.lock();
+        try {
+            if (!e.isTemp) {
+                Logger.log(Logger.TAG.DEBUG, "promoteTemp: entry already non-TEMP: " + npath);
+                return true; // idempotent
+            }
+
+            e.isTemp = false;
+            e.lastAccessNanos = System.nanoTime(); // nudge so TTL/materialize timers start fresh
+            Logger.log(Logger.TAG.INFO, "promoteTemp: cleared TEMP flag; entry now regular: " + npath);
+            // No enqueue, no force. Regular maintenance will handle it.
+            return true;
+        } finally {
+            e.lock.unlock();
+        }
     }
 
     /**
@@ -1520,7 +1744,7 @@ public final class QueueManager {
 
         final long now = System.nanoTime();
 
-        // 1) Try to flush the oldest dirty file (skip those in backoff)
+        // 1) Try to flush the oldest dirty NON-TEMP file (skip those in backoff)
         String oldestDirty = null;
         long oldestTs = Long.MAX_VALUE;
 
@@ -1529,7 +1753,8 @@ public final class QueueManager {
             CacheEntry e = it.getValue();
             e.lock.lock();
             try {
-                if (e.dirty && !e.flushing) {
+                // Skip TEMP entries entirely for the "flush oldest dirty" stage
+                if (!e.isTemp && e.dirty && !e.flushing) {
                     if (e.nextEligibleNanos > 0 && now < e.nextEligibleNanos) {
                         // backoff in effect; skip for now
                     } else if (e.lastAccessNanos < oldestTs) {
@@ -1546,41 +1771,127 @@ public final class QueueManager {
             return;
         }
 
-        // 2) Evict oldest clean cache to free memory
-        String oldestClean = null;
-        oldestTs = Long.MAX_VALUE;
+        // 2) Prefer to evict/delete a TEMP cache first (clean TEMP, then any TEMP as last resort)
+        String oldestCleanTemp = null;
+        long oldestCleanTempTs = Long.MAX_VALUE;
+
+        String oldestCleanRegular = null;
+        long oldestCleanRegularTs = Long.MAX_VALUE;
 
         for (Map.Entry<String, CacheEntry> it : ENTRIES.entrySet()) {
             String path = it.getKey();
             CacheEntry e = it.getValue();
             e.lock.lock();
             try {
-                if (!e.dirty && !e.flushing && e.data != null) {
-                    if (e.lastAccessNanos < oldestTs) {
-                        oldestTs = e.lastAccessNanos;
-                        oldestClean = path;
+                if (!e.flushing && e.data != null) {
+                    if (!e.dirty) {
+                        // Clean entries — keep the oldest temp and the oldest regular separately
+                        if (e.isTemp) {
+                            if (e.lastAccessNanos < oldestCleanTempTs) {
+                                oldestCleanTempTs = e.lastAccessNanos;
+                                oldestCleanTemp = path;
+                            }
+                        } else {
+                            if (e.lastAccessNanos < oldestCleanRegularTs) {
+                                oldestCleanRegularTs = e.lastAccessNanos;
+                                oldestCleanRegular = path;
+                            }
+                        }
                     }
                 }
             } finally { e.lock.unlock(); }
         }
 
-        if (oldestClean != null) {
-            CacheEntry e = ENTRIES.get(oldestClean);
+        // 2a) If we have a clean TEMP cache, delete it outright (TEMP has no disk anchor)
+        if (oldestCleanTemp != null) {
+            final String npath = normalizeFsPath(oldestCleanTemp);
+            CacheEntry e = ENTRIES.get(npath);
             if (e != null) {
                 e.lock.lock();
                 try {
-                    if (!e.dirty && !e.flushing && e.data != null) {
+                    if (e.isTemp && !e.flushing && e.data != null && !e.dirty) {
+                        long bytes = e.approxBytes;
+                        e.data = null;
+                        e.approxBytes = 0;
+                        e.pendingOps.clear();
+                        e.dirty = false;
+                        ENTRIES.remove(npath);
+                        ENQUEUED.remove(npath);
+                        synchronized (MEM_LOCK) {
+                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                        }
+                        Logger.log(Logger.TAG.WARN, "Memory cap: deleted CLEAN TEMP cache to free memory: " + npath);
+                        return;
+                    }
+                } finally { e.lock.unlock(); }
+            }
+        }
+
+        // 2b) Otherwise, evict oldest CLEAN regular cache (drop JSON only)
+        if (oldestCleanRegular != null) {
+            CacheEntry e = ENTRIES.get(oldestCleanRegular);
+            if (e != null) {
+                e.lock.lock();
+                try {
+                    if (!e.isTemp && !e.dirty && !e.flushing && e.data != null) {
                         long bytes = e.approxBytes;
                         e.data = null; // drop JSON
                         e.approxBytes = 0;
                         synchronized (MEM_LOCK) {
                             TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
                         }
-                        Logger.log(Logger.TAG.WARN, "Evicted clean cache to free memory: " + oldestClean);
+                        Logger.log(Logger.TAG.WARN, "Evicted clean cache to free memory: " + oldestCleanRegular);
+                        return;
                     }
                 } finally { e.lock.unlock(); }
             }
         }
+
+        // 3) LAST RESORT: if still over cap and no clean victims,
+        // delete the oldest TEMP entry (any state) to protect memory.
+        String oldestTempAny = null;
+        long oldestTempAnyTs = Long.MAX_VALUE;
+
+        for (Map.Entry<String, CacheEntry> it : ENTRIES.entrySet()) {
+            String path = it.getKey();
+            CacheEntry e = it.getValue();
+            e.lock.lock();
+            try {
+                if (e.isTemp && !e.flushing && e.data != null) {
+                    if (e.lastAccessNanos < oldestTempAnyTs) {
+                        oldestTempAnyTs = e.lastAccessNanos;
+                        oldestTempAny = path;
+                    }
+                }
+            } finally { e.lock.unlock(); }
+        }
+
+        if (oldestTempAny != null) {
+            final String npath = normalizeFsPath(oldestTempAny);
+            CacheEntry e = ENTRIES.get(npath);
+            if (e != null) {
+                e.lock.lock();
+                try {
+                    if (e.isTemp && !e.flushing && e.data != null) {
+                        long bytes = e.approxBytes;
+                        e.data = null;
+                        e.approxBytes = 0;
+                        e.pendingOps.clear();
+                        e.dirty = false;
+                        ENTRIES.remove(npath);
+                        ENQUEUED.remove(npath);
+                        synchronized (MEM_LOCK) {
+                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
+                        }
+                        Logger.log(Logger.TAG.WARN, "Memory cap: deleted TEMP cache (last resort) to free memory: " + npath);
+                        return;
+                    }
+                } finally { e.lock.unlock(); }
+            }
+        }
+
+        // If we get here, nothing was eligible to flush/evict/delete (rare).
+        Logger.log(Logger.TAG.DEBUG, "Memory cap enforcement found no eligible candidates this cycle.");
     }
 
     /* ===================== Helpers ===================== */

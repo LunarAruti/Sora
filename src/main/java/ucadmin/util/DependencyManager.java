@@ -54,11 +54,13 @@ public class DependencyManager {
             String corruptPath = ucadmin.main.BotConfig.CORRUPTPATH;
             String logPath = ucadmin.main.BotConfig.LOGPATH;
             String dumpPath = ucadmin.main.BotConfig.DUMPPATH;
+            String networkPath = ucadmin.main.BotConfig.NETWORKPATH;
 
             Logger.log(Logger.TAG.DEBUG, "Using configured paths from BotConfig:");
             Logger.log(Logger.TAG.DEBUG, "CORRUPTPATH=" + corruptPath);
             Logger.log(Logger.TAG.DEBUG, "LOGPATH=" + logPath);
             Logger.log(Logger.TAG.DEBUG, "DUMPPATH=" + dumpPath);
+            Logger.log(Logger.TAG.DEBUG, "NETWORKPATH=" + networkPath);
 
             // Ensure parent directories exist
             String corruptDir = new java.io.File(corruptPath).getParent();
@@ -69,6 +71,9 @@ public class DependencyManager {
 
             String dumpDir = new java.io.File(dumpPath).getParent();
             if (dumpDir != null) DatabaseManager.createFolder(dumpDir);
+
+            String netDir = new java.io.File(networkPath).getParent();
+            if (netDir != null) DatabaseManager.createFolder(netDir);
 
             // === ENSURE GLOBAL LOG FILE EXISTS ===
             if (!DatabaseManager.fileExists(logPath)) {
