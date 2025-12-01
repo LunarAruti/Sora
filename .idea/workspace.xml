@@ -7,25 +7,31 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="- Added CrashHandler.java&#10;- Crash handler now runs on startup and sweeps for any remaining patch files.&#10;- Recovery/flush and materialize all open patches and scan jsons for issues.&#10;- Aborts startup if any corrupt database files are found.">
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/NetworkException.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreaker.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/MemoryCacheManager.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/Net.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetUtils.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkClient.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryPolicy.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Initial network module push">
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/HttpExecutor.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkJournal.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkResult.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryDecider.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/DatabaseManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/DatabaseManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/NetworkException.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/NetworkException.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/BotConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/BotConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/storage/databasefinal/Setup.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreaker.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/MemoryCacheManager.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/Net.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetUtils.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkClient.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiter.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryPolicy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -178,7 +184,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762282918114</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Initial network module push">
+      <option name="closed" value="true" />
+      <created>1763092277979</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1763092277979</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -195,6 +209,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial project commit" />
     <MESSAGE value="- Added CrashHandler.java&#10;- Crash handler now runs on startup and sweeps for any remaining patch files.&#10;- Recovery/flush and materialize all open patches and scan jsons for issues.&#10;- Aborts startup if any corrupt database files are found." />
-    <option name="LAST_COMMIT_MESSAGE" value="- Added CrashHandler.java&#10;- Crash handler now runs on startup and sweeps for any remaining patch files.&#10;- Recovery/flush and materialize all open patches and scan jsons for issues.&#10;- Aborts startup if any corrupt database files are found." />
+    <MESSAGE value="Initial network module push" />
+    <option name="LAST_COMMIT_MESSAGE" value="Initial network module push" />
   </component>
 </project>

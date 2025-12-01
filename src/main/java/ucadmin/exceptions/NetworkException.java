@@ -1,277 +1,272 @@
 package ucadmin.exceptions;
 
-import java.util.Objects;
+import ucadmin.util.Logger;
 
 /**
- * Unified exception hierarchy for UC Admin Network module.
+ * Custom runtime exception for network-related failures.
  *
- * All network-related failures funnel through these classes.
- * Each carries full request context and retry hints for engine policy.
+ * <p>This exception is designed to carry rich context about a failed network
+ * operation, including:
+ * <ul>
+ *     <li>Logical service and endpoint names</li>
+ *     <li>Trace/correlation id</li>
+ *     <li>Final resolved URL</li>
+ *     <li>HTTP status code (if any)</li>
+ *     <li>Error classification (timeout, policy, I/O, etc.)</li>
+ *     <li>Number of attempts made</li>
+ * </ul>
  *
- * Retryable = true → client MAY retry according to RetryPolicy.
+ * <p>Every constructor automatically logs a summary of the failure to
+ * {@code ucadmin/LOGGER.txt} via {@link Logger} using the ERROR tag.
+ * The log entry includes the error type, service/endpoint, status code,
+ * attempts, URL, trace id, and the message/cause for quick debugging.
  */
-public class NetworkException extends Exception {
-    private static final long serialVersionUID = 1L;
+public class NetworkException extends RuntimeException {
 
-    // ---------- Context ----------
-    public final String service;     // e.g. "roblox"
-    public final String name;        // e.g. "GetFriends"
-    public final String traceId;     // correlation id
-    public final String url;         // rendered final URL
-    public final String requestType; // GET / POST_JSON / ...
-    public final boolean retryable;  // retry hint
+    /**
+     * High-level classification for network failures.
+     * Used for logging, metrics, and error handling decisions.
+     */
+    public enum ErrorType {
+        /** The request configuration was invalid before sending (bad URL, missing fields, etc.). */
+        INVALID_REQUEST,
+        /** A network or HTTP policy was violated (forbidden host, method, size, content-type, etc.). */
+        POLICY_VIOLATION,
+        /** The circuit breaker for this host/service is open; the call was rejected. */
+        CIRCUIT_OPEN,
+        /** The request exceeded its configured timeout (connect/read/wall-clock). */
+        TIMEOUT,
+        /** A low-level I/O failure occurred (connection dropped, DNS failure, etc.). */
+        NETWORK_IO,
+        /** The remote endpoint returned an unacceptable HTTP status code. */
+        REMOTE_STATUS,
+        /** The response body could not be decoded as expected (e.g. invalid JSON). */
+        DECODE_ERROR,
+        /** The request was cancelled or aborted by the system before completion. */
+        CANCELLED,
+        /** A generic catch-all for failures that do not match more specific categories. */
+        UNKNOWN
+    }
 
-    // ---------- Base constructor ----------
+    /** Classification of the error (never null). */
+    private final ErrorType errorType;
+
+    /** Logical service/group name (e.g. "roblox"), may be null if unknown. */
+    private final String service;
+
+    /** Logical endpoint name within the service (e.g. "GetFriends"), may be null. */
+    private final String endpoint;
+
+    /** Trace/correlation id, used to tie logs/metrics together, may be null. */
+    private final String traceId;
+
+    /** Final resolved URL (after template + query rendering), may be null if not available. */
+    private final String url;
+
+    /** HTTP status code if the remote responded, null if not reached or unknown. */
+    private final Integer statusCode;
+
+    /** Number of attempts made (including the initial one), may be null if not tracked. */
+    private final Integer attempts;
+
+    /**
+     * Constructs a new NetworkException with the specified detail message and
+     * a generic {@link ErrorType#UNKNOWN}. No additional context is recorded.
+     *
+     * @param message the detail message describing the error
+     */
+    public NetworkException(String message) {
+        this(ErrorType.UNKNOWN, message, null,
+                null, null, null, null, null);
+    }
+
+    /**
+     * Constructs a new NetworkException with the specified detail message,
+     * cause, and a generic {@link ErrorType#UNKNOWN}.
+     *
+     * @param message the detail message describing the error
+     * @param cause   the underlying cause of this exception
+     */
+    public NetworkException(String message, Throwable cause) {
+        this(ErrorType.UNKNOWN, message, cause,
+                null, null, null, null, null);
+    }
+
+    /**
+     * Constructs a new NetworkException with a specific error type and message.
+     * No additional context fields are populated.
+     *
+     * @param errorType classification of the network failure
+     * @param message   human-readable description of the error
+     */
+    public NetworkException(ErrorType errorType, String message) {
+        this(errorType, message, null,
+                null, null, null, null, null);
+    }
+
+    /**
+     * Constructs a new NetworkException with a specific error type, message, and cause.
+     * No additional context fields are populated.
+     *
+     * @param errorType classification of the network failure
+     * @param message   human-readable description of the error
+     * @param cause     underlying cause (I/O exception, JSON error, etc.)
+     */
+    public NetworkException(ErrorType errorType, String message, Throwable cause) {
+        this(errorType, message, cause,
+                null, null, null, null, null);
+    }
+
+    /**
+     * Fully-detailed constructor for network failures. Use this when throwing from
+     * the network worker so logs and callers have complete context about what failed.
+     *
+     * @param errorType  classification of the network failure (never null)
+     * @param message    human-readable description of the error
+     * @param cause      underlying cause (I/O exception, JSON error, etc.), may be null
+     * @param service    logical service name (e.g. "roblox"), may be null
+     * @param endpoint   logical endpoint name (e.g. "GetFriends"), may be null
+     * @param traceId    correlation id tying this request to other logs/metrics, may be null
+     * @param url        final resolved request URL (including path and query), may be null
+     * @param statusCode HTTP status code if the remote responded, or null if none
+     * @param attempts   number of attempts made (including the first), or null if not tracked
+     */
     public NetworkException(
+            ErrorType errorType,
             String message,
+            Throwable cause,
             String service,
-            String name,
+            String endpoint,
             String traceId,
             String url,
-            String requestType,
-            boolean retryable,
-            Throwable cause
+            Integer statusCode,
+            Integer attempts
     ) {
-        super(Objects.requireNonNullElse(message, "Network failure"), cause);
+        super(message, cause);
+        this.errorType = (errorType != null) ? errorType : ErrorType.UNKNOWN;
         this.service = service;
-        this.name = name;
+        this.endpoint = endpoint;
         this.traceId = traceId;
         this.url = url;
-        this.requestType = requestType;
-        this.retryable = retryable;
+        this.statusCode = statusCode;
+        this.attempts = attempts;
+        logSelf();
     }
 
-    /** Compact, structured breadcrumb for logs. */
-    public String getContext() {
-        return "svc=" + safe(service) +
-                " op=" + safe(name) +
-                " type=" + safe(requestType) +
-                " trace=" + safe(traceId) +
-                " url=" + safe(url);
+    /**
+     * Convenience constructor without attempts; all other context is the same
+     * as the full constructor.
+     */
+    public NetworkException(
+            ErrorType errorType,
+            String message,
+            Throwable cause,
+            String service,
+            String endpoint,
+            String traceId,
+            String url,
+            Integer statusCode
+    ) {
+        this(errorType, message, cause, service, endpoint, traceId, url, statusCode, null);
     }
 
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "(" + getMessage() + ") [" + getContext() + "]";
+    // --------- getters ---------
+
+    /**
+     * Returns the high-level classification of this network failure.
+     */
+    public ErrorType getErrorType() {
+        return errorType;
     }
 
-    private static String safe(String s) { return s == null ? "<null>" : s; }
-
-    // ========================================================================
-    // =============== Derived Exception Classes =============================
-    // ========================================================================
-
-    // ---------------------- HTTP LAYER -------------------------------------
-
-    /** Generic HTTP 4xx/5xx exception. */
-    public static class NetworkHttpException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-
-        public final int status;
-        public final String bodyPreview;
-        public final Long retryAfterMillis;
-
-        public NetworkHttpException(
-                String message,
-                int status,
-                String bodyPreview,
-                Long retryAfterMillis,
-                String service,
-                String name,
-                String traceId,
-                String url,
-                String requestType,
-                boolean retryable,
-                Throwable cause
-        ) {
-            super(message, service, name, traceId, url, requestType, retryable, cause);
-            this.status = status;
-            this.bodyPreview = bodyPreview;
-            this.retryAfterMillis = retryAfterMillis;
-        }
-
-        @Override
-        public String toString() {
-            return super.toString() + " status=" + status +
-                    (retryAfterMillis != null ? " retryAfterMs=" + retryAfterMillis : "") +
-                    (bodyPreview != null && !bodyPreview.isEmpty()
-                            ? " bodyPreview=" + summarize(bodyPreview)
-                            : "");
-        }
-
-        private static String summarize(String s) {
-            return (s.length() > 256) ? s.substring(0, 256) + " …" : s;
-        }
+    /**
+     * Returns the logical service/group name associated with this request,
+     * or null if not specified.
+     */
+    public String getService() {
+        return service;
     }
 
-    /** 401 / 403 authentication failure. */
-    public static final class NetworkAuthException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkAuthException(int status, String bodyPreview, String service, String name,
-                                    String trace, String url, String type, Throwable cause) {
-            super("AUTH_FAILED (" + status + ")", status, bodyPreview, null,
-                    service, name, trace, url, type, false, cause);
-        }
+    /**
+     * Returns the logical endpoint name associated with this request,
+     * or null if not specified.
+     */
+    public String getEndpoint() {
+        return endpoint;
     }
 
-    /** 404 missing resource. */
-    public static final class NetworkNotFoundException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkNotFoundException(String bodyPreview, String service, String name,
-                                        String trace, String url, String type, Throwable cause) {
-            super("NOT_FOUND (404)", 404, bodyPreview, null,
-                    service, name, trace, url, type, false, cause);
-        }
+    /**
+     * Returns the trace/correlation id for this request, or null if not set.
+     */
+    public String getTraceId() {
+        return traceId;
     }
 
-    /** 429 rate limited by server. */
-    public static final class NetworkRateLimitedException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkRateLimitedException(String bodyPreview, Long retryAfterMs,
-                                           String service, String name, String trace, String url, String type, Throwable cause) {
-            super("RATE_LIMITED (429)", 429, bodyPreview, retryAfterMs,
-                    service, name, trace, url, type, true, cause);
-        }
+    /**
+     * Returns the final resolved URL for this request, or null if not available.
+     */
+    public String getUrl() {
+        return url;
     }
 
-    /** 5xx server-side failure. */
-    public static final class NetworkUpstreamException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkUpstreamException(int status, String bodyPreview,
-                                        String service, String name, String trace, String url, String type, Throwable cause) {
-            super("UPSTREAM_ERROR (" + status + ")", status, bodyPreview, null,
-                    service, name, trace, url, type, true, cause);
-        }
+    /**
+     * Returns the HTTP status code returned by the remote endpoint, or null
+     * if no response was received.
+     */
+    public Integer getStatusCode() {
+        return statusCode;
     }
 
-    /** 400 invalid request body or parameters. */
-    public static final class NetworkBadRequestException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkBadRequestException(String bodyPreview, String service, String name,
-                                          String trace, String url, String type, Throwable cause) {
-            super("BAD_REQUEST (400)", 400, bodyPreview, null,
-                    service, name, trace, url, type, false, cause);
-        }
+    /**
+     * Returns the number of attempts made for this request (including the initial one),
+     * or null if the information was not recorded.
+     */
+    public Integer getAttempts() {
+        return attempts;
     }
 
-    /** 502/503/504 gateway or proxy failure. */
-    public static final class NetworkGatewayException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkGatewayException(int status, String bodyPreview, String service,
-                                       String name, String trace, String url, String type, Throwable cause) {
-            super("GATEWAY_ERROR (" + status + ")", status, bodyPreview, null,
-                    service, name, trace, url, type, true, cause);
+    // --------- logging helper ---------
+
+    /**
+     * Builds and emits a compact log line describing this network failure.
+     * Uses Logger.TAG.ERROR.
+     */
+    private void logSelf() {
+        StringBuilder sb = new StringBuilder("[NetworkException] ")
+                .append("type=").append(errorType);
+
+        if (service != null) {
+            sb.append(" | service=").append(service);
         }
-    }
-
-    /** 409 conflict or version mismatch. */
-    public static final class NetworkConflictException extends NetworkHttpException {
-        private static final long serialVersionUID = 1L;
-        public NetworkConflictException(String bodyPreview, String service, String name,
-                                        String trace, String url, String type, Throwable cause) {
-            super("CONFLICT (409)", 409, bodyPreview, null,
-                    service, name, trace, url, type, false, cause);
+        if (endpoint != null) {
+            sb.append(" | endpoint=").append(endpoint);
         }
-    }
-
-    // ---------------------- CLIENT-SIDE -------------------------------------
-
-    /** Timeout waiting for response (retryable). */
-    public static final class NetworkTimeoutException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public NetworkTimeoutException(String msg, String svc, String name, String trace,
-                                       String url, String type, Throwable cause) {
-            super(msg, svc, name, trace, url, type, true, cause);
+        if (statusCode != null) {
+            sb.append(" | status=").append(statusCode);
         }
-    }
-
-    /** Local connection failure (DNS, SSL, socket). */
-    public static final class NetworkConnectionException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public NetworkConnectionException(String msg, String svc, String name, String trace,
-                                          String url, String type, Throwable cause) {
-            super(msg, svc, name, trace, url, type, true, cause);
+        if (attempts != null) {
+            sb.append(" | attempts=").append(attempts);
         }
-    }
-
-    /** Failed to parse or interpret JSON. */
-    public static final class NetworkDecodeException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public NetworkDecodeException(String msg, String svc, String name, String trace,
-                                      String url, String type, Throwable cause) {
-            super(msg, svc, name, trace, url, type, false, cause);
+        if (url != null) {
+            sb.append(" | url=").append(url);
         }
-    }
-
-    /** Request rejected before send (invalid params). */
-    public static final class NetworkValidationException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public NetworkValidationException(String msg, String svc, String name, String trace,
-                                          String url, String type, Throwable cause) {
-            super(msg, svc, name, trace, url, type, false, cause);
+        if (traceId != null) {
+            sb.append(" | traceId=").append(traceId);
         }
-    }
 
-    /** Internal logic failure inside the network engine. */
-    public static final class NetworkInternalException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public NetworkInternalException(String msg, String svc, String name, String trace,
-                                        String url, String type, Throwable cause) {
-            super(msg, svc, name, trace, url, type, false, cause);
+        String msg = getMessage();
+        if (msg != null && !msg.isBlank()) {
+            sb.append(" | message=").append(msg);
         }
-    }
 
-    // ---------------------- RESILIENCE --------------------------------------
-
-    /** Local rate limiter token bucket depleted. */
-    public static final class RateLimitException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public RateLimitException(String msg, String svc, String name, String trace,
-                                  String url, String type, Throwable cause) {
-            super(msg != null ? msg : "RATE_LIMITED: local bucket empty",
-                    svc, name, trace, url, type, true, cause);
+        Throwable cause = getCause();
+        if (cause != null) {
+            sb.append(" | cause=")
+                    .append(cause.getClass().getSimpleName())
+                    .append(": ")
+                    .append(cause.getMessage());
         }
-    }
 
-    /** Circuit breaker open (too many consecutive failures). */
-    public static final class CircuitOpenException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public CircuitOpenException(String msg, String svc, String name, String trace,
-                                    String url, String type, Throwable cause) {
-            super(msg != null ? msg : "CIRCUIT_OPEN: breaker active",
-                    svc, name, trace, url, type, false, cause);
-        }
-    }
-
-    /** Retry attempts exceeded per policy. */
-    public static final class RetryExhaustedException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public RetryExhaustedException(String msg, String svc, String name, String trace,
-                                       String url, String type, Throwable cause) {
-            super(msg != null ? msg : "RETRY_EXHAUSTED: maximum attempts reached",
-                    svc, name, trace, url, type, false, cause);
-        }
-    }
-
-    // ---------------------- CACHE -------------------------------------------
-
-    /** Failed to write network result to memory cache. */
-    public static final class CacheWriteException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public CacheWriteException(String msg, String svc, String name, String trace,
-                                   String url, String type, Throwable cause) {
-            super(msg != null ? msg : "CACHE_WRITE_FAILED: could not store JSON",
-                    svc, name, trace, url, type, false, cause);
-        }
-    }
-
-    /** Failed to read memory-cached result. */
-    public static final class CacheReadException extends NetworkException {
-        private static final long serialVersionUID = 1L;
-        public CacheReadException(String msg, String svc, String name, String trace,
-                                  String url, String type, Throwable cause) {
-            super(msg != null ? msg : "CACHE_READ_FAILED: could not load from memory",
-                    svc, name, trace, url, type, false, cause);
-        }
+        Logger.log(Logger.TAG.ERROR, sb.toString());
     }
 }

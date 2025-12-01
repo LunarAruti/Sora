@@ -12,6 +12,7 @@ import ucadmin.database.CrashHandler;
 
 import ucadmin.exceptions.DatabaseException;
 import ucadmin.exceptions.QueueException;
+import ucadmin.main.BotConfig;
 
 /**
  * Handles all startup-time initialization once the JDA session is ready.
@@ -39,6 +40,10 @@ public class StartupManager extends ListenerAdapter {
         QueueManager.RawIO.bindWriter(DatabaseManager::writeJSONRaw);
         QueueManager.RawIO.bindMover(DatabaseManager::moveToCorrupt);
         QueueManager.RawIO.bindPatchAppender(DatabaseManager::appendJSONPatch);
+        Logger.log(Logger.TAG.INFO, "Queue-Batch workers binded.");
+
+        ucadmin.network.NetworkManager.start(BotConfig.netWorkerThreads);
+        Logger.log(Logger.TAG.INFO, "Network manager Threads binded. Total: " + BotConfig.netWorkerThreads);
 
         try {
             Logger.log(Logger.TAG.SYSTEM, "Starting database initialization...");

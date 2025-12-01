@@ -7,6 +7,9 @@ public class BotConfig {
     public static final String CLIENT_ID = "870207081695838209";
     public static final String OWNER_ID = "516854610024071188";
     public static final String PREFIX = "_";
+
+    public static final int netWorkerThreads = 2;
+
     public static final String LOGPATH = "C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\LOGGER.txt";
     public static final String CORRUPTPATH = "C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\corrupt";
     public static final String DUMPPATH = "C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\corrupt\\DUMP.txt";

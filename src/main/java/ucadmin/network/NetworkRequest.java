@@ -1,6 +1,7 @@
 package ucadmin.network;
 
 import org.json.JSONObject;
+import ucadmin.util.Logger;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -18,22 +19,30 @@ import java.util.function.Supplier;
  *   - {?name} : OPTIONAL query parameter (included only if provided in vars)
  *   - {*rest} : REQUIRED "splat" tail (MUST be pre-encoded; appended as-is)
  *
- * Defaults:
- *   - authStrategy = NONE
- *   - timeout      = 20 seconds
- *   - responseType = JSON_OBJECT
+ * Defaults (applied during construction/seal()):
+ *   - type           = GET
+ *   - authStrategy   = NONE
+ *   - timeout        = 20 seconds (wall-clock)
+ *   - responseType   = JSON_OBJECT
  *   - projectionPath = null (return entire JSON body)
- *   - returnAlias  = name
- *   - cachePath    = mem:/database/network/{service}/{returnAlias} (in-memory only)
+ *   - returnAlias    = name
+ *   - cachePath      = mem:/database/network/{service}/{returnAlias} (in-memory only)
+ *   - priority       = NORMAL
+ *   - retryPolicy    = idempotent-only, 3 attempts, exponential backoff, 429/5xx/timeout/network
+ *   - failureMode    = FAIL_FAST
+ *   - followRedirects = true, maxRedirects = 5
+ *   - treatOtherStatusAsError = true (non-2xx treated as error unless overridden)
+ *   - collectMetrics = true
  *
  * Validation enforced by seal():
- *   - type, requestUrl, path, responseType are required (responseType has a default)
+ *   - requestUrl, path, responseType must be present/valid
  *   - path must start with '/'
  *   - all {var} present in vars; {*rest} non-empty if used
  *   - GET/DELETE must not have a body; POST/PUT/PATCH must have a JSON body
  *   - auth rules based on strategy (see setters)
  *   - timeout in [100ms, 120000ms]
  *   - projectionPath allowed only with JSON_* response types (null = full body)
+ *   - retryPolicy and redirect settings validated for sane ranges
  *
  * Immutability:
  *   - After seal(), ALL setters throw IllegalStateException. Use a new instance if you need changes.
@@ -51,6 +60,133 @@ public final class NetworkRequest {
     /** How credentials are attached. */
     public enum AuthStrategy { NONE, BEARER, API_KEY_HEADER, CUSTOM_SIGNER }
 
+    /**
+     * Logical priority hint for the network worker.
+     * HIGH requests are processed before NORMAL, then LOW/BACKGROUND.
+     */
+    public enum Priority {
+        HIGH,
+        NORMAL,
+        LOW,
+        BACKGROUND
+    }
+
+    /**
+     * How the retry system is allowed to behave when a request fails.
+     */
+    public enum RetryMode {
+        /** Never retry; exactly one attempt is made. */
+        NEVER,
+        /**
+         * Retry only when the operation is considered idempotent or safe
+         * (typically GET/DELETE, or POST/PUT/PATCH with an idempotency key).
+         */
+        IDEMPOTENT_ONLY,
+        /**
+         * Caller explicitly allows retries regardless of method semantics.
+         * Use with care for non-idempotent operations.
+         */
+        ALWAYS
+    }
+
+    /**
+     * What the network layer should do when a request ultimately fails.
+     */
+    public enum FailureMode {
+        /**
+         * Throw a NetworkException from the network layer. The cache path
+         * may or may not contain a partial/failed result depending on the
+         * implementation of the worker.
+         */
+        FAIL_FAST,
+        /**
+         * Always write a structured error JSON into the cachePath
+         * (e.g. { "ok": false, "error": { ... } }) and avoid throwing.
+         * The caller is expected to inspect the result via DBM.
+         */
+        WRITE_ERROR_JSON
+    }
+
+    // ---------------- Retry policy model ----------------
+
+    /**
+     * Immutable description of how and when the worker may retry this request.
+     * The network worker reads this and decides if/when to schedule additional
+     * attempts for timeouts, 5xx, 429s, etc.
+     */
+    public static final class RetryPolicy {
+        private final RetryMode mode;
+        private final int maxAttempts;
+        private final long initialBackoffMs;
+        private final double backoffFactor;
+        private final Set<Integer> retryOnStatus;
+        private final boolean retryOnTimeout;
+        private final boolean retryOnNetworkError;
+
+        /**
+         * Constructs a retry policy.
+         *
+         * @param mode                High-level mode controlling when retries are permitted.
+         * @param maxAttempts         Total attempts allowed (first attempt + retries). Must be >= 1.
+         * @param initialBackoffMs    Delay before the first retry in milliseconds (0 for no delay).
+         * @param backoffFactor       Multiplier applied to the delay after each attempt (e.g. 2.0 for exponential backoff).
+         * @param retryOnStatus       HTTP statuses that are considered retryable (e.g. 429, 500, 502, 503, 504).
+         * @param retryOnTimeout      Whether timeouts should be retried.
+         * @param retryOnNetworkError Whether generic network I/O errors should be retried.
+         */
+        public RetryPolicy(
+                RetryMode mode,
+                int maxAttempts,
+                long initialBackoffMs,
+                double backoffFactor,
+                Set<Integer> retryOnStatus,
+                boolean retryOnTimeout,
+                boolean retryOnNetworkError
+        ) {
+            this.mode = Objects.requireNonNull(mode, "mode");
+            this.maxAttempts = maxAttempts;
+            this.initialBackoffMs = initialBackoffMs;
+            this.backoffFactor = backoffFactor;
+            this.retryOnStatus = (retryOnStatus == null || retryOnStatus.isEmpty())
+                    ? Collections.emptySet()
+                    : Set.copyOf(retryOnStatus);
+            this.retryOnTimeout = retryOnTimeout;
+            this.retryOnNetworkError = retryOnNetworkError;
+        }
+
+        /**
+         * Convenience factory for a reasonable default policy:
+         * - mode              = IDEMPOTENT_ONLY
+         * - maxAttempts       = 3
+         * - initialBackoffMs  = 250
+         * - backoffFactor     = 2.0
+         * - retryOnStatus     = {429, 500, 502, 503, 504}
+         * - retryOnTimeout    = true
+         * - retryOnNetworkError = true
+         */
+        public static RetryPolicy newDefaultIdempotent() {
+            return new RetryPolicy(
+                    RetryMode.IDEMPOTENT_ONLY,
+                    3,
+                    250,
+                    2.0,
+                    Set.of(429, 500, 502, 503, 504),
+                    true,
+                    true
+            );
+        }
+
+        public RetryMode getMode() { return mode; }
+        public int getMaxAttempts() { return maxAttempts; }
+        public long getInitialBackoffMs() { return initialBackoffMs; }
+        public double getBackoffFactor() { return backoffFactor; }
+        public Set<Integer> getRetryOnStatus() { return retryOnStatus; }
+        public boolean isRetryOnTimeout() { return retryOnTimeout; }
+        public boolean isRetryOnNetworkError() { return retryOnNetworkError; }
+    }
+
+    private static final RetryPolicy DEFAULT_RETRY_POLICY = RetryPolicy.newDefaultIdempotent();
+
     // ---------------- Identity ----------------
 
     /** Logical group (for logs/rate buckets), e.g., "roblox". */
@@ -64,8 +200,8 @@ public final class NetworkRequest {
 
     // ---------------- Request shape ----------------
 
-    /** Required; HTTP type. */
-    private Type type;
+    /** HTTP type; defaults to GET when not explicitly set. */
+    private Type type = Type.GET;
 
     /** Absolute base URL, e.g., "https://apis.roblox.com". */
     private String requestUrl;
@@ -104,6 +240,10 @@ public final class NetworkRequest {
     /** Per-request wall timeout (default 20s). */
     private Duration timeout = Duration.ofSeconds(20);
 
+    /** Optional more granular timeouts (fallback to {@link #timeout} when null). */
+    private Duration connectTimeout;
+    private Duration readTimeout;
+
     /** Rate limiter lane (group), e.g., "roblox.read" (optional; defaults to service). */
     private String rateBucket;
 
@@ -113,6 +253,15 @@ public final class NetworkRequest {
     /** Safe write retries when upstream supports idempotent POST/PUT/PATCH. */
     private String idempotencyKey;
 
+    /** Overall priority hint for scheduling in the network worker. */
+    private Priority priority = Priority.NORMAL;
+
+    /** How the worker may retry this request (null → default applied on seal). */
+    private RetryPolicy retryPolicy;
+
+    /** Behavior when the request ultimately fails after all attempts. */
+    private FailureMode failureMode = FailureMode.FAIL_FAST;
+
     // ---------------- Response contract ----------------
 
     /** Expected body shape (default JSON_OBJECT). */
@@ -120,6 +269,18 @@ public final class NetworkRequest {
 
     /** Optional DBM-style JSON path projection; null = entire JSON. */
     private String projectionPath;
+
+    /**
+     * Which HTTP status codes are considered "successful" for this request.
+     * If null, the network layer may treat any 2xx as acceptable by default.
+     */
+    private Set<Integer> acceptableStatusCodes;
+
+    /**
+     * When true, any status code not in {@link #acceptableStatusCodes} (or
+     * outside the default 2xx range when that set is null) is treated as an error.
+     */
+    private boolean treatOtherStatusAsError = true;
 
     /** Friendly label for logs/cache; defaults to name. */
     private String returnAlias;
@@ -134,6 +295,27 @@ public final class NetworkRequest {
 
     /** Optional TTL (seconds) for the in-memory entry. */
     private Integer cacheTtlSeconds;
+
+    /** Optional maximum response size in bytes (null = no explicit per-request cap). */
+    private Long maxResponseBytes;
+
+    /** Optional whitelist of allowed Content-Types (null = no per-request restriction). */
+    private Set<String> allowedContentTypes;
+
+    /** Whether redirects are followed for this request (default true). */
+    private boolean followRedirects = true;
+
+    /** Maximum number of redirects to follow when {@link #followRedirects} is true. */
+    private int maxRedirects = 5;
+
+    /** Whether to collect and store metrics like latency, attempts, etc. */
+    private boolean collectMetrics = true;
+
+    /**
+     * Optional key for request deduplication/coalescing.
+     * When set, the worker may merge in-flight identical requests keyed by this value.
+     */
+    private String dedupeKey;
 
     // ---------------- Derived after seal() ----------------
 
@@ -150,24 +332,90 @@ public final class NetworkRequest {
 
     // ------------- ctor -------------
 
+    /**
+     * Creates a new NetworkRequest tied to a logical service and endpoint name.
+     *
+     * @param service Logical service/group name, used in logs and as a default rate limiter bucket.
+     * @param name    Human-readable endpoint name, used in logs and as the default returnAlias.
+     */
     public NetworkRequest(String service, String name) {
         this.service = nonEmpty(service, "service");
         this.name = nonEmpty(name, "name");
+        Logger.log(Logger.TAG.REQUEST,
+                "NRO<init>: created request object for service=" + service + ", name=" + name);
     }
+
 
     // ------------- fluent setters (all guard ensureNotSealed) -------------
 
     // identity
-    public NetworkRequest setTraceId(String id) { ensureNotSealed(); this.traceId = id; return this; }
+
+    /**
+     * Sets an explicit trace/correlation id to tag this request in logs and metrics.
+     * If not provided, a random UUID is generated at seal() time.
+     */
+    public NetworkRequest setTraceId(String id) {
+        ensureNotSealed();
+        this.traceId = id;
+        return this;
+    }
 
     // request shape
-    public NetworkRequest setType(Type t) { ensureNotSealed(); this.type = Objects.requireNonNull(t); return this; }
-    public NetworkRequest setRequestUrl(String url) { ensureNotSealed(); this.requestUrl = url; return this; }
-    public NetworkRequest setPath(String p) { ensureNotSealed(); this.path = p; return this; }
-    public NetworkRequest putVar(String key, Object val) { ensureNotSealed(); this.vars.put(key, val); return this; }
-    public NetworkRequest putVars(Map<String, ?> m) { ensureNotSealed(); if (m != null) m.forEach(this::putVar); return this; }
 
-    /** Sets a header; disallows transport-managed headers (Host, Content-Length, Accept-Encoding). */
+    /**
+     * Sets the HTTP method/type (GET, POST_JSON, etc.).
+     * Defaults to GET when not called.
+     */
+    public NetworkRequest setType(Type t) {
+        ensureNotSealed();
+        this.type = Objects.requireNonNull(t);
+        return this;
+    }
+
+    /**
+     * Sets the absolute base URL for the request, e.g. "https://apis.example.com".
+     * Must include a scheme and host; validated on seal().
+     */
+    public NetworkRequest setRequestUrl(String url) {
+        ensureNotSealed();
+        this.requestUrl = url;
+        return this;
+    }
+
+    /**
+     * Sets the path template for this request.
+     * Must start with '/' and may contain {var}, {?q}, and {*rest} placeholders.
+     */
+    public NetworkRequest setPath(String p) {
+        ensureNotSealed();
+        this.path = p;
+        return this;
+    }
+
+    /**
+     * Binds a single template variable used in the path or optional query parameters.
+     * The same var map is used for {var}, {?q}, and {*rest}.
+     */
+    public NetworkRequest putVar(String key, Object val) {
+        ensureNotSealed();
+        this.vars.put(key, val);
+        return this;
+    }
+
+    /**
+     * Binds multiple template variables at once.
+     * Null map is ignored; existing keys are overwritten.
+     */
+    public NetworkRequest putVars(Map<String, ?> m) {
+        ensureNotSealed();
+        if (m != null) m.forEach(this::putVar);
+        return this;
+    }
+
+    /**
+     * Sets a custom header on this request.
+     * Transport-managed headers like Host, Content-Length, Accept-Encoding are rejected.
+     */
     public NetworkRequest header(String k, String v) {
         ensureNotSealed();
         if (k == null || k.isBlank()) throw new IllegalArgumentException("Header name is empty");
@@ -179,9 +427,22 @@ public final class NetworkRequest {
         return this;
     }
 
-    public NetworkRequest setJsonBody(JSONObject body) { ensureNotSealed(); this.jsonBody = body; return this; }
+    /**
+     * Sets the JSON body for POST/PUT/PATCH JSON requests.
+     * For GET/DELETE, providing a body is forbidden and will fail at seal().
+     */
+    public NetworkRequest setJsonBody(JSONObject body) {
+        ensureNotSealed();
+        this.jsonBody = body;
+        return this;
+    }
 
     // auth
+
+    /**
+     * Configures Bearer token authentication.
+     * A token provider is invoked at execution time to obtain the current token.
+     */
     public NetworkRequest setAuthBearer(Supplier<String> tokenProvider) {
         ensureNotSealed();
         this.authStrategy = AuthStrategy.BEARER;
@@ -189,6 +450,11 @@ public final class NetworkRequest {
         this.authProvider = tokenProvider;
         return this;
     }
+
+    /**
+     * Configures an API-key style header, such as "X-API-Key".
+     * The key provider is invoked at execution time.
+     */
     public NetworkRequest setAuthApiKey(String headerName, Supplier<String> keyProvider) {
         ensureNotSealed();
         this.authStrategy = AuthStrategy.API_KEY_HEADER;
@@ -196,7 +462,12 @@ public final class NetworkRequest {
         this.authProvider = keyProvider;
         return this;
     }
-    public NetworkRequest setAuthCustom(BiConsumer<RequestDraft, Map<String,String>> signer) {
+
+    /**
+     * Configures a custom signer callback, invoked after URL/body are rendered.
+     * The signer may add additional headers (such as HMAC signatures).
+     */
+    public NetworkRequest setAuthCustom(BiConsumer<RequestDraft, Map<String, String>> signer) {
         ensureNotSealed();
         this.authStrategy = AuthStrategy.CUSTOM_SIGNER;
         this.customSigner = signer;
@@ -204,32 +475,267 @@ public final class NetworkRequest {
     }
 
     // resilience
-    public NetworkRequest setTimeout(Duration d) { ensureNotSealed(); this.timeout = Objects.requireNonNull(d); return this; }
-    public NetworkRequest setRateBucket(String b) { ensureNotSealed(); this.rateBucket = b; return this; }
-    public NetworkRequest setCircuitKey(String k) { ensureNotSealed(); this.circuitKey = k; return this; }
-    public NetworkRequest setIdempotencyKey(String k) { ensureNotSealed(); this.idempotencyKey = k; return this; }
+
+    /**
+     * Sets the wall-clock timeout for this request.
+     * Must be between 100ms and 120s inclusive.
+     */
+    public NetworkRequest setTimeout(Duration d) {
+        ensureNotSealed();
+        this.timeout = Objects.requireNonNull(d);
+        return this;
+    }
+
+    /**
+     * Sets a more granular connection timeout.
+     * If not set, the network implementation falls back to {@link #getTimeout()}.
+     */
+    public NetworkRequest setConnectTimeout(Duration d) {
+        ensureNotSealed();
+        this.connectTimeout = d;
+        return this;
+    }
+
+    /**
+     * Sets a more granular read timeout.
+     * If not set, the network implementation falls back to {@link #getTimeout()}.
+     */
+    public NetworkRequest setReadTimeout(Duration d) {
+        ensureNotSealed();
+        this.readTimeout = d;
+        return this;
+    }
+
+    /**
+     * Assigns this request to a specific rate limiter bucket.
+     * If not set, the service name is used as the default bucket.
+     */
+    public NetworkRequest setRateBucket(String b) {
+        ensureNotSealed();
+        this.rateBucket = b;
+        return this;
+    }
+
+    /**
+     * Sets the logical circuit breaker key.
+     * If not set, the host component of the base URL is used.
+     */
+    public NetworkRequest setCircuitKey(String k) {
+        ensureNotSealed();
+        this.circuitKey = k;
+        return this;
+    }
+
+    /**
+     * Sets a unique idempotency key for this request.
+     * Upstream services that honor idempotency keys can safely deduplicate retries.
+     */
+    public NetworkRequest setIdempotencyKey(String k) {
+        ensureNotSealed();
+        this.idempotencyKey = k;
+        return this;
+    }
+
+    /**
+     * Sets the priority hint for this request (HIGH/NORMAL/LOW/BACKGROUND).
+     * A higher priority may be scheduled sooner by the network worker.
+     */
+    public NetworkRequest setPriority(Priority p) {
+        ensureNotSealed();
+        this.priority = Objects.requireNonNull(p);
+        return this;
+    }
+
+    /**
+     * Sets the retry policy used when the request fails due to timeouts, 5xx/429, etc.
+     * When not set, a reasonable default idempotent-only policy is applied.
+     */
+    public NetworkRequest setRetryPolicy(RetryPolicy policy) {
+        ensureNotSealed();
+        this.retryPolicy = policy;
+        return this;
+    }
+
+    /**
+     * Sets how the network layer should behave after a terminal failure:
+     * throw immediately (FAIL_FAST) or always write an error JSON (WRITE_ERROR_JSON).
+     */
+    public NetworkRequest setFailureMode(FailureMode mode) {
+        ensureNotSealed();
+        this.failureMode = Objects.requireNonNull(mode);
+        return this;
+    }
 
     // response
-    public NetworkRequest setResponseType(ResponseType rt) { ensureNotSealed(); this.responseType = Objects.requireNonNull(rt); return this; }
-    public NetworkRequest setProjectionPath(String p) { ensureNotSealed(); this.projectionPath = p; return this; }
-    public NetworkRequest setReturnAlias(String a) { ensureNotSealed(); this.returnAlias = a; return this; }
 
-    // caching
-    public NetworkRequest setCachePath(String path) { ensureNotSealed(); this.cachePath = path; return this; }
-    public NetworkRequest setCacheTtlSeconds(Integer ttl) { ensureNotSealed(); this.cacheTtlSeconds = ttl; return this; }
+    /**
+     * Declares the expected JSON response shape for this request.
+     * JSON_OBJECT assumes a top-level object; JSON_ARRAY assumes a top-level array.
+     */
+    public NetworkRequest setResponseType(ResponseType rt) {
+        ensureNotSealed();
+        this.responseType = Objects.requireNonNull(rt);
+        return this;
+    }
+
+    /**
+     * Sets an optional DBM-style projection path that will be applied to the JSON body.
+     * Null or blank means the entire JSON response is stored.
+     */
+    public NetworkRequest setProjectionPath(String p) {
+        ensureNotSealed();
+        this.projectionPath = p;
+        return this;
+    }
+
+    /**
+     * Declares which HTTP status codes should be treated as "successful" for this request.
+     * If left null, the implementation may treat the entire 2xx range as success.
+     */
+    public NetworkRequest setAcceptableStatusCodes(Set<Integer> codes) {
+        ensureNotSealed();
+        if (codes == null || codes.isEmpty()) {
+            this.acceptableStatusCodes = null;
+        } else {
+            this.acceptableStatusCodes = Set.copyOf(codes);
+        }
+        return this;
+    }
+
+    /**
+     * Controls whether any status code outside of {@link #acceptableStatusCodes} (or
+     * outside a default 2xx range when that is null) should be treated as an error.
+     */
+    public NetworkRequest setTreatOtherStatusAsError(boolean treatAsError) {
+        ensureNotSealed();
+        this.treatOtherStatusAsError = treatAsError;
+        return this;
+    }
+
+    /**
+     * Sets a friendly alias used in logs and as part of the default cache path.
+     * If not set, the endpoint {@link #name} is used as the alias.
+     * This does not affect the URL or HTTP behavior, only how results are labeled.
+     */
+    public NetworkRequest setReturnAlias(String a) {
+        ensureNotSealed();
+        this.returnAlias = a;
+        return this;
+    }
+
+    // caching / policy
+
+    /**
+     * Overrides the default cache path where the response will be written via DBM.
+     * By default, mem:/database/network/{service}/{returnAlias} is used.
+     */
+    public NetworkRequest setCachePath(String path) {
+        ensureNotSealed();
+        this.cachePath = path;
+        return this;
+    }
+
+    /**
+     * Sets an optional TTL (in seconds) for the cached entry.
+     * Null means no per-request TTL; a global cache policy may still apply.
+     */
+    public NetworkRequest setCacheTtlSeconds(Integer ttl) {
+        ensureNotSealed();
+        this.cacheTtlSeconds = ttl;
+        return this;
+    }
+
+    /**
+     * Sets a per-request maximum response size in bytes.
+     * If the response exceeds this size, the network layer may abort or treat it as an error.
+     */
+    public NetworkRequest setMaxResponseBytes(Long maxBytes) {
+        ensureNotSealed();
+        this.maxResponseBytes = maxBytes;
+        return this;
+    }
+
+    /**
+     * Configures a whitelist of allowed Content-Types for this response, e.g. "application/json".
+     * If null or empty, no per-request content-type restriction is applied.
+     */
+    public NetworkRequest setAllowedContentTypes(Set<String> types) {
+        ensureNotSealed();
+        if (types == null || types.isEmpty()) {
+            this.allowedContentTypes = null;
+        } else {
+            Set<String> cleaned = new HashSet<>();
+            for (String t : types) {
+                if (t != null && !t.isBlank()) {
+                    cleaned.add(t.trim().toLowerCase(Locale.ROOT));
+                }
+            }
+            this.allowedContentTypes = cleaned.isEmpty() ? null : Set.copyOf(cleaned);
+        }
+        return this;
+    }
+
+    /**
+     * Controls whether HTTP redirects are followed for this request.
+     * Defaults to true.
+     */
+    public NetworkRequest setFollowRedirects(boolean follow) {
+        ensureNotSealed();
+        this.followRedirects = follow;
+        return this;
+    }
+
+    /**
+     * Sets the maximum number of redirects the network layer may follow.
+     * Must be >= 0. Ignored when followRedirects is false.
+     */
+    public NetworkRequest setMaxRedirects(int max) {
+        ensureNotSealed();
+        this.maxRedirects = max;
+        return this;
+    }
+
+    /**
+     * Enables or disables metrics collection for this request.
+     * When true (default), the network layer may record latency, attempts, and other info
+     * alongside the response payload.
+     */
+    public NetworkRequest setCollectMetrics(boolean collect) {
+        ensureNotSealed();
+        this.collectMetrics = collect;
+        return this;
+    }
+
+    /**
+     * Sets a deduplication key used to coalesce identical in-flight requests.
+     * When multiple requests share the same key, the worker may reuse a single network call.
+     */
+    public NetworkRequest setDedupeKey(String key) {
+        ensureNotSealed();
+        this.dedupeKey = key;
+        return this;
+    }
 
     // ------------- sealing & validation -------------
 
     /** Validate all required fields, compute finalUrl/renderedHeaders/defaults. */
     public synchronized NetworkRequest seal() {
-        if (sealed) return this;
+        Logger.log(Logger.TAG.REQUEST,
+                "NRO.seal(): sealing request " + service + "/" + name +
+                        " traceId=" + (traceId == null ? "<null>" : traceId));
+
+        if (sealed) {
+            Logger.log(Logger.TAG.DEBUG,
+                    "NRO.seal(): request already sealed " + service + "/" + name);
+            return this;
+        }
 
         // identity defaults
         if (returnAlias == null || returnAlias.isBlank()) returnAlias = name;
         if (traceId == null || traceId.isBlank()) traceId = UUID.randomUUID().toString();
 
         // request shape
-        if (type == null) fail("MISSING_TYPE: No request type set.");
+        if (type == null) type = Type.GET; // defensive, should already be defaulted
         if (requestUrl == null || !isAbsoluteUrl(requestUrl))
             fail("INVALID_REQUEST_URL: Must include scheme and host: " + requestUrl);
         if (path == null || path.isBlank() || !path.startsWith("/"))
@@ -283,6 +789,15 @@ public final class NetworkRequest {
         if (ms < 100 || ms > 120_000)
             fail("TIMEOUT_OUT_OF_RANGE: " + ms + "ms (allowed 100..120000)");
 
+        if (maxRedirects < 0) {
+            fail("MAX_REDIRECTS_INVALID: must be >= 0 (was " + maxRedirects + ")");
+        }
+
+        if (retryPolicy == null) {
+            this.retryPolicy = DEFAULT_RETRY_POLICY;
+        }
+        validateRetryPolicy(this.retryPolicy);
+
         // response contract
         if (responseType == null) fail("INVALID_RESPONSE_TYPE: Response type must be set.");
         if (projectionPath != null && !projectionPath.isBlank()) {
@@ -303,6 +818,8 @@ public final class NetworkRequest {
         }
 
         sealed = true;
+        Logger.log(Logger.TAG.REQUEST,
+                "NRO.seal(): SUCCESS finalUrl=" + finalUrl + " cachePath=" + cachePath);
         return this;
     }
 
@@ -331,6 +848,8 @@ public final class NetworkRequest {
                     .append('=')
                     .append(URLEncoder.encode(String.valueOf(val), StandardCharsets.UTF_8));
         }
+        Logger.log(Logger.TAG.DEBUG,
+                "NRO.renderFinalUrl(): computed finalUrl=" + pathOut);
         return stripTrailingSlash(requestUrl) + pathOut + q;
     }
 
@@ -366,6 +885,9 @@ public final class NetworkRequest {
                 (type == Type.POST_JSON || type == Type.PUT_JSON || type == Type.PATCH_JSON)) {
             out.put("Idempotency-Key", idempotencyKey);
         }
+        Logger.log(Logger.TAG.DEBUG,
+                "NRO.renderHeaders(): rendered headers for " + service + "/" + name +
+                        " -> count=" + out.size());
         return out;
     }
 
@@ -382,10 +904,23 @@ public final class NetworkRequest {
     public String getProjectionPath() { return projectionPath; }
     public String getReturnAlias() { return returnAlias; }
     public Duration getTimeout() { return timeout; }
+    public Duration getConnectTimeout() { return connectTimeout; }
+    public Duration getReadTimeout() { return readTimeout; }
     public String getRateBucket() { return (rateBucket != null && !rateBucket.isBlank()) ? rateBucket : service; }
     public String getCircuitKey() { return (circuitKey != null && !circuitKey.isBlank()) ? circuitKey : URI.create(requestUrl).getHost(); }
     public String getCachePath() { return cachePath; }
     public Integer getCacheTtlSeconds() { return cacheTtlSeconds; }
+    public Priority getPriority() { return priority; }
+    public RetryPolicy getRetryPolicy() { return retryPolicy; }
+    public FailureMode getFailureMode() { return failureMode; }
+    public Set<Integer> getAcceptableStatusCodes() { return acceptableStatusCodes; }
+    public boolean isTreatOtherStatusAsError() { return treatOtherStatusAsError; }
+    public Long getMaxResponseBytes() { return maxResponseBytes; }
+    public Set<String> getAllowedContentTypes() { return allowedContentTypes; }
+    public boolean isFollowRedirects() { return followRedirects; }
+    public int getMaxRedirects() { return maxRedirects; }
+    public boolean isCollectMetrics() { return collectMetrics; }
+    public String getDedupeKey() { return dedupeKey; }
 
     // ------------- dev ergonomics -------------
 
@@ -415,10 +950,17 @@ public final class NetworkRequest {
         if (s == null || s.isBlank()) throw new IllegalArgumentException("Missing " + field);
         return s;
     }
-    private static void fail(String msg) { throw new IllegalStateException(msg); }
+    private static void fail(String msg) {
+        Logger.log(Logger.TAG.ERROR, "NRO validation failed: " + msg);
+        throw new IllegalStateException(msg);
+    }
     private void ensureSealed() { if (!sealed) fail("REQUEST_NOT_SEALED: Call seal() first."); }
     private void ensureNotSealed() {
-        if (sealed) throw new IllegalStateException("REQUEST_IMMUTABLE: This NetworkRequest is sealed.");
+        if (sealed) {
+            Logger.log(Logger.TAG.ERROR,
+                    "NRO: attempted mutation after seal() for " + service + "/" + name);
+            throw new IllegalStateException("REQUEST_IMMUTABLE: This NetworkRequest is sealed.");
+        }
     }
 
     private static boolean isAbsoluteUrl(String u) {
@@ -440,6 +982,24 @@ public final class NetworkRequest {
             return "REDACTED";
         }
         return v;
+    }
+
+    private void validateRetryPolicy(RetryPolicy p) {
+        Logger.log(Logger.TAG.DEBUG,
+                "NRO.validateRetryPolicy(): validating policy for " + service + "/" + name);
+        if (p == null) fail("RETRY_POLICY_NULL: retry policy must not be null after defaults.");
+        if (p.getMaxAttempts() < 1) {
+            fail("RETRY_POLICY_INVALID: maxAttempts must be >= 1 (was " + p.getMaxAttempts() + ")");
+        }
+        if (p.getInitialBackoffMs() < 0) {
+            fail("RETRY_POLICY_INVALID: initialBackoffMs must be >= 0 (was " + p.getInitialBackoffMs() + ")");
+        }
+        if (p.getBackoffFactor() <= 0.0) {
+            fail("RETRY_POLICY_INVALID: backoffFactor must be > 0 (was " + p.getBackoffFactor() + ")");
+        }
+        if (p.getMode() == RetryMode.NEVER && p.getMaxAttempts() != 1) {
+            fail("RETRY_POLICY_INVALID: RetryMode.NEVER requires maxAttempts == 1 (was " + p.getMaxAttempts() + ")");
+        }
     }
 
     // ----- tiny template engine -----

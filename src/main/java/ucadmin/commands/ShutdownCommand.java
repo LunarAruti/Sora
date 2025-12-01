@@ -33,6 +33,9 @@ public class ShutdownCommand extends ListenerAdapter {
         try {
             Logger.log(TAG.SYSTEM, "Shutdown command received. Beginning graceful termination...");
 
+            ucadmin.network.NetworkManager.shutdown();
+            ucadmin.database.BatchManager.shutdown();
+
             // Close any resources (e.g., DB or connections)
             Logger.log(TAG.INFO, "Graceful shutdown complete. Exiting process.");
 
