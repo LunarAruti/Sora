@@ -63,32 +63,52 @@ public final class CircuitBreakerRegistry {
         BreakerState state = BREAKERS.computeIfAbsent(key, k -> new BreakerState());
 
         synchronized (state) {
-            return switch (state.state) {
+            switch (state.state) {
+
                 case CLOSED -> {
                     Logger.log(Logger.TAG.REQUEST,
                             "Circuit[CLOSED] allowRequest=true key=" + key);
-                    yield true;
+                    return true;
                 }
+
                 case OPEN -> {
                     long elapsed = nowMillis - state.openedAtMillis;
                     if (elapsed >= OPEN_DURATION_MS) {
+                        // OPEN → HALF_OPEN
                         state.state = CircuitState.HALF_OPEN;
                         state.consecutiveFailures = 0;
+                        state.halfOpenProbeUsed = false; // reset probe flag
+
                         Logger.log(Logger.TAG.REQUEST,
                                 "Circuit[OPEN→HALF_OPEN] allowRequest=true key=" + key);
-                        yield true;
+                        return true;
                     }
+
                     Logger.log(Logger.TAG.REQUEST,
                             "Circuit[OPEN] allowRequest=false key=" + key +
                                     " remaining=" + (OPEN_DURATION_MS - elapsed));
-                    yield false;
+                    return false;
                 }
+
                 case HALF_OPEN -> {
+                    if (!state.halfOpenProbeUsed) {
+                        // allow exactly one probe
+                        state.halfOpenProbeUsed = true;
+                        Logger.log(Logger.TAG.REQUEST,
+                                "Circuit[HALF_OPEN] allowRequest=true (probe) key=" + key);
+                        return true;
+                    }
+
+                    // deny all subsequent attempts until probe result is known
                     Logger.log(Logger.TAG.REQUEST,
-                            "Circuit[HALF_OPEN] allowRequest=true key=" + key);
-                    yield true;
+                            "Circuit[HALF_OPEN] allowRequest=false (probe already used) key=" + key);
+                    return false;
                 }
-            };
+
+                default -> {
+                    return true; // should never reach here
+                }
+            }
         }
     }
 
@@ -127,6 +147,7 @@ public final class CircuitBreakerRegistry {
             state.consecutiveFailures = 0;
             state.openedAtMillis = 0L;
             state.lastFailureAtMillis = 0L;
+            state.halfOpenProbeUsed = false; // reset probe flag
 
             Logger.log(Logger.TAG.REQUEST,
                     "Circuit SUCCESS: key=" + key + " → CLOSED");
@@ -146,12 +167,28 @@ public final class CircuitBreakerRegistry {
 
         BreakerState state = BREAKERS.computeIfAbsent(key, k -> new BreakerState());
         synchronized (state) {
+
+            // Special behavior: in HALF_OPEN, ANY failure → go straight back to OPEN
+            if (state.state == CircuitState.HALF_OPEN) {
+                state.state = CircuitState.OPEN;
+                state.openedAtMillis = nowMillis;
+                state.lastFailureAtMillis = nowMillis;
+                state.consecutiveFailures = FAILURE_THRESHOLD; // treat failure as threshold breach
+                state.halfOpenProbeUsed = false;
+
+                Logger.log(Logger.TAG.REQUEST,
+                        "Circuit FAILURE in HALF_OPEN → OPEN key=" + key);
+                return;
+            }
+
+            // Normal CLOSED/OPEN failure logic
             state.consecutiveFailures++;
             state.lastFailureAtMillis = nowMillis;
 
             if (state.consecutiveFailures >= FAILURE_THRESHOLD) {
                 state.state = CircuitState.OPEN;
                 state.openedAtMillis = nowMillis;
+                state.halfOpenProbeUsed = false;
 
                 Logger.log(Logger.TAG.REQUEST,
                         "Circuit FAILURE: key=" + key +
@@ -267,5 +304,8 @@ public final class CircuitBreakerRegistry {
         int consecutiveFailures = 0;
         long openedAtMillis = 0L;
         long lastFailureAtMillis = 0L;
+
+        // NEW FIELD: tracks whether the HALF_OPEN probe has been used
+        boolean halfOpenProbeUsed = false;
     }
 }

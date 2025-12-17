@@ -204,7 +204,9 @@ public final class RateLimiterRegistry {
                 name -> {
                     Logger.log(Logger.TAG.SYSTEM,
                             "RateLimiterRegistry: auto-create bucket (estimate)=" + bucketName);
-                    return new Bucket(DEFAULT_CAPACITY, DEFAULT_REFILL_PER_SECOND, now);
+                    Bucket b = new Bucket(DEFAULT_CAPACITY, DEFAULT_REFILL_PER_SECOND, now);
+                    b.tokens = 0.0;
+                    return b;
                 }
         );
 

@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import ucadmin.util.Logger;
 import ucadmin.util.StartupManager;
 
 public class Main {
@@ -31,6 +32,11 @@ public class Main {
         jda.awaitReady();
 
         //Testing grounds
+        if (args.length > 0) {
+            BotConfig.TESTING = Boolean.parseBoolean(args[0]);
+            Logger.log(Logger.TAG.INFO, "Testing constant updated");
+        }
+
         if (BotConfig.TESTING) {
             TestingGrounds.TestingGrounds();
         }

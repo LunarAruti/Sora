@@ -5,6 +5,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.jetbrains.annotations.NotNull;
 import ucadmin.database.BatchManager;
 import ucadmin.main.BotConfig;
+import ucadmin.network.NetworkManager;
 import ucadmin.util.Logger;
 import ucadmin.util.Logger.TAG;
 import ucadmin.database.QueueManager;
@@ -34,16 +35,12 @@ public class ShutdownCommand extends ListenerAdapter {
             Logger.log(TAG.SYSTEM, "Shutdown command received. Beginning graceful termination...");
 
             ucadmin.network.NetworkManager.shutdown();
-            ucadmin.database.BatchManager.shutdown();
+            ucadmin.database.BatchManager.shutdown(); // this flushes QueueManager
 
-            // Close any resources (e.g., DB or connections)
             Logger.log(TAG.INFO, "Graceful shutdown complete. Exiting process.");
 
-            // Give Discord a second to send replies before exiting
             Thread.sleep(2000);
-
             event.getJDA().shutdown();
-
             Thread.sleep(2000);
 
             Logger.log(TAG.SYSTEM, "System exiting cleanly.");

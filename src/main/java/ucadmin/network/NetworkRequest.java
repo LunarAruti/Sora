@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  *   - responseType   = JSON_OBJECT
  *   - projectionPath = null (return entire JSON body)
  *   - returnAlias    = name
- *   - cachePath      = mem:/database/network/{service}/{returnAlias} (in-memory only)
+ *   - cachePath      = mem/database/network/{service}/{returnAlias} (in-memory only)
  *   - priority       = NORMAL
  *   - retryPolicy    = idempotent-only, 3 attempts, exponential backoff, 429/5xx/timeout/network
  *   - failureMode    = FAIL_FAST
@@ -285,10 +285,10 @@ public final class NetworkRequest {
     /** Friendly label for logs/cache; defaults to name. */
     private String returnAlias;
 
-    // ---------------- Caching hint (mem:/ mount only) ----------------
+    // ---------------- Caching hint (mem/ mount only) ----------------
 
     /**
-     * Default: mem:/database/network/{service}/{returnAlias}
+     * Default: mem/database/network/{service}/{returnAlias}
      * This is an in-memory path (not persisted). Future options may snapshot to disk.
      */
     private String cachePath;
@@ -627,7 +627,7 @@ public final class NetworkRequest {
 
     /**
      * Overrides the default cache path where the response will be written via DBM.
-     * By default, mem:/database/network/{service}/{returnAlias} is used.
+     * By default, mem/database/network/{service}/{returnAlias} is used.
      */
     public NetworkRequest setCachePath(String path) {
         ensureNotSealed();
@@ -814,7 +814,12 @@ public final class NetworkRequest {
         if (cachePath == null || cachePath.isBlank()) {
             // Note: simple default; different var combos under same alias may collide.
             // We'll add param fingerprinting when we wire the mem cache.
-            this.cachePath = "mem:/database/network/" + service + "/" + returnAlias;
+            String fp = Integer.toHexString(vars.hashCode() ^
+                    path.hashCode() ^
+                    type.hashCode() ^
+                    (authStrategy != null ? authStrategy.hashCode() : 0));
+
+            this.cachePath = "database/network/" + service + "/" + returnAlias + "-" + fp;
         }
 
         sealed = true;

@@ -18,6 +18,6 @@ public class BotConfig {
             Logger.TAG.NULL
     );
 
-    public static final boolean TESTING = false;
+    public static boolean TESTING = false;
 
 }

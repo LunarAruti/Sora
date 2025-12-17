@@ -7,31 +7,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Initial network module push">
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/HttpExecutor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkJournal.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkResult.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkTask.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryDecider.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" afterDir="false" />
+    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Network Module version 1">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/NetworkException.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/NetworkException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/BotConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/BotConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreaker.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/MemoryCacheManager.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/Net.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetUtils.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkClient.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryPolicy.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -119,7 +108,7 @@
     &quot;Gradle.UC_Admin_Gradle_Run.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;network&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;C:/Users/lunar/OneDrive/Desktop/current/UC_Admin/src/storage/databasefinal&quot;,
     &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
@@ -142,6 +131,16 @@
       <recent name="ucadmin.commands" />
       <recent name="ucadmin.database" />
     </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="Main" type="Application" factoryName="Application">
+      <option name="MAIN_CLASS_NAME" value="ucadmin.main.Main" />
+      <module name="UC_Admin.main" />
+      <option name="PROGRAM_PARAMETERS" value="true" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">

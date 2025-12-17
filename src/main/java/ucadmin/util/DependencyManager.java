@@ -52,8 +52,8 @@ public class DependencyManager {
 
             // === ENSURE CORRUPT + LOG PATHS EXIST ===
             String corruptPath = ucadmin.main.BotConfig.CORRUPTPATH;
-            String logPath = ucadmin.main.BotConfig.LOGPATH;
-            String dumpPath = ucadmin.main.BotConfig.DUMPPATH;
+            String logPath     = ucadmin.main.BotConfig.LOGPATH;
+            String dumpPath    = ucadmin.main.BotConfig.DUMPPATH;
             String networkPath = ucadmin.main.BotConfig.NETWORKPATH;
 
             Logger.log(Logger.TAG.DEBUG, "Using configured paths from BotConfig:");
@@ -62,18 +62,32 @@ public class DependencyManager {
             Logger.log(Logger.TAG.DEBUG, "DUMPPATH=" + dumpPath);
             Logger.log(Logger.TAG.DEBUG, "NETWORKPATH=" + networkPath);
 
-            // Ensure parent directories exist
-            String corruptDir = new java.io.File(corruptPath).getParent();
-            if (corruptDir != null) DatabaseManager.createFolder(corruptDir);
+// folders (create only if missing)
+            if (!DatabaseManager.folderExists(corruptPath)) DatabaseManager.createFolder(corruptPath);
+            if (!DatabaseManager.folderExists(networkPath)) DatabaseManager.createFolder(networkPath);
 
-            String logDir = new java.io.File(logPath).getParent();
-            if (logDir != null) DatabaseManager.createFolder(logDir);
+// parent folder for LOGPATH (create only if missing)
+            int logSlash = logPath.lastIndexOf('/');
+            int logBack  = logPath.lastIndexOf('\\');
+            int logCut   = (logSlash > logBack) ? logSlash : logBack;
+            if (logCut > 0) {
+                String logDir = logPath.substring(0, logCut);
+                if (!DatabaseManager.folderExists(logDir)) DatabaseManager.createFolder(logDir);
+            }
 
-            String dumpDir = new java.io.File(dumpPath).getParent();
-            if (dumpDir != null) DatabaseManager.createFolder(dumpDir);
+// parent folder for DUMPPATH (create only if missing)
+            int dumpSlash = dumpPath.lastIndexOf('/');
+            int dumpBack  = dumpPath.lastIndexOf('\\');
+            int dumpCut   = (dumpSlash > dumpBack) ? dumpSlash : dumpBack;
+            if (dumpCut > 0) {
+                String dumpDir = dumpPath.substring(0, dumpCut);
+                if (!DatabaseManager.folderExists(dumpDir)) DatabaseManager.createFolder(dumpDir);
+            }
 
-            String netDir = new java.io.File(networkPath).getParent();
-            if (netDir != null) DatabaseManager.createFolder(netDir);
+// files (create only if missing)
+            if (!DatabaseManager.fileExists(logPath))  DatabaseManager.createFile(logPath);
+            if (!DatabaseManager.fileExists(dumpPath)) DatabaseManager.createFile(dumpPath);
+
 
             // === ENSURE GLOBAL LOG FILE EXISTS ===
             if (!DatabaseManager.fileExists(logPath)) {

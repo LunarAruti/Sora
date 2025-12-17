@@ -70,15 +70,17 @@ final class NetworkWorker implements Runnable {
             try {
                 NetworkTask task = queue.take(); // respects delay/backoff
                 processTask(task);
+
             } catch (InterruptedException ie) {
                 // Allow graceful shutdown; do not spam logs.
                 if (!running.get()) break;
                 Logger.log(Logger.TAG.WARN,
                         "[NetworkWorker " + workerName + "] interrupted while running, continuing: " + ie.getMessage());
+
             } catch (Throwable t) {
-                // Catch-all to prevent worker thread from dying silently.
                 Logger.log(Logger.TAG.ERROR,
-                        "[NetworkWorker " + workerName + "] unexpected error in main loop: " + t.getMessage());
+                        "[NetworkWorker " + workerName + "] UNCAUGHT throwable: " + t.toString());
+                t.printStackTrace(); // ensure visibility in JVM logs
             }
         }
         Logger.log(Logger.TAG.SYSTEM, "[NetworkWorker " + workerName + "] stopped.");

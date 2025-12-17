@@ -309,12 +309,20 @@ public final class NetworkManager {
         long now = System.currentTimeMillis();
         NetworkTask task = new NetworkTask(request, 1, now);
 
-        boolean offered = QUEUE.offer(task);
+        boolean offered = false;
+        try {
+            offered = QUEUE.offer(task);
+        } catch (Throwable t) {
+            Logger.log(Logger.TAG.ERROR,
+                    "[NetworkManager] Exception while enqueuing task: " + t.getMessage());
+        }
+
         if (!offered) {
             Logger.log(Logger.TAG.ERROR,
                     "[NetworkManager] Failed to enqueue task: service=" +
                             request.getService() + ", name=" + request.getName());
 
+            // mandatory cleanup
             if (dedupeKey != null && !dedupeKey.isBlank()) {
                 INFLIGHT_DEDUPE.remove(dedupeKey);
             }
@@ -447,7 +455,7 @@ public final class NetworkManager {
             );
         }
 
-        if (!cachePath.startsWith("mem:/")) {
+        if (!cachePath.startsWith("mem/")) {
             Logger.log(Logger.TAG.WARN,
                     "[NetworkManager] Non-mem cachePath: " +
                             cachePath + " service=" + request.getService() +
@@ -502,7 +510,7 @@ public final class NetworkManager {
      * Serializes the full diagnostics snapshot into a TEMP DBM JSON file at:
      *
      * <pre>
-     *   mem:/diagnostics/network/state.json
+     *   mem/diagnostics/network/state.json
      * </pre>
      *
      * <p>This is useful for live debugging, admin commands, or exporting health
@@ -520,7 +528,7 @@ public final class NetworkManager {
      * @throws NetworkException if DBM write fails
      */
     public static String dumpDiagnosticsToTemp() throws NetworkException {
-        final String path = "mem:/diagnostics/network/state.json";
+        final String path = "mem/diagnostics/network/state.json";
 
         Logger.log(Logger.TAG.SYSTEM,
                 "[NetworkManager] Dumping diagnostics to " + path);

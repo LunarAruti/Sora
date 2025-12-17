@@ -217,39 +217,59 @@ public final class QueueManager {
 
         // --------- JSON validation utilities (local, no external deps) ---------
         private static void validateJsonTree(Object node) throws QueueException {
-            Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: begin nodeType=" + (node == null ? "null" : node.getClass().getSimpleName()));
             try {
                 if (node == null || node == JSONObject.NULL) {
-                    Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: null/JSONObject.NULL encountered (ok)");
                     return;
                 }
+
                 if (node instanceof JSONObject obj) {
-                    Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: JSONObject keys=" + obj.keySet().size());
-                    for (String k : obj.keySet()) validateJsonTree(obj.get(k));
+                    for (String k : obj.keySet()) {
+                        validateJsonTree(obj.get(k));
+                    }
+
                 } else if (node instanceof JSONArray arr) {
-                    Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: JSONArray length=" + arr.length());
-                    for (int i = 0; i < arr.length(); i++) validateJsonTree(arr.get(i));
+                    for (int i = 0; i < arr.length(); i++) {
+                        validateJsonTree(arr.get(i));
+                    }
+
                 } else if (node instanceof Number n) {
                     double d = n.doubleValue();
                     if (Double.isNaN(d) || Double.isInfinite(d)) {
-                        Logger.log(Logger.TAG.ERROR, "RawIO.validateJsonTree: invalid numeric value=" + n);
+                        Logger.log(
+                                Logger.TAG.ERROR,
+                                "RawIO.validateJsonTree: invalid numeric value=" + n
+                        );
                         throw new QueueException("Invalid numeric value in JSON: " + n);
                     }
-                    Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: numeric ok=" + n);
-                } else if (node instanceof String s) {
-                    Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: string ok len=" + s.length());
-                } else if (node instanceof Boolean) {
-                    Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: boolean ok");
+
+                } else if (
+                        node instanceof String ||
+                                node instanceof Boolean
+                ) {
+                    // primitives are always ok, no logging
+
                 } else {
-                    Logger.log(Logger.TAG.ERROR, "RawIO.validateJsonTree: unsupported type=" + node.getClass().getName());
-                    throw new QueueException("Unsupported JSON type: " + node.getClass().getName());
+                    Logger.log(
+                            Logger.TAG.ERROR,
+                            "RawIO.validateJsonTree: unsupported type=" + node.getClass().getName()
+                    );
+                    throw new QueueException(
+                            "Unsupported JSON type: " + node.getClass().getName()
+                    );
                 }
-                Logger.log(Logger.TAG.DEBUG, "RawIO.validateJsonTree: ok nodeType=" + node.getClass().getSimpleName());
+
             } catch (QueueException q) {
                 throw q;
+
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.validateJsonTree: failure " + t.getClass().getSimpleName() + ": " + t.getMessage());
-                throw new QueueException("JSON validation failure: " + t.getMessage(), t);
+                Logger.log(
+                        Logger.TAG.ERROR,
+                        "RawIO.validateJsonTree: failure " +
+                                t.getClass().getSimpleName() + ": " + t.getMessage()
+                );
+                throw new QueueException(
+                        "JSON validation failure: " + t.getMessage(), t
+                );
             }
         }
 
@@ -1085,17 +1105,12 @@ public final class QueueManager {
         final boolean prev = FINAL_MATERIALIZE.getAndSet(materialize);
         Logger.log(Logger.TAG.SYSTEM, "flushAll invoked (materialize=" + materialize + ")");
 
-        // Snapshot keys to avoid concurrent modification while we enqueue.
         final List<String> paths = new ArrayList<>(ENTRIES.keySet());
-        // Track exactly which entries we queued so we only wait for those.
         final List<String> queued = new ArrayList<>(paths.size());
 
         try {
-            // Enqueue:
-            // - materialize == true → enqueue EVERY entry (dirty or clean) so flushOne can compact/journal-truncate
-            // - materialize == false → enqueue only dirty entries
-            // For TEMP entries: NEVER enqueue. Delete TEMP entries instead (forced op rule).
             for (String path : paths) {
+                final String npath = normalizeFsPath(path);
                 final CacheEntry e = ENTRIES.computeIfAbsent(path, p -> new CacheEntry());
                 boolean deletedTemp = false;
 
@@ -1118,6 +1133,11 @@ public final class QueueManager {
                     } else {
                         final boolean shouldEnqueue = materialize || e.dirty;
                         if (shouldEnqueue) {
+                            if (materialize) {
+                                // per-path final/materialize signal survives past flushAll lifetime
+                                MATERIALIZE_REQUESTS.add(npath);
+                            }
+
                             requestFlush(path, /*force=*/true);
                             queued.add(path);
                             Logger.log(
@@ -1130,26 +1150,51 @@ public final class QueueManager {
                     e.lock.unlock();
                 }
 
-                // If it was TEMP and deleted, we simply don't enqueue or wait on it.
-                if (deletedTemp) {
-                    continue;
-                }
+                if (deletedTemp) continue;
             }
 
-            // Wait for only the items we actually queued.
             for (String path : queued) {
+                final String npath = normalizeFsPath(path);
                 final CacheEntry e = ENTRIES.computeIfAbsent(path, p -> new CacheEntry());
+
                 e.lock.lock();
                 try {
-                    // During final materialize, even clean entries may be flushing for compaction.
-                    // Wait while:
-                    //  - always if flushing
-                    //  - additionally if NOT materializing, wait for dirty to clear (normal semantics)
-                    while (e.flushing || (!materialize && e.dirty)) {
+                    while (true) {
+                        // Always wait if it’s actively flushing.
+                        final boolean flushing = e.flushing;
+
+                        // Normal semantics: if we asked for a flush, we must wait until it is not dirty.
+                        final boolean dirty = e.dirty;
+
+                        // Critical missing piece: job may be queued but not yet flushing.
+                        final boolean enqueued = ENQUEUED.contains(path);
+
+                        // Step 4 semantics: for materialize=true, journal must be gone.
+                        boolean journalHasBytes = false;
+                        if (materialize) {
+                            try {
+                                journalHasBytes = QueueManager.RawIO.journalHasContent(npath);
+                            } catch (Throwable ignore) {
+                                // best-effort; we still have dirty/enqueued/flushing checks
+                            }
+                        }
+
+                        final boolean shouldWait;
+                        if (materialize) {
+                            // Final durability boundary: must finish execution AND leave no journal behind.
+                            shouldWait = flushing || dirty || enqueued || journalHasBytes;
+                        } else {
+                            // Patch durability boundary: must finish execution AND clear dirty.
+                            shouldWait = flushing || dirty || enqueued;
+                        }
+
+                        if (!shouldWait) break;
+
                         if (e.failCount >= Config.MAX_TOTAL_RETRIES && e.lastError != null) {
                             Logger.log(Logger.TAG.ERROR, "flushAll failed permanently at " + path);
                             throw new QueueException("flushAll failing at " + path, e.lastError);
                         }
+
                         e.notFlushing.await(1, TimeUnit.SECONDS);
                     }
                 } catch (InterruptedException ie) {
@@ -1163,7 +1208,6 @@ public final class QueueManager {
 
             Logger.log(Logger.TAG.INFO, "flushAll completed successfully (materialize=" + materialize + ").");
         } finally {
-            // Restore previous state so ad-hoc flushes elsewhere keep their expected semantics
             FINAL_MATERIALIZE.set(prev);
         }
     }
@@ -1384,21 +1428,29 @@ public final class QueueManager {
                                 " (" + diff.size() + " changed keys)");
                     }
 
-                    // Final pass: materialize cache → base and truncate journal
                     if (finalPass) {
+                        boolean hasJournalNow = false;
                         try {
-                            RawIO.write(npath, cachedSnapshot);
-                            RawIO.truncateJournal(npath);
-                            Logger.log(Logger.TAG.INFO, "flushOne: materialized base & truncated journal (final) for " + npath);
-                        } catch (Throwable t) {
-                            Logger.log(Logger.TAG.ERROR, "flushOne(finalize): materialize failed for " + npath + " — "
-                                    + t.getClass().getSimpleName() + ": " + t.getMessage());
-                            Logger.logDump(
-                                    "FINAL_MATERIALIZE_FAIL\n"
-                                            + "path=" + npath + "\n"
-                                            + "errClass=" + t.getClass().getName() + "\n"
-                                            + "errMsg=" + (t.getMessage() == null ? "<none>" : t.getMessage())
-                            );
+                            hasJournalNow = QueueManager.RawIO.journalHasContent(npath);
+                        } catch (Throwable ignore) { /* best effort */ }
+
+                        if (hasJournalNow) {
+                            try {
+                                RawIO.write(npath, cachedSnapshot);
+                                RawIO.truncateJournal(npath);
+                                Logger.log(Logger.TAG.INFO, "flushOne: materialized base & truncated journal (final) for " + npath);
+                            } catch (Throwable t) {
+                                Logger.log(Logger.TAG.ERROR, "flushOne(finalize): materialize failed for " + npath + " — "
+                                        + t.getClass().getSimpleName() + ": " + t.getMessage());
+                                Logger.logDump(
+                                        "FINAL_MATERIALIZE_FAIL\n"
+                                                + "path=" + npath + "\n"
+                                                + "errClass=" + t.getClass().getName() + "\n"
+                                                + "errMsg=" + (t.getMessage() == null ? "<none>" : t.getMessage())
+                                );
+                            }
+                        } else {
+                            Logger.log(Logger.TAG.DEBUG, "flushOne(final): no journal + no changes → skipping full write for " + npath);
                         }
                     }
                 }
