@@ -537,7 +537,7 @@ public final class NetworkManager {
         JSONObject json = new JSONObject(diag);
 
         try {
-            DatabaseManager.writeJSONPathTemp(path, null, json, true);
+            //DatabaseManager.writeJSONPathTemp(path, null, json, true);
         } catch (DatabaseException e) {
             Logger.log(Logger.TAG.ERROR,
                     "[NetworkManager] Failed to write diagnostics to DBM at " +

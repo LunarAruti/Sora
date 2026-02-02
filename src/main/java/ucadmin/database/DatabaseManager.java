@@ -710,6 +710,75 @@ public class DatabaseManager {
 // =====================
 
     /**
+     * Marks a cached FILE path as TEMP.
+     *
+     * TEMP means the cache entry exists only in memory and will never be patched or
+     * materialized to disk. Disk state is untouched.
+     *
+     * NOTE: This is cache-only. If the file is not currently cached, this does nothing.
+     */
+    public static void makeTemporary(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            Logger.log(Logger.TAG.ERROR, "makeTemporary: path is null or empty.");
+            throw new DatabaseException("Path is null or empty.");
+        }
+
+        final Path npath;
+        try {
+            npath = Paths.get(path).toAbsolutePath().normalize();
+        } catch (InvalidPathException e) {
+            Logger.log(Logger.TAG.ERROR, "makeTemporary: invalid path syntax: " + path);
+            throw new DatabaseException("Invalid path syntax: " + path, e);
+        }
+
+        // Guard: if a base file or journal exists, do NOT allow TEMP.
+        // TEMP is intended only for cache-only entries with no disk anchor.
+        if (fileExists(npath.toString())) {
+            Logger.log(Logger.TAG.WARN, "makeTemporary: refused (disk entry exists) for " + npath);
+            return;
+        }
+
+        boolean changed = QueueManager.makeTemporary(npath.toString());
+        if (!changed) {
+            Logger.log(Logger.TAG.DEBUG, "makeTemporary: no cached file entry affected for " + npath);
+            return;
+        }
+
+        Logger.log(Logger.TAG.INFO, "makeTemporary applied to cached file: " + npath);
+    }
+
+    /**
+     * Marks a cached FILE path as PERMANENT.
+     *
+     * PERMANENT means the cache entry re-enters the normal patch/materialize lifecycle.
+     * Disk state is untouched.
+     *
+     * NOTE: This is cache-only. If the file is not currently cached, this does nothing.
+     */
+    public static void makePermanent(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            Logger.log(Logger.TAG.ERROR, "makePermanent: path is null or empty.");
+            throw new DatabaseException("Path is null or empty.");
+        }
+
+        final Path npath;
+        try {
+            npath = Paths.get(path).toAbsolutePath().normalize();
+        } catch (InvalidPathException e) {
+            Logger.log(Logger.TAG.ERROR, "makePermanent: invalid path syntax: " + path);
+            throw new DatabaseException("Invalid path syntax: " + path, e);
+        }
+
+        boolean changed = QueueManager.makePermanent(npath.toString());
+        if (!changed) {
+            Logger.log(Logger.TAG.DEBUG, "makePermanent: no cached file entry affected for " + npath);
+            return;
+        }
+
+        Logger.log(Logger.TAG.INFO, "makePermanent applied to cached file: " + npath);
+    }
+
+    /**
      * Lists files directly under the given folder (non-recursive).
      *
      * @param folderPath folder to enumerate.
@@ -1355,128 +1424,6 @@ public class DatabaseManager {
         } catch (Exception e) {
             Logger.log(Logger.TAG.ERROR, "Unexpected write error for path " + pathForLog + ": " + e.getMessage());
             throw new DatabaseException("writeJSONPath: unexpected error applying write to cache.", e);
-        }
-    }
-
-    /**
-     * Writes or updates a deeply nested JSON value at the specified path into a
-     * temporary cached JSON file.
-     *
-     * Behavior:
-     *   - Builds a batch representing the requested write.
-     *   - Applies it immediately to the cached JSON via QueueManager (in-memory only).
-     *   - Whether this cache entry is treated as TEMP (non-materialized, expiring)
-     *     is controlled inside QueueManager based on the path or internal flags.
-     *
-     * Returns:
-     *   true if the value was successfully written to the cached JSON structure.
-     *
-     * Throws:
-     *   DatabaseException if the path is invalid, structure mismatched, or queue fails.
-     *
-     * @param filePath the logical JSON file path used as the cache key.
-     * @param jsonPath the dot/array path to write.
-     * @param value the value to set (JSONObject, JSONArray, or primitive).
-     * @param createMissing create missing parents if true; require existing structure if false.
-     * @return true if the cached JSON was updated successfully.
-     * @throws DatabaseException if the write batch fails or the structure is incompatible.
-     */
-    public static boolean writeJSONPathTemp(String filePath, String jsonPath, Object value, boolean createMissing)
-            throws DatabaseException {
-
-        if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "writeJSONPathTemp: file path is null or empty.");
-            throw new DatabaseException("writeJSONPathTemp: file path is null or empty.");
-        }
-
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : "'" + jsonPath + "'";
-        Logger.log(Logger.TAG.DEBUG, "Writing value to TEMP JSON path " + pathForLog + " in file: " + filePath);
-
-        try {
-            QueueManager.Batch batch;
-
-            if (isRoot) {
-                // Replace entire document; allow JSONObject or JSONArray (and null → {}).
-                if (value == null) {
-                    Logger.log(Logger.TAG.DEBUG, "writeJSONPathTemp(<root>): null → replacing with empty JSONObject {}");
-                    batch = BatchManager.buildReplaceRoot(new JSONObject());
-                } else if (value instanceof JSONObject obj) {
-                    Logger.log(Logger.TAG.DEBUG, "writeJSONPathTemp(<root>): JSONObject replacement, keys=" + obj.keySet().size());
-                    batch = BatchManager.buildReplaceRoot(obj);
-                } else if (value instanceof org.json.JSONArray arr) {
-                    Logger.log(Logger.TAG.DEBUG, "writeJSONPathTemp(<root>): JSONArray replacement, length=" + arr.length());
-                    batch = BatchManager.buildReplaceRoot(arr);
-                } else {
-                    Logger.log(
-                            Logger.TAG.ERROR,
-                            "writeJSONPathTemp: root replacement requires JSONObject or JSONArray (got "
-                                    + value.getClass().getSimpleName() + ")."
-                    );
-                    throw new DatabaseException("writeJSONPathTemp(<root>): replacement must be a JSONObject or JSONArray.");
-                }
-
-            } else {
-                // Normal path write
-                batch = BatchManager.buildWriteJSONPath(jsonPath, value, createMissing);
-            }
-
-            // TEMP marker: signals QueueManager to treat this cache entry as TEMP.
-            batch.add(new QueueManager.WriteOp("__TEMP__", j -> {}));
-
-            Boolean result = QueueManager.enqueueBatchAndGet(
-                    filePath,
-                    null, // Loader handled internally (or by QueueManager defaults)
-                    batch,
-                    json -> true
-            );
-
-            if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager reported unsuccessful TEMP write for file: " + filePath);
-                throw new DatabaseException("writeJSONPathTemp: queue reported unsuccessful application.");
-            }
-
-            Logger.log(Logger.TAG.INFO, "Successfully wrote value to TEMP JSON path " + pathForLog + " in file: " + filePath);
-            return true;
-
-        } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "TEMP batch build failed for path " + pathForLog + ": " + e.getMessage());
-            throw new DatabaseException("writeJSONPathTemp: batch construction failed for path: " + (isRoot ? "<root>" : jsonPath), e);
-        } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue error writing TEMP file '" + filePath + "': " + e.getMessage());
-            throw new DatabaseException("writeJSONPathTemp: queue error for file: " + filePath, e);
-        } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected TEMP write error for path " + pathForLog + ": " + e.getMessage());
-            throw new DatabaseException("writeJSONPathTemp: unexpected error applying write to temp cache.", e);
-        }
-    }
-
-    /**
-     * Promotes a TEMP cached file into a regular cached entry.
-     * This does NOT force any flush or materialization; it simply clears the TEMP flag
-     * so the entry re-enters the normal maintenance timelines (TTL patch, long-idle materialize, etc.).
-     *
-     * @param filePath the logical JSON file path used as the cache key
-     * @return true if the cache entry existed and is now non-TEMP (already regular or successfully promoted)
-     * @throws DatabaseException if the filePath is invalid or an unexpected error occurs
-     */
-    public static boolean promoteTemp(String filePath) throws DatabaseException {
-        if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "promoteTemp: file path is null or empty.");
-            throw new DatabaseException("promoteTemp: file path is null or empty.");
-        }
-
-        try {
-            boolean ok = QueueManager.promoteTemp(filePath);
-            if (!ok) {
-                Logger.log(Logger.TAG.WARN, "promoteTemp: no TEMP entry found for path (nothing to promote): " + filePath);
-            } else {
-                Logger.log(Logger.TAG.INFO, "promoteTemp: TEMP entry promoted to regular cache: " + filePath);
-            }
-            return ok;
-        } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "promoteTemp failed for '" + filePath + "': " + e.getMessage());
-            throw new DatabaseException("promoteTemp: unexpected error for file: " + filePath, e);
         }
     }
 

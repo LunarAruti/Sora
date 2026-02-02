@@ -25,7 +25,7 @@ public class Main {
                 Commands.slash("ping", "Replies with current latency and round-trip")
         ).queue();
         jda.updateCommands().addCommands(
-                Commands.slash("shutdown", "Shutdowns the bot")
+                Commands.slash("shutdown", "Shuts down the bot")
         ).queue();
 
         // Block until READY event fired (StartupManager.onReady has run)

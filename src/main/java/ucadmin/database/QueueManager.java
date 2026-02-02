@@ -41,7 +41,7 @@ public final class QueueManager {
      */
     public static final class Config {
         /** Inactive + dirty for this long ⇒ maintenance schedules a NON-FORCED flush. */
-        public static volatile long CACHE_TTL_MILLIS = 5 * 60_000; // 5 minutes
+        public static volatile long CACHE_TTL_MILLIS = 2 * 60_000; // 5 minutes
 
         /**  Long idle → compact/materialize (write base + truncate journal) */
         public static int MATERIALIZE_INACTIVE_SECS = 600; // ~10 minutes default
@@ -593,7 +593,12 @@ public final class QueueManager {
     /** Normalize entry path declarations. */
     private static String normalizeFsPath(String p) {
         if (p == null) return null;
-        return Paths.get(p).toAbsolutePath().normalize().toString();
+        String n = Paths.get(p).toAbsolutePath().normalize().toString();
+        // Windows paths are case-insensitive; normalize case to avoid duplicate cache keys.
+        if (File.separatorChar == '\\') {
+            n = n.toLowerCase(Locale.ROOT);
+        }
+        return n;
     }
 
     /**
@@ -624,7 +629,7 @@ public final class QueueManager {
         // When true, this entry is treated as a temporary cache:
         // - never enqueued for patch/materialize by threshold logic
         // - will be expired by maintenance() if inactive (read and write)
-        // - if it ever reaches a forced flush path, it must be deleted (handled elsewhere)
+        // - if it is ever flushed, deletion is handled centrally in flushOne()
         boolean isTemp = false;
 
         // Updated whenever a write operation mutates the cached JSON.
@@ -645,31 +650,6 @@ public final class QueueManager {
     private static void requestMaterialize(String path) {
         if (path == null || path.isBlank()) return;
         final String npath = normalizeFsPath(path);
-
-        // TEMP guard: materialize requests for TEMP entries delete them instead.
-        final CacheEntry e = ENTRIES.get(npath);
-        if (e != null) {
-            e.lock.lock();
-            try {
-                if (e.isTemp) {
-                    long bytes = e.approxBytes;
-                    e.data = null;
-                    e.approxBytes = 0;
-                    e.pendingOps.clear();
-                    e.dirty = false;
-                    e.flushing = false;
-                    ENTRIES.remove(npath);
-                    ENQUEUED.remove(npath);
-                    synchronized (MEM_LOCK) {
-                        TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
-                    }
-                    Logger.log(Logger.TAG.INFO, "requestMaterialize: deleted TEMP entry (no materialize): " + npath);
-                    return;
-                }
-            } finally {
-                e.lock.unlock();
-            }
-        }
 
         MATERIALIZE_REQUESTS.add(npath);
         requestFlush(npath, /*force=*/true); // ensure it runs promptly
@@ -884,7 +864,6 @@ public final class QueueManager {
         final String npath = normalizeFsPath(path);
         Logger.log(Logger.TAG.DEBUG, "QueueManager.enqueueBatchAndGet() called for path: " + npath);
 
-        // ---- Provide safe defaults so DBM can pass nulls ----
         if (rawLoader == null) {
             rawLoader = () -> RawIO.load(npath);
             Logger.log(Logger.TAG.DEBUG, "enqueueBatchAndGet: defaulting rawLoader -> RawIO.load(" + npath + ")");
@@ -902,27 +881,17 @@ public final class QueueManager {
         }
 
         final CacheEntry e = ENTRIES.computeIfAbsent(npath, p -> new CacheEntry());
+
         e.lock.lock();
         try {
             while (e.flushing) e.notFlushing.await();
 
             ensureCacheLoaded(e, npath, rawLoader);
 
-            // Detect TEMP marker op (DBM should add a no-op WriteOp named "__TEMP__" for temp writes)
-            boolean tempMarkerPresent = false;
-
-            // Apply ops to cache and queue them
             for (WriteOp op : batch.ops()) {
-                // TEMP marker: record and skip queuing/mutation
-                if ("__TEMP__".equals(op.name)) {
-                    tempMarkerPresent = true;
-                    Logger.log(Logger.TAG.DEBUG, "TEMP marker detected for " + npath);
-                    continue;
-                }
-
                 try {
                     op.apply.accept(e.data);
-                    e.lastWriteNanos = System.nanoTime(); // record mutation time
+                    e.lastWriteNanos = System.nanoTime();
                     Logger.log(Logger.TAG.DEBUG, "Applied batch op '" + op.name + "' to " + npath);
                 } catch (Throwable t) {
                     Logger.log(Logger.TAG.ERROR, "Batch operation '" + op.name + "' failed for " + npath + ": " + t.getMessage());
@@ -931,12 +900,6 @@ public final class QueueManager {
                 e.pendingOps.addLast(op);
             }
 
-            // If marker present, set TEMP mode; this affects later scheduling choices
-            if (tempMarkerPresent) {
-                e.isTemp = true;
-            }
-
-            // Mark dirty only if we actually staged mutations
             if (!e.pendingOps.isEmpty()) {
                 e.dirty = true;
             }
@@ -944,13 +907,11 @@ public final class QueueManager {
             e.lastAccessNanos = System.nanoTime();
             refreshSize(e);
 
-            // Only schedule a flush due to batch threshold for NON-TEMP entries.
             if (!e.isTemp && e.pendingOps.size() >= Config.BATCH_JOB_FLUSH_THRESHOLD) {
                 Logger.log(Logger.TAG.INFO, "Flush threshold reached for " + npath + "; requesting flush.");
                 requestFlush(npath, false);
             }
 
-            // Enforce memory cap (temp-specific behavior handled elsewhere)
             enforceMemoryCap();
 
             T result = computeAfter.apply(e.data);
@@ -984,36 +945,6 @@ public final class QueueManager {
             return;
         }
         final String npath = normalizeFsPath(path);
-
-        // TEMP guard: never enqueue TEMP; if forced, delete it.
-        final CacheEntry tempCheck = ENTRIES.get(npath);
-        if (tempCheck != null) {
-            tempCheck.lock.lock();
-            try {
-                if (tempCheck.isTemp) {
-                    if (force) {
-                        // Delete TEMP entry instead of persisting.
-                        long bytes = tempCheck.approxBytes;
-                        tempCheck.data = null;
-                        tempCheck.approxBytes = 0;
-                        tempCheck.pendingOps.clear();
-                        tempCheck.dirty = false;
-                        tempCheck.flushing = false;
-                        ENTRIES.remove(npath);
-                        ENQUEUED.remove(npath);
-                        synchronized (MEM_LOCK) {
-                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
-                        }
-                        Logger.log(Logger.TAG.INFO, "requestFlush(FORCED): deleted TEMP entry: " + npath);
-                    } else {
-                        Logger.log(Logger.TAG.DEBUG, "requestFlush: TEMP entry ignored (no enqueue): " + npath);
-                    }
-                    return; // never enqueue TEMP
-                }
-            } finally {
-                tempCheck.lock.unlock();
-            }
-        }
 
         if (ENQUEUED.add(npath)) {
             if (force) {
@@ -1105,101 +1036,94 @@ public final class QueueManager {
         final boolean prev = FINAL_MATERIALIZE.getAndSet(materialize);
         Logger.log(Logger.TAG.SYSTEM, "flushAll invoked (materialize=" + materialize + ")");
 
-        final List<String> paths = new ArrayList<>(ENTRIES.keySet());
-        final List<String> queued = new ArrayList<>(paths.size());
+        // Snapshot keys (should already be normalized, but we normalize again defensively)
+        final List<String> keysSnapshot = new ArrayList<>(ENTRIES.keySet());
+        final List<String> queued = new ArrayList<>(keysSnapshot.size());
 
         try {
-            for (String path : paths) {
-                final String npath = normalizeFsPath(path);
-                final CacheEntry e = ENTRIES.computeIfAbsent(path, p -> new CacheEntry());
-                boolean deletedTemp = false;
+            // Phase 1: enqueue flushes (or delete TEMP) using normalized keys only
+            for (String key : keysSnapshot) {
+                final String npath = normalizeFsPath(key);
+                final CacheEntry e = ENTRIES.get(npath);
+                if (e == null) {
+                    ENQUEUED.remove(npath);
+                    MATERIALIZE_REQUESTS.remove(npath);
+                    continue;
+                }
 
                 e.lock.lock();
                 try {
                     if (e.isTemp) {
-                        long bytes = e.approxBytes;
-                        e.data = null;
-                        e.approxBytes = 0;
-                        e.pendingOps.clear();
-                        e.dirty = false;
-                        e.flushing = false;
-                        ENTRIES.remove(path);
-                        ENQUEUED.remove(path);
-                        synchronized (MEM_LOCK) {
-                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
-                        }
-                        Logger.log(Logger.TAG.INFO, "flushAll: deleted TEMP entry (no enqueue): " + path);
-                        deletedTemp = true;
-                    } else {
-                        final boolean shouldEnqueue = materialize || e.dirty;
-                        if (shouldEnqueue) {
-                            if (materialize) {
-                                // per-path final/materialize signal survives past flushAll lifetime
-                                MATERIALIZE_REQUESTS.add(npath);
-                            }
+                        // TEMP entries are deleted by flushOne() for a single deletion path
+                        requestFlush(npath, /*force=*/true);
+                        Logger.log(Logger.TAG.INFO, "flushAll: queued TEMP entry for delete: " + npath);
+                        continue;
+                    }
 
-                            requestFlush(path, /*force=*/true);
-                            queued.add(path);
-                            Logger.log(
-                                    Logger.TAG.DEBUG,
-                                    "flushAll queued " + (e.dirty ? "dirty" : "clean") + " file (FORCED): " + path
-                            );
+                    final boolean shouldEnqueue = materialize || e.dirty;
+                    if (shouldEnqueue) {
+                        if (materialize) {
+                            // per-path final/materialize signal survives past flushAll lifetime
+                            MATERIALIZE_REQUESTS.add(npath);
                         }
+
+                        requestFlush(npath, /*force=*/true);
+                        queued.add(npath);
+
+                        Logger.log(
+                                Logger.TAG.DEBUG,
+                                "flushAll queued " + (e.dirty ? "dirty" : "clean") + " file (FORCED): " + npath
+                        );
                     }
                 } finally {
                     e.lock.unlock();
                 }
-
-                if (deletedTemp) continue;
             }
 
-            for (String path : queued) {
-                final String npath = normalizeFsPath(path);
-                final CacheEntry e = ENTRIES.computeIfAbsent(path, p -> new CacheEntry());
+            // Phase 2: wait for completion (normalized keys only; do NOT create entries here)
+            for (String npath : queued) {
+                final CacheEntry e = ENTRIES.get(npath);
+                if (e == null) {
+                    // If it disappeared, treat it as done (nothing left we can wait on).
+                    ENQUEUED.remove(npath);
+                    MATERIALIZE_REQUESTS.remove(npath);
+                    continue;
+                }
 
                 e.lock.lock();
                 try {
                     while (true) {
-                        // Always wait if it’s actively flushing.
                         final boolean flushing = e.flushing;
-
-                        // Normal semantics: if we asked for a flush, we must wait until it is not dirty.
                         final boolean dirty = e.dirty;
 
-                        // Critical missing piece: job may be queued but not yet flushing.
-                        final boolean enqueued = ENQUEUED.contains(path);
+                        // Job may be queued but not yet flushing
+                        final boolean enqueued = ENQUEUED.contains(npath);
 
-                        // Step 4 semantics: for materialize=true, journal must be gone.
                         boolean journalHasBytes = false;
                         if (materialize) {
                             try {
                                 journalHasBytes = QueueManager.RawIO.journalHasContent(npath);
                             } catch (Throwable ignore) {
-                                // best-effort; we still have dirty/enqueued/flushing checks
+                                // best effort
                             }
                         }
 
-                        final boolean shouldWait;
-                        if (materialize) {
-                            // Final durability boundary: must finish execution AND leave no journal behind.
-                            shouldWait = flushing || dirty || enqueued || journalHasBytes;
-                        } else {
-                            // Patch durability boundary: must finish execution AND clear dirty.
-                            shouldWait = flushing || dirty || enqueued;
-                        }
+                        final boolean shouldWait = materialize
+                                ? (flushing || dirty || enqueued || journalHasBytes)
+                                : (flushing || dirty || enqueued);
 
                         if (!shouldWait) break;
 
                         if (e.failCount >= Config.MAX_TOTAL_RETRIES && e.lastError != null) {
-                            Logger.log(Logger.TAG.ERROR, "flushAll failed permanently at " + path);
-                            throw new QueueException("flushAll failing at " + path, e.lastError);
+                            Logger.log(Logger.TAG.ERROR, "flushAll failed permanently at " + npath);
+                            throw new QueueException("flushAll failing at " + npath, e.lastError);
                         }
 
                         e.notFlushing.await(1, TimeUnit.SECONDS);
                     }
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    Logger.log(Logger.TAG.WARN, "flushAll interrupted at " + path);
+                    Logger.log(Logger.TAG.WARN, "flushAll interrupted at " + npath);
                     throw new QueueException("flushAll interrupted", ie);
                 } finally {
                     e.lock.unlock();
@@ -1300,6 +1224,78 @@ public final class QueueManager {
     }
 
     /**
+     * Marks a cached FILE as TEMP.
+     *
+     * CACHE-ONLY:
+     * - Operates only on an entry currently present in ENTRIES (exact match).
+     * - Does NOT affect disk state.
+     * - No directory behavior. No inheritance. No prefix rules.
+     *
+     * Returns true only if an existing cached entry changed state (perm -> temp).
+     */
+    public static boolean makeTemporary(String path) {
+        if (path == null || path.isBlank()) return false;
+
+        final String npath = normalizeFsPath(path);
+
+        final CacheEntry e = ENTRIES.get(npath);
+        if (e == null) {
+            Logger.log(Logger.TAG.DEBUG, "makeTemporary: no cached entry for " + npath);
+            return false;
+        }
+
+        boolean changed = false;
+        e.lock.lock();
+        try {
+            if (!e.isTemp) {
+                e.isTemp = true;
+                changed = true;
+            }
+        } finally {
+            e.lock.unlock();
+        }
+
+        Logger.log(Logger.TAG.INFO, "makeTemporary(" + npath + ") -> " + changed);
+        return changed;
+    }
+
+    /**
+     * Marks a cached FILE as PERMANENT.
+     *
+     * CACHE-ONLY:
+     * - Operates only on an entry currently present in ENTRIES (exact match).
+     * - Does NOT affect disk state.
+     * - No directory behavior. No inheritance. No prefix rules.
+     *
+     * Returns true only if an existing cached entry changed state (temp -> perm).
+     */
+    public static boolean makePermanent(String path) {
+        if (path == null || path.isBlank()) return false;
+
+        final String npath = normalizeFsPath(path);
+
+        final CacheEntry e = ENTRIES.get(npath);
+        if (e == null) {
+            Logger.log(Logger.TAG.DEBUG, "makePermanent: no cached entry for " + npath);
+            return false;
+        }
+
+        boolean changed = false;
+        e.lock.lock();
+        try {
+            if (e.isTemp) {
+                e.isTemp = false;
+                changed = true;
+            }
+        } finally {
+            e.lock.unlock();
+        }
+
+        Logger.log(Logger.TAG.INFO, "makePermanent(" + npath + ") -> " + changed);
+        return changed;
+    }
+
+    /**
      * Flushes pending operations for a single file.
      *
      * Reads the on-disk JSON, applies pending WriteOps in order,
@@ -1309,7 +1305,13 @@ public final class QueueManager {
      */
     private static void flushOne(String path) throws QueueException {
         final String npath = normalizeFsPath(path);
-        final CacheEntry e = ENTRIES.computeIfAbsent(npath, p -> new CacheEntry());
+        final CacheEntry e = ENTRIES.get(npath);
+        if (e == null) {
+            // Nothing in cache; nothing to flush.
+            ENQUEUED.remove(npath);
+            MATERIALIZE_REQUESTS.remove(npath);
+            return;
+        }
 
         // --- (-1) EARLY TEMP GUARD: TEMP entries are never persisted -------------------
         e.lock.lock();
@@ -1625,8 +1627,8 @@ public final class QueueManager {
         // Collect actions out of locks to avoid re-entrancy surprises.
         final List<String> toPatchFlush = new ArrayList<>();
         final List<String> toMaterialize = new ArrayList<>();
-        // TEMP-only: collect entries to delete (cannot remove from ENTRIES while iterating)
-        final List<String> toDeleteTemp = new ArrayList<>();
+        // TEMP-only: collect entries to delete (handled via flushOne)
+        final List<String> toExpireTemp = new ArrayList<>();
 
         for (Map.Entry<String, CacheEntry> it : ENTRIES.entrySet()) {
             final String path = it.getKey();
@@ -1656,7 +1658,7 @@ public final class QueueManager {
                             && ageSecWrite >= Math.max(1, Config.MATERIALIZE_INACTIVE_SECS)) {
                         Logger.log(Logger.TAG.INFO, "TEMP expired (inactive) → delete: " + path
                                 + " [ageAccessSec=" + ageSecAccess + ", ageWriteSec=" + ageSecWrite + "]");
-                        toDeleteTemp.add(path);
+                        toExpireTemp.add(path);
                     }
 
                     // Do NOT schedule TTL patch flush for TEMP
@@ -1706,27 +1708,9 @@ public final class QueueManager {
             requestMaterialize(p);                  // forced; per-path final/materialize
         }
 
-        // TEMP deletions outside locks and map-iteration
-        for (String p : toDeleteTemp) {
-            final String npath = normalizeFsPath(p);
-            final CacheEntry e = ENTRIES.remove(npath);
-            if (e != null) {
-                e.lock.lock();
-                try {
-                    long bytes = e.approxBytes;
-                    e.data = null;
-                    e.approxBytes = 0;
-                    e.pendingOps.clear();
-                    e.dirty = false;
-                    e.flushing = false;
-                    synchronized (MEM_LOCK) {
-                        TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
-                    }
-                    Logger.log(Logger.TAG.INFO, "TEMP cache entry deleted: " + npath);
-                } finally {
-                    e.lock.unlock();
-                }
-            }
+        // TEMP deletions outside locks and map-iteration (handled by flushOne)
+        for (String p : toExpireTemp) {
+            requestFlush(p, /*force=*/true);
         }
 
         // Enforce memory cap (flush oldest dirty first; if none, evict oldest clean)
@@ -1854,7 +1838,7 @@ public final class QueueManager {
             } finally { e.lock.unlock(); }
         }
 
-        // 2a) If we have a clean TEMP cache, delete it outright (TEMP has no disk anchor)
+        // 2a) If we have a clean TEMP cache, schedule deletion (handled by flushOne)
         if (oldestCleanTemp != null) {
             final String npath = normalizeFsPath(oldestCleanTemp);
             CacheEntry e = ENTRIES.get(npath);
@@ -1862,17 +1846,8 @@ public final class QueueManager {
                 e.lock.lock();
                 try {
                     if (e.isTemp && !e.flushing && e.data != null && !e.dirty) {
-                        long bytes = e.approxBytes;
-                        e.data = null;
-                        e.approxBytes = 0;
-                        e.pendingOps.clear();
-                        e.dirty = false;
-                        ENTRIES.remove(npath);
-                        ENQUEUED.remove(npath);
-                        synchronized (MEM_LOCK) {
-                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
-                        }
-                        Logger.log(Logger.TAG.WARN, "Memory cap: deleted CLEAN TEMP cache to free memory: " + npath);
+                        requestFlush(npath, /*force=*/true);
+                        Logger.log(Logger.TAG.WARN, "Memory cap: queued CLEAN TEMP cache for delete: " + npath);
                         return;
                     }
                 } finally { e.lock.unlock(); }
@@ -1900,7 +1875,7 @@ public final class QueueManager {
         }
 
         // 3) LAST RESORT: if still over cap and no clean victims,
-        // delete the oldest TEMP entry (any state) to protect memory.
+        // queue the oldest TEMP entry (any state) for deletion to protect memory.
         String oldestTempAny = null;
         long oldestTempAnyTs = Long.MAX_VALUE;
 
@@ -1925,17 +1900,8 @@ public final class QueueManager {
                 e.lock.lock();
                 try {
                     if (e.isTemp && !e.flushing && e.data != null) {
-                        long bytes = e.approxBytes;
-                        e.data = null;
-                        e.approxBytes = 0;
-                        e.pendingOps.clear();
-                        e.dirty = false;
-                        ENTRIES.remove(npath);
-                        ENQUEUED.remove(npath);
-                        synchronized (MEM_LOCK) {
-                            TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
-                        }
-                        Logger.log(Logger.TAG.WARN, "Memory cap: deleted TEMP cache (last resort) to free memory: " + npath);
+                        requestFlush(npath, /*force=*/true);
+                        Logger.log(Logger.TAG.WARN, "Memory cap: queued TEMP cache for delete (last resort): " + npath);
                         return;
                     }
                 } finally { e.lock.unlock(); }
@@ -2059,7 +2025,6 @@ public final class QueueManager {
             Logger.log(Logger.TAG.DEBUG, "QueueManager.onExternalDelete: dropped cache & queues for " + n);
         }
     }
-
 
     /* ===================== JSON Patch Writer ===================== */
 

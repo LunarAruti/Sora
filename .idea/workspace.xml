@@ -7,25 +7,25 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Network Module version 1">
+    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Save before temporary file writing editing.">
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/commit.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/DatabaseManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/DatabaseManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/BotConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/BotConfig.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/Main.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/notes.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/methods.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="47" />
   </component>
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
@@ -85,6 +85,11 @@
     &quot;accountId&quot;: &quot;860ed85d-0961-41fa-aed3-aad5d246cb9e&quot;
   }
 }</component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\lunar\.gradle\wrapper\dists\gradle-9.1.0-bin\9agqghryom9wkf8r80qlhnts3\gradle-9.1.0" javaHome="C:\Program Files\Java\jdk-24" gradleVersion="9.1.0" />
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
   <component name="ProblemsViewState">
     <option name="selectedTabId" value="CurrentFile" />
   </component>
@@ -92,32 +97,32 @@
   &quot;associatedIndex&quot;: 3
 }</component>
   <component name="ProjectId" id="34iGspo3mCVoozcXE0n4wAVsbpA" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.main.Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.main.MainTester.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.main.maintester.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [run].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin_Gradle_Run.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/lunar/OneDrive/Desktop/current/UC_Admin/src/storage/databasefinal&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
+    "Gradle.UC_Admin [:ucadmin.Main.main()].executor": "Run",
+    "Gradle.UC_Admin [:ucadmin.main.Main.main()].executor": "Run",
+    "Gradle.UC_Admin [:ucadmin.main.MainTester.main()].executor": "Run",
+    "Gradle.UC_Admin [:ucadmin.main.maintester.main()].executor": "Run",
+    "Gradle.UC_Admin [run].executor": "Run",
+    "Gradle.UC_Admin_Gradle_Run.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/lunar/OneDrive/Desktop/current/UC_Admin/src/storage/databasefinal",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "run.code.analysis.last.selected.profile": "pProject Default",
+    "settings.editor.selected.configurable": "ml.llm.LLMProjectConfigurable"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\lunar\OneDrive\Desktop\current\UC_Admin\src\storage\databasefinal" />
@@ -125,6 +130,10 @@
       <recent name="C:\Users\lunar\Documents\CS152l\UC_Admin\database\users" />
       <recent name="C:\Users\lunar\Documents\CS152l\UC_Admin\database" />
       <recent name="C:\Users\lunar\Documents\CS152l\UC_Admin\src\storage" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\lunar\OneDrive\Desktop\current\UC_Admin\src\main\java\ucadmin\database" />
+      <recent name="C:\Users\lunar\OneDrive\Desktop\current\UC_Admin\src\main\java\ucadmin\main" />
     </key>
     <key name="CopyClassDialog.RECENTS_KEY">
       <recent name="ucadmin.main" />
@@ -141,6 +150,13 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-2fc7cc6b9a17-intellij.indexing.shared.core-IU-253.30387.90" />
+      </set>
+    </attachedChunks>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -191,7 +207,15 @@
       <option name="project" value="LOCAL" />
       <updated>1763092277979</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Save before temporary file writing editing.">
+      <option name="closed" value="true" />
+      <created>1765958966272</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1765958966272</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -209,6 +233,7 @@
     <MESSAGE value="Initial project commit" />
     <MESSAGE value="- Added CrashHandler.java&#10;- Crash handler now runs on startup and sweeps for any remaining patch files.&#10;- Recovery/flush and materialize all open patches and scan jsons for issues.&#10;- Aborts startup if any corrupt database files are found." />
     <MESSAGE value="Initial network module push" />
-    <option name="LAST_COMMIT_MESSAGE" value="Initial network module push" />
+    <MESSAGE value="Save before temporary file writing editing." />
+    <option name="LAST_COMMIT_MESSAGE" value="Save before temporary file writing editing." />
   </component>
 </project>

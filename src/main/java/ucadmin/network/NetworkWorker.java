@@ -534,19 +534,21 @@ final class NetworkWorker implements Runnable {
      * Projection (if any) is expected to be applied at read time.
      */
     private void writeToDbm(String cachePath, Object value) {
-        try {
-            DatabaseManager.writeJSONPathTemp(
-                    cachePath,
-                    null,
-                    value,
-                    true
-            );
-            Logger.log(Logger.TAG.DEBUG,
-                    "[NetworkWorker " + workerName + "] DBM write success: path=" + cachePath);
-        } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkWorker " + workerName + "] DBM write FAILED for path=" +
-                            cachePath + ": " + e.getMessage());
-        }
+        /**
+         * try {
+         *             DatabaseManager.writeJSONPathTemp(
+         *                     cachePath,
+         *                     null,
+         *                     value,
+         *                     true
+         *             );
+         *             Logger.log(Logger.TAG.DEBUG,
+         *                     "[NetworkWorker " + workerName + "] DBM write success: path=" + cachePath);
+         *         } catch (DatabaseException e) {
+         *             Logger.log(Logger.TAG.ERROR,
+         *                     "[NetworkWorker " + workerName + "] DBM write FAILED for path=" +
+         *                             cachePath + ": " + e.getMessage());
+         *         }
+         */
     }
 }

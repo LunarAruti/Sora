@@ -7,6 +7,8 @@ public static boolean fileExists(String path) throws DatabaseException
 public static boolean deleteFile(String path) throws DatabaseException
 public static boolean renameFile(String oldPath, String newPath) throws DatabaseException
 public static boolean copyFile(String sourcePath, String destPath) throws DatabaseException
+public static void makeTemporary(String path) throws DatabaseException
+public static void makePermanent(String path) throws DatabaseException
 public static List<String> listFiles(String folderPath) throws DatabaseException
 public static List<String> listFolders(String folderPath) throws DatabaseException
 public static String getExtension(String path) throws DatabaseException

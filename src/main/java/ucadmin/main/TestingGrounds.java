@@ -1,108 +1,73 @@
 package ucadmin.main;
 
-import org.json.JSONObject;
-import ucadmin.network.*;
 import ucadmin.database.DatabaseManager;
+import ucadmin.database.QueueManager;
 import ucadmin.util.Logger;
-
-import java.time.Duration;
 
 public class TestingGrounds {
 
     public static void TestingGrounds() {
 
-        Logger.log(Logger.TAG.SYSTEM, "=== TEST: Basic API Call + Promote TEMP START ===");
+        Logger.log(Logger.TAG.SYSTEM, "=== DBM CRASH TEST SUITE START ===");
 
         try {
             // ---------------------------------------------------------
-            // 1. Start network system
+            // 0) Init
             // ---------------------------------------------------------
-            NetworkManager.start();
-            NetworkConfig.addWhitelistedHost("httpbin.org");
+            DatabaseManager.initialize();
 
             // ---------------------------------------------------------
-            // 2. Build request to a real public API
+            // 1) Paths
             // ---------------------------------------------------------
-            NetworkRequest req = new NetworkRequest("httpbin", "GetJson")
-                    .setRequestUrl("https://httpbin.org")
-                    .setPath("/json")
-                    .setType(NetworkRequest.Type.GET)
-                    .setTimeout(Duration.ofSeconds(10))
-                    .setPriority(NetworkRequest.Priority.NORMAL);
+            final String ROOT = DatabaseManager.createFolder("sandbox_crash_test");
+            final String PERM_FILE = ROOT + "/perm_crash.json";
+            final String TEMP_FILE = ROOT + "/temp_crash.json";
 
-            req.seal();
-
-            Logger.log(Logger.TAG.INFO, "Sealed request → finalUrl=" + req.getFinalUrl());
-            Logger.log(Logger.TAG.INFO, "TEMP cache path = " + req.getCachePath());
+            Logger.log(Logger.TAG.INFO, "ROOT=" + ROOT);
+            Logger.log(Logger.TAG.INFO, "PERM_FILE=" + PERM_FILE);
+            Logger.log(Logger.TAG.INFO, "TEMP_FILE=" + TEMP_FILE);
 
             // ---------------------------------------------------------
-            // 3. Submit request
+            // 2) PERM file writes (ensure journal is created)
             // ---------------------------------------------------------
-            String tempPath = NetworkManager.requestAndReturnCachePath(req);
-
-            if (tempPath == null) {
-                Logger.log(Logger.TAG.ERROR,
-                        "requestAndReturnCachePath() returned null → aborting test");
-                return;
-            }
-
-            Logger.log(Logger.TAG.REQUEST,
-                    "Request accepted, TEMP path=" + tempPath);
+            Logger.log(Logger.TAG.INFO, "PERM write $.value=1 -> " +
+                    DatabaseManager.writeJSONPath(PERM_FILE, "$.value", 1, true));
+            Logger.log(Logger.TAG.INFO, "PERM write $.value=2 -> " +
+                    DatabaseManager.writeJSONPath(PERM_FILE, "$.value", 2, true));
+            Logger.log(Logger.TAG.INFO, "PERM write $.value=3 -> " +
+                    DatabaseManager.writeJSONPath(PERM_FILE, "$.value", 3, true));
+            Logger.log(Logger.TAG.INFO, "PERM fileExists(base/journal)=" + DatabaseManager.fileExists(PERM_FILE));
 
             // ---------------------------------------------------------
-            // 4. Wait for worker to complete
+            // 3) TEMP file writes (cache-only)
             // ---------------------------------------------------------
-            Thread.sleep(1200);
+            Object tempRootBefore = DatabaseManager.readJSONPath(TEMP_FILE, "");
+            Logger.log(Logger.TAG.INFO, "TEMP read root (prime cache) -> " + (tempRootBefore == null ? "null" : "ok"));
+            DatabaseManager.makeTemporary(TEMP_FILE);
+            Logger.log(Logger.TAG.INFO, "TEMP marked: " + TEMP_FILE);
+
+            Logger.log(Logger.TAG.INFO, "TEMP write $.token=crash -> " +
+                    DatabaseManager.writeJSONPath(TEMP_FILE, "$.token", "crash", true));
+            Logger.log(Logger.TAG.INFO, "TEMP read $.token -> " +
+                    DatabaseManager.readJSONPath(TEMP_FILE, "$.token"));
+            Logger.log(Logger.TAG.INFO, "TEMP fileExists(base/journal)=" + DatabaseManager.fileExists(TEMP_FILE));
+
+            Logger.log(Logger.TAG.INFO, "Queue sizes: flush=" + QueueManager.getQueueSize()
+                    + ", cache=" + QueueManager.getCacheSize());
 
             // ---------------------------------------------------------
-            // 5. PROMOTE the TEMP entry FIRST
+            // 4) Hold for manual termination
             // ---------------------------------------------------------
-            Logger.log(Logger.TAG.SYSTEM,
-                    "Promoting TEMP entry: " + tempPath);
+            Logger.log(Logger.TAG.SYSTEM, "=== CRASH TEST: terminate process after ~2 minutes ===");
+            Logger.log(Logger.TAG.SYSTEM, "=== Do NOT call shutdown. Allow journals to exist. ===");
 
-            try {
-                boolean ok = DatabaseManager.promoteTemp(tempPath);
-                if (!ok) {
-                    Logger.log(Logger.TAG.ERROR,
-                            "promoteTemp() returned false (entry may not exist?)");
-                    return;
-                }
-                Logger.log(Logger.TAG.INFO,
-                        "TEMP promotion successful: " + tempPath);
-            } catch (Exception ex) {
-                Logger.log(Logger.TAG.ERROR,
-                        "promoteTemp() FAILED: " + ex.getMessage());
-                return;
-            }
+            Thread.sleep(10 * 60_000);
 
-            // ---------------------------------------------------------
-            // 6. Now read the promoted entry (should show real JSON)
-            // ---------------------------------------------------------
-            Logger.log(Logger.TAG.SYSTEM,
-                    "Reading promoted JSON from: " + tempPath);
-
-            JSONObject resultJson;
-            try {
-                resultJson = DatabaseManager.readJSONRaw(tempPath);
-                Logger.log(Logger.TAG.INFO,
-                        "Promoted JSON read OK, keys=" + resultJson.length());
-                Logger.log(Logger.TAG.INFO,
-                        "Full JSON: " + resultJson.toString());
-            } catch (Exception ex) {
-                Logger.log(Logger.TAG.ERROR,
-                        "Reading promoted JSON failed: " + ex.getMessage());
-                return;
-            }
-
-            // ---------------------------------------------------------
-            // 7. Shutdown
-            // ---------------------------------------------------------
-            NetworkManager.shutdown();
-            Logger.log(Logger.TAG.SYSTEM,
-                    "=== TEST COMPLETE (API call + promote) ===");
+            Logger.log(Logger.TAG.WARN, "Crash test window ended without termination. Exiting normally.");
 
         } catch (Throwable t) {
-            Logger.log(Logger.TAG.ERROR, "TestingGrounds crashed: " + t);
+            Logger.log(Logger.TAG.ERROR, "DBM TEST SUITE CRASHED: " + t);
         }
+
     }
 }
