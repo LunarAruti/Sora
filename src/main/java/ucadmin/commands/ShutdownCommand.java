@@ -3,12 +3,10 @@ package ucadmin.commands;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.jetbrains.annotations.NotNull;
-import ucadmin.database.BatchManager;
 import ucadmin.main.BotConfig;
-import ucadmin.network.NetworkManager;
 import ucadmin.util.Logger;
 import ucadmin.util.Logger.TAG;
-import ucadmin.database.QueueManager;
+import ucadmin.util.ShutdownManager;
 
 /**
  * Handles the /shutdown command.
@@ -32,19 +30,7 @@ public class ShutdownCommand extends ListenerAdapter {
         event.reply("Shutting down bot... please wait.").queue();
 
         try {
-            Logger.log(TAG.SYSTEM, "Shutdown command received. Beginning graceful termination...");
-
-            ucadmin.network.NetworkManager.shutdown();
-            ucadmin.database.BatchManager.shutdown(); // this flushes QueueManager
-
-            Logger.log(TAG.INFO, "Graceful shutdown complete. Exiting process.");
-
-            Thread.sleep(2000);
-            event.getJDA().shutdown();
-            Thread.sleep(2000);
-
-            Logger.log(TAG.SYSTEM, "System exiting cleanly.");
-            System.exit(0);
+            ShutdownManager.shutdown(event.getJDA());
 
         } catch (Exception e) {
             Logger.log(TAG.ERROR, "Shutdown failed: " + e.getMessage());

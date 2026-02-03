@@ -6,6 +6,7 @@ import ucadmin.database.DatabaseManager;
 import ucadmin.exceptions.DatabaseException;
 import ucadmin.exceptions.NetworkException;
 import ucadmin.util.Logger;
+import ucadmin.network.NetworkJournal;
 
 import java.util.List;
 import java.util.Locale;
@@ -14,6 +15,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Background worker that consumes {@link NetworkTask} items from a queue and
@@ -36,6 +38,7 @@ final class NetworkWorker implements Runnable {
 
     /** Max time (ms) we are willing to "hold" a task waiting for a circuit to close. */
     private static final long MAX_CIRCUIT_HOLD_MS = 5_000L;
+    private static final AtomicInteger CACHE_SUFFIX_COUNTER = new AtomicInteger(0);
 
     private final String workerName;
     private final DelayQueue<NetworkTask> queue;
@@ -185,9 +188,18 @@ final class NetworkWorker implements Runnable {
                             && isBodySizeAllowed(request, lastAttempt);
 
                     if (success) {
-                        CircuitBreakerRegistry.recordSuccess(circuitKey);
-                        materializeSuccess(request, lastAttempt, attemptIndex, startedAtMillis, completedAtMillis);
-                        return;
+                        boolean storedOk = materializeSuccess(
+                                request,
+                                lastAttempt,
+                                attemptIndex,
+                                startedAtMillis,
+                                completedAtMillis
+                        );
+                        if (storedOk) {
+                            CircuitBreakerRegistry.recordSuccess(circuitKey);
+                            return;
+                        }
+                        lastErrorType = NetworkException.ErrorType.DECODE_ERROR;
                     } else {
                         Logger.log(Logger.TAG.DEBUG,
                                 "[NetworkWorker " + workerName + "] HTTP failure classification → retry may occur");
@@ -255,7 +267,7 @@ final class NetworkWorker implements Runnable {
 
     // ---------------- success / failure handling ----------------
 
-    private void materializeSuccess(
+    private boolean materializeSuccess(
             NetworkRequest request,
             HttpExecutor.HttpAttemptResult attempt,
             int attempts,
@@ -265,11 +277,10 @@ final class NetworkWorker implements Runnable {
         Logger.log(Logger.TAG.REQUEST,
                 "[NetworkWorker " + workerName + "] SUCCESS service=" +
                         request.getService() + ", name=" + request.getName() +
-                        ", attempts=" + attempts);
+                        ", attempts=" + attempts +
+                        " traceId=" + request.getTraceId());
 
         boolean collectMetrics = request.isCollectMetrics();
-        String cachePath = request.getCachePath();
-
         String body = attempt.getBody();
         JSONObject jsonObject = null;
         JSONArray jsonArray = null;
@@ -286,7 +297,10 @@ final class NetworkWorker implements Runnable {
                 }
             } catch (Exception e) {
                 Logger.log(Logger.TAG.ERROR,
-                        "[NetworkWorker " + workerName + "] JSON decode failed on success: " + e.getMessage());
+                        "[NetworkWorker " + workerName + "] JSON decode failed on success: " + e.getMessage() +
+                                " service=" + request.getService() +
+                                " name=" + request.getName() +
+                                " traceId=" + request.getTraceId());
             }
         }
 
@@ -312,8 +326,54 @@ final class NetworkWorker implements Runnable {
                 latencyMillis
         );
 
-        Object dbmValue = result.toDbmValue(collectMetrics);
-        writeToDbm(cachePath, dbmValue);
+        Object projectionValue = null;
+        if (request.getProjectionPath() != null && !request.getProjectionPath().isBlank()) {
+            if (!jsonDecoded) {
+                Logger.log(Logger.TAG.WARN,
+                        "[NetworkWorker " + workerName + "] Projection requested but JSON not decoded. " +
+                                "projection=" + request.getProjectionPath() +
+                                " traceId=" + request.getTraceId());
+                handleFinalFailure(
+                        request,
+                        request.getFailureMode(),
+                        attempts,
+                        attempt.getStatusCode(),
+                        NetworkException.ErrorType.DECODE_ERROR,
+                        attempt,
+                        null,
+                        startedAtMillis,
+                        completedAtMillis
+                );
+                return false;
+            }
+
+            try {
+                Object root = (jsonObject != null) ? jsonObject : jsonArray;
+                projectionValue = applyProjection(root, request.getProjectionPath());
+            } catch (Exception e) {
+                Logger.log(Logger.TAG.WARN,
+                        "[NetworkWorker " + workerName + "] Projection failed: " + e.getMessage() +
+                                " projection=" + request.getProjectionPath() +
+                                " traceId=" + request.getTraceId());
+                handleFinalFailure(
+                        request,
+                        request.getFailureMode(),
+                        attempts,
+                        attempt.getStatusCode(),
+                        NetworkException.ErrorType.DECODE_ERROR,
+                        attempt,
+                        e,
+                        startedAtMillis,
+                        completedAtMillis
+                );
+                return false;
+            }
+        }
+
+        Object dbmValue = buildSuccessDbmValue(result, projectionValue, collectMetrics);
+        writeToDbm(request, dbmValue);
+        NetworkJournal.record(result, null);
+        return true;
     }
 
     private void handleFinalFailure(
@@ -344,56 +404,73 @@ final class NetworkWorker implements Runnable {
                         " errorType=" + errorType +
                         " url=" + urlForLog);
 
-        if (failureMode == NetworkRequest.FailureMode.WRITE_ERROR_JSON) {
-            boolean collectMetrics = request.isCollectMetrics();
-            String cachePath = request.getCachePath();
+        boolean collectMetrics = request.isCollectMetrics();
+        String body = (attempt != null) ? attempt.getBody() : null;
+        JSONObject jsonObject = null;
+        JSONArray jsonArray = null;
+        boolean jsonDecoded = false;
 
-            String body = (attempt != null) ? attempt.getBody() : null;
-            JSONObject jsonObject = null;
-            JSONArray jsonArray = null;
-            boolean jsonDecoded = false;
+        if (body != null && !body.isBlank()) {
+            try {
+                if (request.getResponseType() == NetworkRequest.ResponseType.JSON_ARRAY) {
+                    jsonArray = new JSONArray(body);
+                    jsonDecoded = true;
+                } else {
+                    jsonObject = new JSONObject(body);
+                    jsonDecoded = true;
+                }
+            } catch (Exception e) {
+                Logger.log(Logger.TAG.ERROR,
+                        "[NetworkWorker " + workerName + "] JSON decode failed on failure: " + e.getMessage() +
+                                " service=" + request.getService() +
+                                " name=" + request.getName() +
+                                " traceId=" + request.getTraceId());
+            }
+        }
 
-            if (body != null && !body.isBlank()) {
+        long latencyMillis = Math.max(0L, completedAtMillis - startedAtMillis);
+        int finalStatus = (statusCode != null) ? statusCode : 0;
+
+        NetworkResult result = new NetworkResult(
+                request.getService(),
+                request.getName(),
+                request.getTraceId(),
+                urlForLog,
+                (attempt != null) ? attempt.getRedirectCount() : 0,
+                attempts,
+                finalStatus,
+                (attempt != null) ? attempt.getHeaders() : null,
+                body,
+                false,
+                request.getResponseType(),
+                jsonObject,
+                jsonArray,
+                jsonDecoded,
+                startedAtMillis,
+                completedAtMillis,
+                latencyMillis
+        );
+
+        if (failureMode == NetworkRequest.FailureMode.WRITE_ERROR_JSON
+                || failureMode == NetworkRequest.FailureMode.FAIL_FAST) {
+            Object projectionValue = null;
+            if (request.getProjectionPath() != null && !request.getProjectionPath().isBlank() && jsonDecoded) {
                 try {
-                    if (request.getResponseType() == NetworkRequest.ResponseType.JSON_ARRAY) {
-                        jsonArray = new JSONArray(body);
-                        jsonDecoded = true;
-                    } else {
-                        jsonObject = new JSONObject(body);
-                        jsonDecoded = true;
-                    }
+                    Object root = (jsonObject != null) ? jsonObject : jsonArray;
+                    projectionValue = applyProjection(root, request.getProjectionPath());
                 } catch (Exception e) {
-                    Logger.log(Logger.TAG.ERROR,
-                            "[NetworkWorker " + workerName + "] JSON decode failed on failure: " + e.getMessage());
+                    Logger.log(Logger.TAG.WARN,
+                            "[NetworkWorker " + workerName + "] Projection failed on error path: " + e.getMessage() +
+                                    " projection=" + request.getProjectionPath() +
+                                    " traceId=" + request.getTraceId());
                 }
             }
 
-            long latencyMillis = Math.max(0L, completedAtMillis - startedAtMillis);
-            int finalStatus = (statusCode != null) ? statusCode : 0;
-
-            NetworkResult result = new NetworkResult(
-                    request.getService(),
-                    request.getName(),
-                    request.getTraceId(),
-                    urlForLog,
-                    (attempt != null) ? attempt.getRedirectCount() : 0,
-                    attempts,
-                    finalStatus,
-                    (attempt != null) ? attempt.getHeaders() : null,
-                    body,
-                    false,
-                    request.getResponseType(),
-                    jsonObject,
-                    jsonArray,
-                    jsonDecoded,
-                    startedAtMillis,
-                    completedAtMillis,
-                    latencyMillis
-            );
-
-            Object dbmValue = result.toDbmValue(collectMetrics);
-            writeToDbm(cachePath, dbmValue);
+            Object dbmValue = buildErrorDbmValue(result, errorType, cause, projectionValue, collectMetrics);
+            writeToDbm(request, dbmValue);
         }
+
+        NetworkJournal.record(result, errorType);
     }
 
     // ---------------- policy helpers ----------------
@@ -433,7 +510,7 @@ final class NetworkWorker implements Runnable {
         Map<String, List<String>> headers = attempt.getHeaders();
         String ct = getFirstHeaderIgnoreCase(headers, "Content-Type");
         if (ct == null || ct.isBlank()) {
-            return false;
+            return canParseJsonBody(request, attempt.getBody());
         }
 
         String base = ct.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
@@ -531,24 +608,336 @@ final class NetworkWorker implements Runnable {
 
     /**
      * Writes a value to DBM temp cache at the root path for this request's cachePath.
-     * Projection (if any) is expected to be applied at read time.
+     * Projection (if any) is applied before this write.
      */
-    private void writeToDbm(String cachePath, Object value) {
-        /**
-         * try {
-         *             DatabaseManager.writeJSONPathTemp(
-         *                     cachePath,
-         *                     null,
-         *                     value,
-         *                     true
-         *             );
-         *             Logger.log(Logger.TAG.DEBUG,
-         *                     "[NetworkWorker " + workerName + "] DBM write success: path=" + cachePath);
-         *         } catch (DatabaseException e) {
-         *             Logger.log(Logger.TAG.ERROR,
-         *                     "[NetworkWorker " + workerName + "] DBM write FAILED for path=" +
-         *                             cachePath + ": " + e.getMessage());
-         *         }
-         */
+    private void writeToDbm(NetworkRequest request, Object value) {
+        if (request == null) {
+            Logger.log(Logger.TAG.ERROR,
+                    "[NetworkWorker " + workerName + "] DBM write skipped: request is null");
+            return;
+        }
+        String cachePath = request.getCachePath();
+        if (cachePath == null || cachePath.isBlank()) {
+            Logger.log(Logger.TAG.ERROR,
+                    "[NetworkWorker " + workerName + "] DBM write skipped: cachePath is null/blank " +
+                            "service=" + request.getService() +
+                            " name=" + request.getName() +
+                            " traceId=" + request.getTraceId());
+            return;
+        }
+
+        String path = resolveUniqueCachePath(request, cachePath);
+
+        try {
+            // Create cache entry, mark TEMP, then write.
+            DatabaseManager.createJSON(path);
+            DatabaseManager.makeTemporary(path);
+            DatabaseManager.writeJSONPath(path, null, value, true);
+
+            Logger.log(Logger.TAG.DEBUG,
+                    "[NetworkWorker " + workerName + "] DBM write success: path=" + path +
+                            " service=" + request.getService() +
+                            " name=" + request.getName() +
+                            " traceId=" + request.getTraceId());
+        } catch (DatabaseException e) {
+            Logger.log(Logger.TAG.ERROR,
+                    "[NetworkWorker " + workerName + "] DBM write FAILED for path=" +
+                            path + " service=" + request.getService() +
+                            " name=" + request.getName() +
+                            " traceId=" + request.getTraceId() +
+                            " err=" + e.getMessage());
+        }
+    }
+
+    private String ensureJsonPath(String path) {
+        if (path == null) return null;
+        if (path.toLowerCase(Locale.ROOT).endsWith(".json")) return path;
+        return path + ".json";
+    }
+
+    private String resolveUniqueCachePath(NetworkRequest request, String basePath) {
+        String path = ensureJsonPath(basePath);
+        if (path == null) return null;
+
+        try {
+            boolean disk = DatabaseManager.fileExists(path);
+            boolean cache = DatabaseManager.cacheExists(path);
+            if (!disk && !cache) {
+                return path;
+            }
+        } catch (DatabaseException e) {
+            Logger.log(Logger.TAG.WARN,
+                    "[NetworkWorker " + workerName + "] cache path check failed, using base: " + e.getMessage());
+            return path;
+        }
+
+        int dot = path.toLowerCase(Locale.ROOT).lastIndexOf(".json");
+        String stem = (dot >= 0) ? path.substring(0, dot) : path;
+        String suffix = "-dup-" + System.currentTimeMillis() + "-" + CACHE_SUFFIX_COUNTER.incrementAndGet();
+        String candidate = stem + suffix + ".json";
+
+        request.overrideCachePathInternal(candidate);
+        Logger.log(Logger.TAG.WARN,
+                "[NetworkWorker " + workerName + "] cache path collision; using " + candidate);
+        return candidate;
+    }
+
+    private boolean canParseJsonBody(NetworkRequest request, String body) {
+        if (body == null || body.isBlank()) {
+            return false;
+        }
+        try {
+            if (request.getResponseType() == NetworkRequest.ResponseType.JSON_ARRAY) {
+                new JSONArray(body);
+            } else {
+                new JSONObject(body);
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private Object applyProjection(Object root, String projectionPath) throws Exception {
+        if (projectionPath == null || projectionPath.isBlank()) return root;
+        List<String> tokens = tokenizePath(projectionPath);
+        Object current = root;
+
+        for (String token : tokens) {
+            Segment seg = parseSegment(token);
+
+            if (seg.baseKey.length() > 0) {
+                if (!(current instanceof JSONObject obj)) {
+                    throw new Exception("Expected object for key '" + seg.baseKey + "'");
+                }
+                if (!obj.has(seg.baseKey)) {
+                    throw new Exception("Missing key '" + seg.baseKey + "'");
+                }
+                current = obj.get(seg.baseKey);
+            }
+
+            for (int idx : seg.indexes) {
+                if (!(current instanceof JSONArray arr)) {
+                    throw new Exception("Expected array before index [" + idx + "]");
+                }
+                if (idx < 0 || idx >= arr.length()) {
+                    throw new Exception("Index out of bounds [" + idx + "]");
+                }
+                current = arr.get(idx);
+            }
+        }
+        return current;
+    }
+
+    /** Regular expression for parsing array indexes in JSON path segments. */
+    private static final java.util.regex.Pattern IDX = java.util.regex.Pattern.compile("\\[(\\d+)]");
+
+    private static final class Segment {
+        final String baseKey;
+        final List<Integer> indexes;
+        Segment(String baseKey, List<Integer> indexes) {
+            this.baseKey = baseKey;
+            this.indexes = indexes;
+        }
+    }
+
+    /**
+     * Tokenizes a JSON path into segments while supporting:
+     * - dot separators: a.b.c
+     * - array indexes: a[0].b
+     * - bracketed keys: a['key.with.dots'] or a["key"]
+     * - escaped characters: a\\.b -> key "a.b"
+     *
+     * This is a strict parser; malformed paths throw Exception.
+     */
+    private List<String> tokenizePath(String path) throws Exception {
+        if (path == null || path.isBlank()) {
+            return java.util.Collections.emptyList();
+        }
+
+        List<String> tokens = new java.util.ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int i = 0;
+        while (i < path.length()) {
+            char c = path.charAt(i);
+
+            if (c == '\\') {
+                if (i + 1 >= path.length()) {
+                    throw new Exception("Malformed path: trailing escape in '" + path + "'");
+                }
+                current.append(path.charAt(i + 1));
+                i += 2;
+                continue;
+            }
+
+            if (c == '.') {
+                if (current.length() == 0) {
+                    throw new Exception("Malformed path: empty segment in '" + path + "'");
+                }
+                tokens.add(current.toString());
+                current.setLength(0);
+                i++;
+                continue;
+            }
+
+            if (c == '[') {
+                if (i + 1 >= path.length()) {
+                    throw new Exception("Malformed path: unterminated bracket in '" + path + "'");
+                }
+
+                char next = path.charAt(i + 1);
+                if (next == '\'' || next == '"') {
+                    char quote = next;
+                    i += 2;
+                    StringBuilder key = new StringBuilder();
+                    boolean closed = false;
+                    while (i < path.length()) {
+                        char ch = path.charAt(i);
+                        if (ch == '\\') {
+                            if (i + 1 >= path.length()) {
+                                throw new Exception("Malformed path: bad escape in '" + path + "'");
+                            }
+                            key.append(path.charAt(i + 1));
+                            i += 2;
+                            continue;
+                        }
+                        if (ch == quote) {
+                            closed = true;
+                            i++;
+                            break;
+                        }
+                        key.append(ch);
+                        i++;
+                    }
+                    if (!closed || i >= path.length() || path.charAt(i) != ']') {
+                        throw new Exception("Malformed path: unterminated quoted key in '" + path + "'");
+                    }
+                    i++; // consume ]
+
+                    if (current.length() > 0) {
+                        tokens.add(current.toString());
+                        current.setLength(0);
+                    }
+                    current.append(key);
+                    continue;
+                }
+
+                int j = i + 1;
+                while (j < path.length() && Character.isWhitespace(path.charAt(j))) j++;
+                int start = j;
+                while (j < path.length() && Character.isDigit(path.charAt(j))) j++;
+                if (start == j) {
+                    throw new Exception("Malformed path: non-numeric index in '" + path + "'");
+                }
+                String idx = path.substring(start, j);
+                while (j < path.length() && Character.isWhitespace(path.charAt(j))) j++;
+                if (j >= path.length() || path.charAt(j) != ']') {
+                    throw new Exception("Malformed path: unterminated index in '" + path + "'");
+                }
+                current.append('[').append(idx).append(']');
+                i = j + 1;
+                continue;
+            }
+
+            current.append(c);
+            i++;
+        }
+
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+        return tokens;
+    }
+
+    private Segment parseSegment(String token) throws Exception {
+        if (token == null || token.isBlank()) {
+            throw new Exception("Malformed path: empty segment");
+        }
+
+        String base = token.split("\\[")[0];
+        List<Integer> indexes = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = IDX.matcher(token);
+        while (m.find()) {
+            try {
+                indexes.add(Integer.parseInt(m.group(1)));
+            } catch (NumberFormatException nfe) {
+                throw new Exception("Malformed array index in segment '" + token + "'", nfe);
+            }
+        }
+
+        return new Segment(base, indexes);
+    }
+
+    private Object buildSuccessDbmValue(NetworkResult result, Object projectionValue, boolean collectMetrics) {
+        Object bodyValue = projectionValue;
+        if (bodyValue == null) {
+            if (result.getJsonObject() != null) {
+                bodyValue = result.getJsonObject();
+            } else if (result.getJsonArray() != null) {
+                bodyValue = result.getJsonArray();
+            } else if (result.getBody() != null) {
+                JSONObject wrapper = new JSONObject();
+                wrapper.put("raw_body", result.getBody());
+                bodyValue = wrapper;
+            } else {
+                bodyValue = new JSONObject();
+            }
+        }
+
+        if (!collectMetrics) {
+            if (bodyValue instanceof JSONObject || bodyValue instanceof JSONArray) {
+                return bodyValue;
+            }
+            JSONObject wrapper = new JSONObject();
+            wrapper.put("value", bodyValue);
+            return wrapper;
+        }
+
+        JSONObject out = new JSONObject();
+        out.put("body", bodyValue);
+        out.put("network_meta", new JSONObject(result.toMetaMap()));
+        return out;
+    }
+
+    private Object buildErrorDbmValue(
+            NetworkResult result,
+            NetworkException.ErrorType errorType,
+            Exception cause,
+            Object projectionValue,
+            boolean collectMetrics
+    ) {
+        JSONObject error = new JSONObject();
+        error.put("ok", false);
+
+        JSONObject err = new JSONObject();
+        err.put("type", errorType != null ? errorType.name() : "UNKNOWN");
+        err.put("reason", buildErrorReason(errorType, cause));
+        err.put("status_code", result.getStatusCode());
+        err.put("trace_id", result.getTraceId());
+        err.put("service", result.getService());
+        err.put("endpoint", result.getEndpoint());
+        err.put("final_url", result.getFinalUrl());
+        error.put("error", err);
+
+        if (projectionValue != null) {
+            error.put("body", projectionValue);
+        } else if (result.getBody() != null) {
+            error.put("raw_body", result.getBody());
+        }
+
+        if (collectMetrics) {
+            error.put("network_meta", new JSONObject(result.toMetaMap()));
+        }
+        return error;
+    }
+
+    private String buildErrorReason(NetworkException.ErrorType errorType, Exception cause) {
+        if (cause != null && cause.getMessage() != null && !cause.getMessage().isBlank()) {
+            return cause.getMessage();
+        }
+        if (errorType != null) {
+            return "Network error: " + errorType.name();
+        }
+        return "Network error";
     }
 }

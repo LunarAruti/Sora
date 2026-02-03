@@ -104,8 +104,9 @@ public final class NetworkJournal {
      * @param result    the final {@link NetworkResult} for the request
      * @param errorType null for success, or a {@link NetworkException.ErrorType}
      *                  describing the terminal failure classification
+     * @return true if the entry was recorded
      */
-    public static void record(NetworkResult result, NetworkException.ErrorType errorType) {
+    public static boolean record(NetworkResult result, NetworkException.ErrorType errorType) {
         Objects.requireNonNull(result, "result");
 
         long now = System.currentTimeMillis();
@@ -150,6 +151,7 @@ public final class NetworkJournal {
         }
 
         Logger.log(Logger.TAG.INFO, sb.toString());
+        return true;
     }
 
     /**
@@ -186,8 +188,10 @@ public final class NetworkJournal {
      * <p>Primarily for testing or admin commands. Normal operation should never
      * need to call this.</p>
      */
-    public static void clear() {
+    public static boolean clear() {
+        boolean hadEntries;
         synchronized (LOCK) {
+            hadEntries = size > 0;
             for (int i = 0; i < buffer.length; i++) {
                 buffer[i] = null;
             }
@@ -196,5 +200,6 @@ public final class NetworkJournal {
 
             Logger.log(Logger.TAG.SYSTEM, "NetworkJournal: CLEAR invoked");
         }
+        return hadEntries;
     }
 }

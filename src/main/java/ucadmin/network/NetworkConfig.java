@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 
 /**
  * Global configuration and policy holder for the UC Admin network module.
@@ -106,31 +107,50 @@ public final class NetworkConfig {
      * </ul>
      *
      * @param host the hostname to allow (e.g., "example.com")
+     * @return true if the whitelist changed, false otherwise
      */
-    public static void addWhitelistedHost(String host) {
-        if (host == null || host.isBlank()) return;
+    public static boolean addWhitelistedHost(String host) {
+        if (host == null || host.isBlank()) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.addWhitelistedHost: invalid host (null/blank)");
+            return false;
+        }
         String h = host.trim().toLowerCase();
-        HOST_WHITELIST.add(h);
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: added WHITELIST host=" + h);
+        boolean changed = HOST_WHITELIST.add(h);
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: added WHITELIST host=" + h);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: WHITELIST no-op (already present) host=" + h);
+        }
+        return changed;
     }
 
     /**
-     * Removes a hostname from the blacklist.
+     * Adds a hostname to the blacklist.
      *
      * <p>
-     * Once removed, the host becomes eligible for requests again (unless the whitelist
-     * is non-empty and this host is not in the whitelist).
+     * Blacklisted hosts are always denied, even if the whitelist is empty.
      * </p>
      *
-     * @param host hostname to remove from the blacklist
+     * @param host hostname to add to the blacklist
+     * @return true if the blacklist changed, false otherwise
      */
-    public static void addBlacklistedHost(String host) {
-        if (host == null || host.isBlank()) return;
+    public static boolean addBlacklistedHost(String host) {
+        if (host == null || host.isBlank()) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.addBlacklistedHost: invalid host (null/blank)");
+            return false;
+        }
         String h = host.trim().toLowerCase();
-        HOST_BLACKLIST.add(h);
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: added BLACKLIST host=" + h);
+        boolean changed = HOST_BLACKLIST.add(h);
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: added BLACKLIST host=" + h);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: BLACKLIST no-op (already present) host=" + h);
+        }
+        return changed;
     }
 
     /**
@@ -147,30 +167,51 @@ public final class NetworkConfig {
      * </pre>
      *
      * @param host the hostname to remove
+     * @return true if the whitelist changed, false otherwise
      */
-    public static void removeWhitelistedHost(String host) {
-        if (host == null) return;
+    public static boolean removeWhitelistedHost(String host) {
+        if (host == null) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.removeWhitelistedHost: invalid host (null)");
+            return false;
+        }
         String h = host.trim().toLowerCase();
-        HOST_WHITELIST.remove(h);
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: removed WHITELIST host=" + h);
+        boolean changed = HOST_WHITELIST.remove(h);
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: removed WHITELIST host=" + h);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: WHITELIST no-op (not present) host=" + h);
+        }
+        return changed;
     }
 
     /**
-     * Returns an immutable snapshot of the current blacklist.
+     * Removes a hostname from the blacklist.
      *
      * <p>
-     * Useful for admin/debug tools or for external configuration UIs.
+     * Once removed, the host becomes eligible for requests again (unless the whitelist
+     * is non-empty and this host is not in the whitelist).
      * </p>
      *
-     * @return immutable set of blacklisted hosts
+     * @param host hostname to remove from the blacklist
+     * @return true if the blacklist changed, false otherwise
      */
-    public static void removeBlacklistedHost(String host) {
-        if (host == null) return;
+    public static boolean removeBlacklistedHost(String host) {
+        if (host == null) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.removeBlacklistedHost: invalid host (null)");
+            return false;
+        }
         String h = host.trim().toLowerCase();
-        HOST_BLACKLIST.remove(h);
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: removed BLACKLIST host=" + h);
+        boolean changed = HOST_BLACKLIST.remove(h);
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: removed BLACKLIST host=" + h);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: BLACKLIST no-op (not present) host=" + h);
+        }
+        return changed;
     }
 
     /**
@@ -284,14 +325,25 @@ public final class NetworkConfig {
      *
      * @param key logical service or host
      * @param bucket the rate bucket name
+     * @return true if the mapping changed, false otherwise
      */
-    public static void setDefaultRateBucket(String key, String bucket) {
-        if (key == null || key.isBlank() || bucket == null || bucket.isBlank()) return;
+    public static boolean setDefaultRateBucket(String key, String bucket) {
+        if (key == null || key.isBlank() || bucket == null || bucket.isBlank()) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.setDefaultRateBucket: invalid key/bucket");
+            return false;
+        }
         String k = key.trim();
         String b = bucket.trim();
-        DEFAULT_RATE_BUCKETS.put(k, b);
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: setDefaultRateBucket key=" + k + " bucket=" + b);
+        String prev = DEFAULT_RATE_BUCKETS.put(k, b);
+        boolean changed = !Objects.equals(prev, b);
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: setDefaultRateBucket key=" + k + " bucket=" + b);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: setDefaultRateBucket no-op (unchanged) key=" + k);
+        }
+        return changed;
     }
 
     /**
@@ -303,13 +355,24 @@ public final class NetworkConfig {
      * </p>
      *
      * @param key service or host
+     * @return true if a mapping was removed, false otherwise
      */
-    public static void removeDefaultRateBucket(String key) {
-        if (key == null) return;
+    public static boolean removeDefaultRateBucket(String key) {
+        if (key == null) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.removeDefaultRateBucket: invalid key (null)");
+            return false;
+        }
         String k = key.trim();
-        DEFAULT_RATE_BUCKETS.remove(k);
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: removedDefaultRateBucket key=" + k);
+        String prev = DEFAULT_RATE_BUCKETS.remove(k);
+        boolean changed = (prev != null);
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: removedDefaultRateBucket key=" + k);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: removeDefaultRateBucket no-op (not present) key=" + k);
+        }
+        return changed;
     }
 
     /**
@@ -366,19 +429,37 @@ public final class NetworkConfig {
      *
      * @param key logical service/host
      * @param maxBytes maximum allowed bytes (null → remove limit)
+     * @return true if the mapping changed, false otherwise
      */
-    public static void setDefaultMaxResponseBytes(String key, Long maxBytes) {
-        if (key == null || key.isBlank()) return;
+    public static boolean setDefaultMaxResponseBytes(String key, Long maxBytes) {
+        if (key == null || key.isBlank()) {
+            Logger.log(Logger.TAG.WARN, "NetworkConfig.setDefaultMaxResponseBytes: invalid key (null/blank)");
+            return false;
+        }
         String k = key.trim();
 
         if (maxBytes == null || maxBytes <= 0L) {
-            DEFAULT_MAX_RESPONSE_BYTES.remove(k);
-            Logger.log(Logger.TAG.SYSTEM,
-                    "NetworkConfig: removedDefaultMaxBytes key=" + k);
+            Long prev = DEFAULT_MAX_RESPONSE_BYTES.remove(k);
+            boolean changed = (prev != null);
+            if (changed) {
+                Logger.log(Logger.TAG.SYSTEM,
+                        "NetworkConfig: removedDefaultMaxBytes key=" + k);
+            } else {
+                Logger.log(Logger.TAG.WARN,
+                        "NetworkConfig: removeDefaultMaxBytes no-op (not present) key=" + k);
+            }
+            return changed;
         } else {
-            DEFAULT_MAX_RESPONSE_BYTES.put(k, maxBytes);
-            Logger.log(Logger.TAG.SYSTEM,
-                    "NetworkConfig: setDefaultMaxBytes key=" + k + " bytes=" + maxBytes);
+            Long prev = DEFAULT_MAX_RESPONSE_BYTES.put(k, maxBytes);
+            boolean changed = !Objects.equals(prev, maxBytes);
+            if (changed) {
+                Logger.log(Logger.TAG.SYSTEM,
+                        "NetworkConfig: setDefaultMaxBytes key=" + k + " bytes=" + maxBytes);
+            } else {
+                Logger.log(Logger.TAG.WARN,
+                        "NetworkConfig: setDefaultMaxBytes no-op (unchanged) key=" + k);
+            }
+            return changed;
         }
     }
 
@@ -431,11 +512,20 @@ public final class NetworkConfig {
      * <p>Passing null disables the global cap.</p>
      *
      * @param maxBytes new global limit, or null to disable
+     * @return true if the global value changed, false otherwise
      */
-    public static void setGlobalMaxResponseBytes(Long maxBytes) {
-        GLOBAL_MAX_RESPONSE_BYTES = (maxBytes != null && maxBytes > 0L) ? maxBytes : null;
-        Logger.log(Logger.TAG.SYSTEM,
-                "NetworkConfig: setGlobalMaxRespBytes=" + GLOBAL_MAX_RESPONSE_BYTES);
+    public static boolean setGlobalMaxResponseBytes(Long maxBytes) {
+        Long next = (maxBytes != null && maxBytes > 0L) ? maxBytes : null;
+        boolean changed = !Objects.equals(GLOBAL_MAX_RESPONSE_BYTES, next);
+        GLOBAL_MAX_RESPONSE_BYTES = next;
+        if (changed) {
+            Logger.log(Logger.TAG.SYSTEM,
+                    "NetworkConfig: setGlobalMaxRespBytes=" + GLOBAL_MAX_RESPONSE_BYTES);
+        } else {
+            Logger.log(Logger.TAG.WARN,
+                    "NetworkConfig: setGlobalMaxRespBytes no-op (unchanged)");
+        }
+        return changed;
     }
 
     /**

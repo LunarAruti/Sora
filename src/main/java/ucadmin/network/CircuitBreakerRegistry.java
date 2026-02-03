@@ -137,21 +137,29 @@ public final class CircuitBreakerRegistry {
     /**
      * Records a successful call for the given circuit key.
      * This closes the breaker and resets failure counters.
+     *
+     * @return true if the breaker state changed, false otherwise
      */
-    public static void recordSuccess(String key) {
-        if (key == null || key.isBlank()) return;
+    public static boolean recordSuccess(String key) {
+        if (key == null || key.isBlank()) return false;
 
         BreakerState state = BREAKERS.computeIfAbsent(key, k -> new BreakerState());
+        boolean changed;
         synchronized (state) {
+            changed = state.state != CircuitState.CLOSED || state.consecutiveFailures != 0 ||
+                    state.openedAtMillis != 0L || state.lastFailureAtMillis != 0L || state.halfOpenProbeUsed;
             state.state = CircuitState.CLOSED;
             state.consecutiveFailures = 0;
             state.openedAtMillis = 0L;
             state.lastFailureAtMillis = 0L;
             state.halfOpenProbeUsed = false; // reset probe flag
 
-            Logger.log(Logger.TAG.REQUEST,
-                    "Circuit SUCCESS: key=" + key + " → CLOSED");
+            if (changed) {
+                Logger.log(Logger.TAG.REQUEST,
+                        "Circuit SUCCESS: key=" + key + " → CLOSED");
+            }
         }
+        return changed;
     }
 
     /**
@@ -161,15 +169,17 @@ public final class CircuitBreakerRegistry {
      *
      * @param key       circuit key (must not be null/blank)
      * @param nowMillis current time in epoch millis
+     * @return true if the breaker state changed, false otherwise
      */
-    public static void recordFailure(String key, long nowMillis) {
-        if (key == null || key.isBlank()) return;
+    public static boolean recordFailure(String key, long nowMillis) {
+        if (key == null || key.isBlank()) return false;
 
         BreakerState state = BREAKERS.computeIfAbsent(key, k -> new BreakerState());
         synchronized (state) {
 
             // Special behavior: in HALF_OPEN, ANY failure → go straight back to OPEN
             if (state.state == CircuitState.HALF_OPEN) {
+                boolean changed = state.state != CircuitState.OPEN;
                 state.state = CircuitState.OPEN;
                 state.openedAtMillis = nowMillis;
                 state.lastFailureAtMillis = nowMillis;
@@ -178,7 +188,7 @@ public final class CircuitBreakerRegistry {
 
                 Logger.log(Logger.TAG.REQUEST,
                         "Circuit FAILURE in HALF_OPEN → OPEN key=" + key);
-                return;
+                return changed;
             }
 
             // Normal CLOSED/OPEN failure logic
@@ -186,6 +196,7 @@ public final class CircuitBreakerRegistry {
             state.lastFailureAtMillis = nowMillis;
 
             if (state.consecutiveFailures >= FAILURE_THRESHOLD) {
+                boolean changed = state.state != CircuitState.OPEN;
                 state.state = CircuitState.OPEN;
                 state.openedAtMillis = nowMillis;
                 state.halfOpenProbeUsed = false;
@@ -194,10 +205,12 @@ public final class CircuitBreakerRegistry {
                         "Circuit FAILURE: key=" + key +
                                 " threshold=" + FAILURE_THRESHOLD +
                                 " → OPEN");
+                return changed;
             } else {
                 Logger.log(Logger.TAG.REQUEST,
                         "Circuit FAILURE: key=" + key +
                                 " count=" + state.consecutiveFailures);
+                return true;
             }
         }
     }

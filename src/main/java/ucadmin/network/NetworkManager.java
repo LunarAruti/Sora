@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONObject;
 
 
@@ -68,6 +69,7 @@ public final class NetworkManager {
     /** Global lifecycle flags. */
     private static final AtomicBoolean STARTED = new AtomicBoolean(false);
     private static final AtomicBoolean SHUTTING_DOWN = new AtomicBoolean(false);
+    private static final AtomicInteger CACHE_SUFFIX_COUNTER = new AtomicInteger(0);
 
     private NetworkManager() {
         // no instances
@@ -97,10 +99,12 @@ public final class NetworkManager {
      * </pre>
      *
      * <p>This should normally be invoked once during bot startup.</p>
+     *
+     * @return true if the subsystem started, false if it was already running
      */
-    public static void start() {
+    public static boolean start() {
         Logger.log(Logger.TAG.SYSTEM, "[NetworkManager] start() called (default worker count).");
-        start(DEFAULT_WORKER_COUNT);
+        return start(DEFAULT_WORKER_COUNT);
     }
 
     /**
@@ -120,17 +124,18 @@ public final class NetworkManager {
      * </pre>
      *
      * @param workerCount number of worker threads to start
+     * @return true if the subsystem started, false if it was already running
      */
-    public static void start(int workerCount) {
+    public static boolean start(int workerCount) {
         if (workerCount < 1) {
             Logger.log(Logger.TAG.ERROR,
                     "[NetworkManager] Invalid workerCount=" + workerCount);
             throw new IllegalArgumentException("workerCount must be >= 1 (was " + workerCount + ")");
         }
         if (!STARTED.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.DEBUG,
+            Logger.log(Logger.TAG.WARN,
                     "[NetworkManager] start() ignored → already started.");
-            return;
+            return false;
         }
 
         SHUTTING_DOWN.set(false);
@@ -152,6 +157,7 @@ public final class NetworkManager {
 
         Logger.log(Logger.TAG.SYSTEM,
                 "[NetworkManager] All network workers started successfully.");
+        return true;
     }
 
     /**
@@ -171,17 +177,19 @@ public final class NetworkManager {
      * <pre>
      * NetworkManager.shutdown();
      * </pre>
+     *
+     * @return true if shutdown was initiated, false if it was already stopped/shutting down
      */
-    public static void shutdown() {
+    public static boolean shutdown() {
         if (!STARTED.get()) {
-            Logger.log(Logger.TAG.DEBUG,
+            Logger.log(Logger.TAG.WARN,
                     "[NetworkManager] shutdown() ignored → not started.");
-            return;
+            return false;
         }
         if (!SHUTTING_DOWN.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.DEBUG,
+            Logger.log(Logger.TAG.WARN,
                     "[NetworkManager] shutdown() ignored → already shutting down.");
-            return;
+            return false;
         }
 
         Logger.log(Logger.TAG.SYSTEM, "[NetworkManager] Shutting down network workers...");
@@ -198,10 +206,21 @@ public final class NetworkManager {
             try {
                 t.join(3_000L);
             } catch (InterruptedException ignored) {
+                Logger.log(Logger.TAG.WARN,
+                        "[NetworkManager] shutdown() interrupted while waiting for worker=" + t.getName());
+                Thread.currentThread().interrupt();
+            }
+            if (t.isAlive()) {
+                Logger.log(Logger.TAG.WARN,
+                        "[NetworkManager] worker still alive after join: " + t.getName());
+            } else {
+                Logger.log(Logger.TAG.INFO,
+                        "[NetworkManager] worker joined: " + t.getName());
             }
         }
 
         Logger.log(Logger.TAG.SYSTEM, "[NetworkManager] Network workers shut down.");
+        return true;
     }
 
     // ----------------------------------------------------------------------
@@ -280,6 +299,12 @@ public final class NetworkManager {
         }
 
         validateHighLevel(request);
+
+        // Resolve cache path collisions on disk (best-effort).
+        String resolvedCachePath = resolveUniqueCachePath(request.getCachePath(), request);
+        if (!resolvedCachePath.equals(request.getCachePath())) {
+            request.overrideCachePathInternal(resolvedCachePath);
+        }
 
         String dedupeKey = request.getDedupeKey();
         if (dedupeKey != null && !dedupeKey.isBlank()) {
@@ -383,7 +408,7 @@ public final class NetworkManager {
         String cachePath = request.getCachePath();
 
         if (!accepted) {
-            Logger.log(Logger.TAG.DEBUG,
+            Logger.log(Logger.TAG.WARN,
                     "[NetworkManager] requestAndReturnCachePath: NOT ACCEPTED service=" +
                             request.getService() + ", name=" + request.getName());
             return null;
@@ -455,12 +480,45 @@ public final class NetworkManager {
             );
         }
 
-        if (!cachePath.startsWith("mem/")) {
+        if (!cachePath.startsWith("database/")) {
             Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] Non-mem cachePath: " +
+                    "[NetworkManager] Non-database cachePath: " +
                             cachePath + " service=" + request.getService() +
                             ", name=" + request.getName());
         }
+    }
+
+    private static String resolveUniqueCachePath(String basePath, NetworkRequest request) {
+        String path = ensureJsonPath(basePath);
+        if (path == null) return basePath;
+
+        try {
+            boolean disk = DatabaseManager.fileExists(path);
+            boolean cache = DatabaseManager.cacheExists(path);
+            if (!disk && !cache) {
+                return path;
+            }
+        } catch (DatabaseException e) {
+            Logger.log(Logger.TAG.WARN,
+                    "[NetworkManager] cache path check failed, using base: " + e.getMessage());
+            return path;
+        }
+
+        int dot = path.toLowerCase(Locale.ROOT).lastIndexOf(".json");
+        String stem = (dot >= 0) ? path.substring(0, dot) : path;
+        String suffix = "-dup-" + System.currentTimeMillis() + "-" + CACHE_SUFFIX_COUNTER.incrementAndGet();
+        String candidate = stem + suffix + ".json";
+
+        Logger.log(Logger.TAG.WARN,
+                "[NetworkManager] cache path collision; using " + candidate +
+                        " service=" + request.getService() + " name=" + request.getName());
+        return candidate;
+    }
+
+    private static String ensureJsonPath(String path) {
+        if (path == null) return null;
+        if (path.toLowerCase(Locale.ROOT).endsWith(".json")) return path;
+        return path + ".json";
     }
 
     /**
@@ -510,7 +568,7 @@ public final class NetworkManager {
      * Serializes the full diagnostics snapshot into a TEMP DBM JSON file at:
      *
      * <pre>
-     *   mem/diagnostics/network/state.json
+     *   database/network/diagnostics/state.json
      * </pre>
      *
      * <p>This is useful for live debugging, admin commands, or exporting health
@@ -528,16 +586,23 @@ public final class NetworkManager {
      * @throws NetworkException if DBM write fails
      */
     public static String dumpDiagnosticsToTemp() throws NetworkException {
-        final String path = "mem/diagnostics/network/state.json";
+        final String path = "database/network/diagnostics/state.json";
 
         Logger.log(Logger.TAG.SYSTEM,
                 "[NetworkManager] Dumping diagnostics to " + path);
 
         Map<String, Object> diag = getDiagnosticsSummary();
+        diag = new LinkedHashMap<>(diag);
+        diag.put("generated_at_ms", System.currentTimeMillis());
+        diag.put("cache_root", "database/network");
+        diag.put("worker_count", WORKER_THREADS.size());
+        diag.put("queue_capacity", MAX_QUEUE_SIZE);
         JSONObject json = new JSONObject(diag);
 
         try {
-            //DatabaseManager.writeJSONPathTemp(path, null, json, true);
+            DatabaseManager.createJSON(path);
+            DatabaseManager.makeTemporary(path);
+            DatabaseManager.writeJSONPath(path, null, json, true);
         } catch (DatabaseException e) {
             Logger.log(Logger.TAG.ERROR,
                     "[NetworkManager] Failed to write diagnostics to DBM at " +
@@ -557,6 +622,71 @@ public final class NetworkManager {
 
         Logger.log(Logger.TAG.INFO,
                 "[NetworkManager] Wrote network diagnostics to TEMP path: " + path);
+
+        return path;
+    }
+
+    /**
+     * Serializes the in-memory NetworkJournal ring buffer into a TEMP DBM JSON file at:
+     *
+     * <pre>
+     *   database/network/journal/recent.json
+     * </pre>
+     *
+     * @return cache path where journal JSON was written
+     * @throws NetworkException if DBM write fails
+     */
+    public static String dumpJournalToTemp() throws NetworkException {
+        final String path = "database/network/journal/recent.json";
+
+        Logger.log(Logger.TAG.SYSTEM,
+                "[NetworkManager] Dumping NetworkJournal to " + path);
+
+        var entries = NetworkJournal.snapshot();
+        org.json.JSONArray arr = new org.json.JSONArray();
+        for (NetworkJournal.JournalEntry e : entries) {
+            org.json.JSONObject obj = new org.json.JSONObject();
+            obj.put("logged_at_ms", e.getLoggedAtMillis());
+            obj.put("service", e.getService());
+            obj.put("endpoint", e.getEndpoint());
+            obj.put("trace_id", e.getTraceId());
+            obj.put("final_url", e.getFinalUrl());
+            obj.put("status_code", e.getStatusCode());
+            obj.put("attempts", e.getAttempts());
+            obj.put("latency_ms", e.getLatencyMillis());
+            obj.put("success", e.isSuccess());
+            obj.put("error_type", e.getErrorType() != null ? e.getErrorType().name() : "null");
+            arr.put(obj);
+        }
+
+        org.json.JSONObject root = new org.json.JSONObject();
+        root.put("generated_at_ms", System.currentTimeMillis());
+        root.put("count", entries.size());
+        root.put("entries", arr);
+
+        try {
+            DatabaseManager.createJSON(path);
+            DatabaseManager.makeTemporary(path);
+            DatabaseManager.writeJSONPath(path, null, root, true);
+        } catch (DatabaseException e) {
+            Logger.log(Logger.TAG.ERROR,
+                    "[NetworkManager] Failed to write NetworkJournal to DBM at " +
+                            path + ": " + e.getMessage());
+            throw new NetworkException(
+                    ErrorType.UNKNOWN,
+                    "Failed to write network journal to DBM.",
+                    e,
+                    "network",
+                    "journal",
+                    null,
+                    path,
+                    null,
+                    null
+            );
+        }
+
+        Logger.log(Logger.TAG.INFO,
+                "[NetworkManager] Wrote NetworkJournal to TEMP path: " + path);
 
         return path;
     }

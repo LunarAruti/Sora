@@ -2,72 +2,64 @@ package ucadmin.main;
 
 import ucadmin.database.DatabaseManager;
 import ucadmin.database.QueueManager;
+import ucadmin.network.NetworkManager;
+import ucadmin.network.NetworkRequest;
 import ucadmin.util.Logger;
+import ucadmin.util.ShutdownManager;
 
 public class TestingGrounds {
 
     public static void TestingGrounds() {
 
-        Logger.log(Logger.TAG.SYSTEM, "=== DBM CRASH TEST SUITE START ===");
+        Logger.log(Logger.TAG.SYSTEM, "=== NETWORK TEST SUITE START (SIMPLE) ===");
 
         try {
             // ---------------------------------------------------------
             // 0) Init
             // ---------------------------------------------------------
             DatabaseManager.initialize();
+            NetworkManager.start(3);
 
-            // ---------------------------------------------------------
-            // 1) Paths
-            // ---------------------------------------------------------
-            final String ROOT = DatabaseManager.createFolder("sandbox_crash_test");
-            final String PERM_FILE = ROOT + "/perm_crash.json";
-            final String TEMP_FILE = ROOT + "/temp_crash.json";
+            final String userId = "547532739";
+            final String cachePath = "database/network/" + userId + ".json";
 
-            Logger.log(Logger.TAG.INFO, "ROOT=" + ROOT);
-            Logger.log(Logger.TAG.INFO, "PERM_FILE=" + PERM_FILE);
-            Logger.log(Logger.TAG.INFO, "TEMP_FILE=" + TEMP_FILE);
+            NetworkRequest req = new NetworkRequest("roblox", "UserFriendsFind")
+                    .setRequestUrl("https://friends.roblox.com")
+                    .setPath("/v1/users/547532739/friends/find")
+                    .setResponseType(NetworkRequest.ResponseType.JSON_OBJECT)
+                    .setCachePath(cachePath);
 
-            // ---------------------------------------------------------
-            // 2) PERM file writes (ensure journal is created)
-            // ---------------------------------------------------------
-            Logger.log(Logger.TAG.INFO, "PERM write $.value=1 -> " +
-                    DatabaseManager.writeJSONPath(PERM_FILE, "$.value", 1, true));
-            Logger.log(Logger.TAG.INFO, "PERM write $.value=2 -> " +
-                    DatabaseManager.writeJSONPath(PERM_FILE, "$.value", 2, true));
-            Logger.log(Logger.TAG.INFO, "PERM write $.value=3 -> " +
-                    DatabaseManager.writeJSONPath(PERM_FILE, "$.value", 3, true));
-            Logger.log(Logger.TAG.INFO, "PERM fileExists(base/journal)=" + DatabaseManager.fileExists(PERM_FILE));
+            String resolvedPath = NetworkManager.requestAndReturnCachePath(req);
+            Logger.log(Logger.TAG.INFO, "[NetworkTest] cachePath=" + resolvedPath);
 
-            // ---------------------------------------------------------
-            // 3) TEMP file writes (cache-only)
-            // ---------------------------------------------------------
-            Object tempRootBefore = DatabaseManager.readJSONPath(TEMP_FILE, "");
-            Logger.log(Logger.TAG.INFO, "TEMP read root (prime cache) -> " + (tempRootBefore == null ? "null" : "ok"));
-            DatabaseManager.makeTemporary(TEMP_FILE);
-            Logger.log(Logger.TAG.INFO, "TEMP marked: " + TEMP_FILE);
+            // Wait for async workers to complete
+            Thread.sleep(5000);
 
-            Logger.log(Logger.TAG.INFO, "TEMP write $.token=crash -> " +
-                    DatabaseManager.writeJSONPath(TEMP_FILE, "$.token", "crash", true));
-            Logger.log(Logger.TAG.INFO, "TEMP read $.token -> " +
-                    DatabaseManager.readJSONPath(TEMP_FILE, "$.token"));
-            Logger.log(Logger.TAG.INFO, "TEMP fileExists(base/journal)=" + DatabaseManager.fileExists(TEMP_FILE));
+            // Mark as permanent after write
+            try {
+                boolean madePerm = DatabaseManager.makePermanent(resolvedPath);
+                Logger.log(Logger.TAG.INFO, "[NetworkTest] makePermanent=" + madePerm + " path=" + resolvedPath);
+            } catch (Throwable t) {
+                Logger.log(Logger.TAG.ERROR, "[NetworkTest] makePermanent failed path=" + resolvedPath + " err=" + t.getMessage());
+            }
+
+            try {
+                Object root = DatabaseManager.readJSONPath(resolvedPath, "");
+                Logger.log(Logger.TAG.INFO, "[NetworkTest] read root ok path=" + resolvedPath + " type=" +
+                        (root == null ? "null" : root.getClass().getSimpleName()));
+            } catch (Throwable t) {
+                Logger.log(Logger.TAG.ERROR, "[NetworkTest] read root failed path=" + resolvedPath + " err=" + t.getMessage());
+            }
 
             Logger.log(Logger.TAG.INFO, "Queue sizes: flush=" + QueueManager.getQueueSize()
                     + ", cache=" + QueueManager.getCacheSize());
-
-            // ---------------------------------------------------------
-            // 4) Hold for manual termination
-            // ---------------------------------------------------------
-            Logger.log(Logger.TAG.SYSTEM, "=== CRASH TEST: terminate process after ~2 minutes ===");
-            Logger.log(Logger.TAG.SYSTEM, "=== Do NOT call shutdown. Allow journals to exist. ===");
-
-            Thread.sleep(10 * 60_000);
-
-            Logger.log(Logger.TAG.WARN, "Crash test window ended without termination. Exiting normally.");
+            Logger.log(Logger.TAG.SYSTEM, "=== NETWORK TEST SUITE END (SIMPLE) ===");
 
         } catch (Throwable t) {
-            Logger.log(Logger.TAG.ERROR, "DBM TEST SUITE CRASHED: " + t);
+            Logger.log(Logger.TAG.ERROR, "NETWORK TEST SUITE CRASHED: " + t);
         }
+
+        ShutdownManager.shutdown(null);
 
     }
 }

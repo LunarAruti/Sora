@@ -13,6 +13,14 @@ import ucadmin.database.CrashHandler;
 import ucadmin.exceptions.DatabaseException;
 import ucadmin.exceptions.QueueException;
 import ucadmin.main.BotConfig;
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 
 /**
  * Handles all startup-time initialization once the JDA session is ready.
@@ -31,6 +39,16 @@ public class StartupManager extends ListenerAdapter {
         jda.getPresence().setActivity(Activity.playing("UC Testing bot..."));
         jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.ONLINE);
 
+        // DependencyManager must run before Logger/DB modules.
+        try {
+            DependencyManager.initializeDependencies();
+        } catch (DatabaseException e) {
+            System.err.println("Dependency initialization failed: " + e.getMessage());
+            jda.getPresence().setActivity(Activity.playing("Startup blocked: deps failed"));
+            jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.DO_NOT_DISTURB);
+            return;
+        }
+
         // Logger
         Logger.init();
         Logger.log(Logger.TAG.INFO, "UC Admin Bot is online as " + jda.getSelfUser().getName());
@@ -41,9 +59,6 @@ public class StartupManager extends ListenerAdapter {
         QueueManager.RawIO.bindMover(DatabaseManager::moveToCorrupt);
         QueueManager.RawIO.bindPatchAppender(DatabaseManager::appendJSONPatch);
         Logger.log(Logger.TAG.INFO, "Queue-Batch workers binded.");
-
-        ucadmin.network.NetworkManager.start(BotConfig.netWorkerThreads);
-        Logger.log(Logger.TAG.INFO, "Network manager Threads binded. Total: " + BotConfig.netWorkerThreads);
 
         try {
             Logger.log(Logger.TAG.SYSTEM, "Starting database initialization...");
@@ -66,16 +81,53 @@ public class StartupManager extends ListenerAdapter {
                 return;
             }
             // ----------------------------------------------------------------------
-
-            // Initialize higher-level deps (may write safely now)
-            DependencyManager.initializeDependencies();
             Logger.log(Logger.TAG.SYSTEM, "Database initialization complete.");
 
+            updateStartupCount();
+
+            ucadmin.network.NetworkManager.start(BotConfig.netWorkerThreads);
+            Logger.log(Logger.TAG.INFO, "Network manager Threads binded. Total: " + BotConfig.netWorkerThreads);
+
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "Dependency initialization failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "Database initialization failed: " + e.getMessage());
         } catch (Exception e) {
             Logger.log(Logger.TAG.ERROR,
                     "Unexpected startup failure: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+    }
+
+    private static void updateStartupCount() throws DatabaseException {
+        try {
+            Path path = Paths.get("database/global/bot.json").toAbsolutePath().normalize();
+            if (!Files.exists(path) || !Files.isRegularFile(path)) {
+                throw new DatabaseException("Startup count update failed: missing bot.json at " + path);
+            }
+            String content = Files.readString(path, StandardCharsets.UTF_8);
+            JSONObject data = (content == null || content.isBlank()) ? new JSONObject() : new JSONObject(content);
+
+            int currentCount = 0;
+            Object countObj = data.opt("startup_count");
+            if (countObj instanceof Number) {
+                currentCount = ((Number) countObj).intValue();
+            }
+
+            data.put("startup_count", currentCount + 1);
+            data.put("last_updated", Instant.now().getEpochSecond());
+
+            Files.writeString(
+                    path,
+                    data.toString(2),
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            );
+
+            Logger.log(Logger.TAG.INFO, "Updated startup count: " + (currentCount + 1));
+        } catch (DatabaseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new DatabaseException("Startup count update failed: " + e.getMessage(), e);
         }
     }
 }

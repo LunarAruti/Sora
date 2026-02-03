@@ -1,10 +1,15 @@
 package ucadmin.util;
 
 import org.json.JSONObject;
-import ucadmin.database.DatabaseManager;
 import ucadmin.exceptions.DatabaseException;
 import ucadmin.main.BotConfig;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 
 /**
@@ -12,8 +17,9 @@ import java.time.Instant;
  *
  * DependencyManager ensures that all required directories and
  * baseline files exist, and initializes global metadata such
- * as bot.json. This class runs once at startup from
- * StartupManager.onReady().
+ * as bot.json. It performs direct filesystem I/O only (no
+ * Logger/DatabaseManager usage) to avoid startup ordering issues.
+ * This class runs once at startup from StartupManager.onReady().
  */
 public class DependencyManager {
 
@@ -32,79 +38,36 @@ public class DependencyManager {
      * @throws DatabaseException if a folder or file creation fails
      */
     public static void initializeDependencies() throws DatabaseException {
-        Logger.log(Logger.TAG.SYSTEM, "DependencyManager: initializing database dependencies...");
-
         try {
             // === BASE FOLDER STRUCTURE ===
-            DatabaseManager.createFolder("database");
-            DatabaseManager.createFolder(GLOBAL_DIR);
-            DatabaseManager.createFolder(SERVER_DIR);
-            DatabaseManager.createFolder(USER_DIR);
-            Logger.log(Logger.TAG.DEBUG, "Verified base folder structure.");
+            ensureDirectory("database");
+            ensureDirectory(GLOBAL_DIR);
+            ensureDirectory(SERVER_DIR);
+            ensureDirectory(USER_DIR);
 
             // === BOT FILE SETUP ===
-            if (!DatabaseManager.fileExists(BOT_FILE)) {
+            if (!fileExists(BOT_FILE)) {
                 createDefaultBotFile();
-                Logger.log(Logger.TAG.INFO, "Created new bot.json with default values.");
-            } else {
-                Logger.log(Logger.TAG.DEBUG, "bot.json already exists. Skipping creation.");
             }
 
             // === ENSURE CORRUPT + LOG PATHS EXIST ===
-            String corruptPath = ucadmin.main.BotConfig.CORRUPTPATH;
-            String logPath     = ucadmin.main.BotConfig.LOGPATH;
-            String dumpPath    = ucadmin.main.BotConfig.DUMPPATH;
-            String networkPath = ucadmin.main.BotConfig.NETWORKPATH;
+            String corruptPath = BotConfig.CORRUPTPATH;
+            String logPath     = BotConfig.LOGPATH;
+            String dumpPath    = BotConfig.DUMPPATH;
+            String networkPath = BotConfig.NETWORKPATH;
 
-            Logger.log(Logger.TAG.DEBUG, "Using configured paths from BotConfig:");
-            Logger.log(Logger.TAG.DEBUG, "CORRUPTPATH=" + corruptPath);
-            Logger.log(Logger.TAG.DEBUG, "LOGPATH=" + logPath);
-            Logger.log(Logger.TAG.DEBUG, "DUMPPATH=" + dumpPath);
-            Logger.log(Logger.TAG.DEBUG, "NETWORKPATH=" + networkPath);
-
-// folders (create only if missing)
-            if (!DatabaseManager.folderExists(corruptPath)) DatabaseManager.createFolder(corruptPath);
-            if (!DatabaseManager.folderExists(networkPath)) DatabaseManager.createFolder(networkPath);
-
-// parent folder for LOGPATH (create only if missing)
-            int logSlash = logPath.lastIndexOf('/');
-            int logBack  = logPath.lastIndexOf('\\');
-            int logCut   = (logSlash > logBack) ? logSlash : logBack;
-            if (logCut > 0) {
-                String logDir = logPath.substring(0, logCut);
-                if (!DatabaseManager.folderExists(logDir)) DatabaseManager.createFolder(logDir);
-            }
-
-// parent folder for DUMPPATH (create only if missing)
-            int dumpSlash = dumpPath.lastIndexOf('/');
-            int dumpBack  = dumpPath.lastIndexOf('\\');
-            int dumpCut   = (dumpSlash > dumpBack) ? dumpSlash : dumpBack;
-            if (dumpCut > 0) {
-                String dumpDir = dumpPath.substring(0, dumpCut);
-                if (!DatabaseManager.folderExists(dumpDir)) DatabaseManager.createFolder(dumpDir);
-            }
-
-// files (create only if missing)
-            if (!DatabaseManager.fileExists(logPath))  DatabaseManager.createFile(logPath);
-            if (!DatabaseManager.fileExists(dumpPath)) DatabaseManager.createFile(dumpPath);
-
-
-            // === ENSURE GLOBAL LOG FILE EXISTS ===
-            if (!DatabaseManager.fileExists(logPath)) {
-                DatabaseManager.createFile(logPath);
-                Logger.log(Logger.TAG.INFO, "Created main log file: " + logPath);
-            }
-
-            // === UPDATE STARTUP COUNT ===
-            updateStartupCount();
-
-            Logger.log(Logger.TAG.SYSTEM, "DependencyManager initialization complete.");
+            ensureDirectory(corruptPath);
+            ensureDirectory(networkPath);
+            ensureDirectory(Paths.get(networkPath, "diagnostics").toString());
+            ensureDirectory(Paths.get(networkPath, "journal").toString());
+            ensureParentDirectory(logPath);
+            ensureParentDirectory(dumpPath);
+            ensureFile(logPath);
+            ensureFile(dumpPath);
 
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "DependencyManager initialization failed: " + e.getMessage());
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected error during dependency initialization: " + e.getMessage());
             throw new DatabaseException("Unexpected error initializing dependencies.", e);
         }
     }
@@ -115,8 +78,6 @@ public class DependencyManager {
      * @throws DatabaseException if the file cannot be written
      */
     private static void createDefaultBotFile() throws DatabaseException {
-        Logger.log(Logger.TAG.DEBUG, "Creating default bot.json file...");
-
         JSONObject botData = new JSONObject()
                 .put("warning", "THIS IS STANDARD FORMAT, DO NOT ADD OR REMOVE FIELDS WITHOUT EDITING DependencyManager.java")
                 .put("case_counter", 0)
@@ -127,40 +88,99 @@ public class DependencyManager {
                 .put("version", 0);
 
         try {
-            DatabaseManager.createJSON(BOT_FILE, botData);
-            Logger.log(Logger.TAG.INFO, "Default bot.json created successfully.");
+            writeJsonFile(BOT_FILE, botData);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "Failed to create default bot.json: " + e.getMessage());
             throw e;
         }
     }
 
-    /**
-     * Increments startup_count in bot.json each time the bot boots.
-     *
-     * @throws DatabaseException if bot.json cannot be read or written
-     */
-    private static void updateStartupCount() throws DatabaseException {
-        Logger.log(Logger.TAG.DEBUG, "Updating startup count in bot.json...");
-
+    private static void ensureDirectory(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            throw new DatabaseException("Directory path is null or blank.");
+        }
         try {
-            // Read startup_count from cached JSON
-            Object currentCountObj = DatabaseManager.readJSONPath(BOT_FILE, "startup_count");
-            int currentCount = (currentCountObj instanceof Number)
-                    ? ((Number) currentCountObj).intValue()
-                    : 0;
+            Path dir = Paths.get(path).toAbsolutePath().normalize();
+            if (Files.exists(dir) && !Files.isDirectory(dir)) {
+                throw new DatabaseException("Path exists but is not a directory: " + dir);
+            }
+            Files.createDirectories(dir);
+        } catch (InvalidPathException e) {
+            throw new DatabaseException("Invalid directory path: " + path, e);
+        } catch (Exception e) {
+            throw new DatabaseException("Failed to create directory: " + path, e);
+        }
+    }
 
-            int newCount = currentCount + 1;
-            long timestamp = Instant.now().getEpochSecond();
+    private static void ensureParentDirectory(String filePath) throws DatabaseException {
+        if (filePath == null || filePath.isBlank()) {
+            throw new DatabaseException("File path is null or blank.");
+        }
+        try {
+            Path path = Paths.get(filePath).toAbsolutePath().normalize();
+            Path parent = path.getParent();
+            if (parent != null) {
+                ensureDirectory(parent.toString());
+            }
+        } catch (InvalidPathException e) {
+            throw new DatabaseException("Invalid file path: " + filePath, e);
+        }
+    }
 
-            // Write new values back to the cached JSON
-            DatabaseManager.writeJSONPath(BOT_FILE, "startup_count", newCount, true);
-            DatabaseManager.writeJSONPath(BOT_FILE, "last_updated", timestamp, true);
+    private static void ensureFile(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            throw new DatabaseException("File path is null or blank.");
+        }
+        try {
+            Path file = Paths.get(path).toAbsolutePath().normalize();
+            if (Files.exists(file)) {
+                if (!Files.isRegularFile(file)) {
+                    throw new DatabaseException("Path exists but is not a regular file: " + file);
+                }
+                return;
+            }
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.createFile(file);
+        } catch (InvalidPathException e) {
+            throw new DatabaseException("Invalid file path: " + path, e);
+        } catch (Exception e) {
+            throw new DatabaseException("Failed to create file: " + path, e);
+        }
+    }
 
-            Logger.log(Logger.TAG.INFO, "Updated startup count: " + newCount);
+    private static boolean fileExists(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            throw new DatabaseException("File path is null or blank.");
+        }
+        try {
+            Path file = Paths.get(path).toAbsolutePath().normalize();
+            return Files.exists(file) && Files.isRegularFile(file);
+        } catch (InvalidPathException e) {
+            throw new DatabaseException("Invalid file path: " + path, e);
+        }
+    }
+
+    private static void writeJsonFile(String path, JSONObject data) throws DatabaseException {
+        if (data == null) {
+            throw new DatabaseException("Cannot write null JSON to: " + path);
+        }
+        try {
+            ensureParentDirectory(path);
+            String payload = data.toString(2);
+            Files.writeString(
+                    Paths.get(path),
+                    payload,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            );
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "Failed to update startup count: " + e.getMessage());
             throw e;
+        } catch (Exception e) {
+            throw new DatabaseException("Failed to write JSON file: " + path, e);
         }
     }
 }

@@ -220,6 +220,9 @@ final class HttpExecutor {
                     String location = firstHeaderIgnoreCase(headers, "Location");
                     if (location == null || location.isBlank()) {
                         // Redirect status without a valid Location header → treat as final.
+                        Logger.log(Logger.TAG.WARN,
+                                "HttpExecutor: redirect missing Location status=" + status +
+                                        " url=" + currentUrl + " traceId=" + traceId);
                         long completedNanos = System.nanoTime();
                         return new HttpAttemptResult(
                                 currentUrl,
@@ -235,6 +238,10 @@ final class HttpExecutor {
                     String nextUrl = resolveRedirect(currentUrl, location);
                     if (nextUrl == null || nextUrl.isBlank()) {
                         // Invalid redirect target → treat the current response as final.
+                        Logger.log(Logger.TAG.WARN,
+                                "HttpExecutor: redirect invalid Location status=" + status +
+                                        " url=" + currentUrl + " location=" + location +
+                                        " traceId=" + traceId);
                         long completedNanos = System.nanoTime();
                         return new HttpAttemptResult(
                                 currentUrl,

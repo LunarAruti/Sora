@@ -194,14 +194,16 @@ public final class RetryDecider {
     /**
      * Simple definition of idempotent operations:
      * - GET and DELETE are treated as idempotent.
+     * - POST/PUT/PATCH are idempotent only when an idempotency key is present.
      *
-     * POST/PUT/PATCH are treated as non-idempotent here. Once NetworkRequest
-     * exposes an idempotency key accessor, this method can be extended to treat
-     * those as idempotent when such a key is present.
      */
     private static boolean isIdempotent(NetworkRequest request) {
         NetworkRequest.Type t = request.getType();
-        return (t == NetworkRequest.Type.GET || t == NetworkRequest.Type.DELETE);
+        if (t == NetworkRequest.Type.GET || t == NetworkRequest.Type.DELETE) {
+            return true;
+        }
+        String key = request.getIdempotencyKey();
+        return key != null && !key.isBlank();
     }
 
     private static long computeBackoffDelay(RetryPolicy policy, int attemptsSoFar) {

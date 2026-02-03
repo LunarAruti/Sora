@@ -717,7 +717,18 @@ public class DatabaseManager {
      *
      * NOTE: This is cache-only. If the file is not currently cached, this does nothing.
      */
-    public static void makeTemporary(String path) throws DatabaseException {
+    /**
+     * Marks a cached file entry as TEMP.
+     *
+     * Returns:
+     *   true  -> cache entry was found and updated
+     *   false -> no cache entry was affected (or disk entry exists)
+     *
+     * @param path file path to mark temporary
+     * @return true if temp flag applied in cache; false otherwise
+     * @throws DatabaseException if path is invalid
+     */
+    public static boolean makeTemporary(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
             Logger.log(Logger.TAG.ERROR, "makeTemporary: path is null or empty.");
             throw new DatabaseException("Path is null or empty.");
@@ -735,16 +746,17 @@ public class DatabaseManager {
         // TEMP is intended only for cache-only entries with no disk anchor.
         if (fileExists(npath.toString())) {
             Logger.log(Logger.TAG.WARN, "makeTemporary: refused (disk entry exists) for " + npath);
-            return;
+            return false;
         }
 
         boolean changed = QueueManager.makeTemporary(npath.toString());
         if (!changed) {
-            Logger.log(Logger.TAG.DEBUG, "makeTemporary: no cached file entry affected for " + npath);
-            return;
+            Logger.log(Logger.TAG.WARN, "makeTemporary: no cached file entry affected for " + npath);
+            return false;
         }
 
         Logger.log(Logger.TAG.INFO, "makeTemporary applied to cached file: " + npath);
+        return true;
     }
 
     /**
@@ -755,7 +767,18 @@ public class DatabaseManager {
      *
      * NOTE: This is cache-only. If the file is not currently cached, this does nothing.
      */
-    public static void makePermanent(String path) throws DatabaseException {
+    /**
+     * Marks a cached file entry as PERMANENT.
+     *
+     * Returns:
+     *   true  -> cache entry was found and updated
+     *   false -> no cache entry was affected
+     *
+     * @param path file path to mark permanent
+     * @return true if permanent flag applied in cache; false otherwise
+     * @throws DatabaseException if path is invalid
+     */
+    public static boolean makePermanent(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
             Logger.log(Logger.TAG.ERROR, "makePermanent: path is null or empty.");
             throw new DatabaseException("Path is null or empty.");
@@ -771,11 +794,29 @@ public class DatabaseManager {
 
         boolean changed = QueueManager.makePermanent(npath.toString());
         if (!changed) {
-            Logger.log(Logger.TAG.DEBUG, "makePermanent: no cached file entry affected for " + npath);
-            return;
+            Logger.log(Logger.TAG.WARN, "makePermanent: no cached file entry affected for " + npath);
+            return false;
         }
 
         Logger.log(Logger.TAG.INFO, "makePermanent applied to cached file: " + npath);
+        return true;
+    }
+
+    /**
+     * Checks whether a path currently exists in the in-memory cache.
+     * This does not check disk; it only checks the QueueManager cache map.
+     */
+    public static boolean cacheExists(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            Logger.log(Logger.TAG.ERROR, "cacheExists: path is null or empty.");
+            throw new DatabaseException("Path is null or empty.");
+        }
+        try {
+            return QueueManager.hasCacheEntry(path);
+        } catch (Exception e) {
+            Logger.log(Logger.TAG.ERROR, "cacheExists: error checking cache for " + path + ": " + e.getMessage());
+            throw new DatabaseException("cacheExists: failed to check cache for " + path, e);
+        }
     }
 
     /**
@@ -1291,7 +1332,7 @@ public class DatabaseManager {
                             return (root == JSONObject.NULL) ? null : root;
                         }
                         try {
-                            String[] tokens = jsonPath.split("\\.");
+                            List<String> tokens = tokenizePath(jsonPath);
                             Object current = root;
 
                             for (String token : tokens) {
@@ -1539,7 +1580,7 @@ public class DatabaseManager {
                             }
 
                             Object current = root;
-                            String[] tokens = jsonPath.split("\\.");
+                            List<String> tokens = tokenizePath(jsonPath);
 
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
@@ -1698,7 +1739,7 @@ public class DatabaseManager {
                             Object current = root;
 
                             if (!isRoot) {
-                                String[] tokens = jsonPath.split("\\.");
+                                List<String> tokens = tokenizePath(jsonPath);
                                 for (String token : tokens) {
                                     Segment seg = parseSegment(token);
 
@@ -1788,7 +1829,7 @@ public class DatabaseManager {
                         Object current = root;
 
                         if (!isRoot) {
-                            String[] tokens = jsonPath.split("\\.");
+                            List<String> tokens = tokenizePath(jsonPath);
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
 
@@ -1872,7 +1913,7 @@ public class DatabaseManager {
                         Object current = root;
 
                         if (!isRoot) {
-                            String[] tokens = jsonPath.split("\\.");
+                            List<String> tokens = tokenizePath(jsonPath);
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
 
@@ -2247,7 +2288,7 @@ public class DatabaseManager {
         }
 
         Object current = root;
-        String[] tokens = jsonPath.split("\\.");
+        List<String> tokens = tokenizePath(jsonPath);
         StringBuilder trace = new StringBuilder();
 
         for (String token : tokens) {
@@ -2706,7 +2747,7 @@ public class DatabaseManager {
                         Object current = root;
 
                         if (!isRoot) {
-                            String[] tokens = jsonPath.split("\\.");
+                            List<String> tokens = tokenizePath(jsonPath);
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
 
@@ -2863,6 +2904,114 @@ public class DatabaseManager {
 
     /** Regular expression for parsing array indexes in JSON path segments. */
     private static final java.util.regex.Pattern IDX = java.util.regex.Pattern.compile("\\[(\\d+)]");
+
+    /**
+     * Tokenizes a JSON path into segments while supporting:
+     * - dot separators: a.b.c
+     * - array indexes: a[0].b
+     * - bracketed keys: a['key.with.dots'] or a["key"]
+     * - escaped characters: a\\.b -> key "a.b"
+     *
+     * This is a strict parser; malformed paths throw DatabaseException.
+     */
+    private static List<String> tokenizePath(String path) throws DatabaseException {
+        if (path == null || path.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        List<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int i = 0;
+        while (i < path.length()) {
+            char c = path.charAt(i);
+
+            if (c == '\\') {
+                if (i + 1 >= path.length()) {
+                    throw new DatabaseException("Malformed path: trailing escape in '" + path + "'");
+                }
+                current.append(path.charAt(i + 1));
+                i += 2;
+                continue;
+            }
+
+            if (c == '.') {
+                if (current.length() == 0) {
+                    throw new DatabaseException("Malformed path: empty segment in '" + path + "'");
+                }
+                tokens.add(current.toString());
+                current.setLength(0);
+                i++;
+                continue;
+            }
+
+            if (c == '[') {
+                if (i + 1 >= path.length()) {
+                    throw new DatabaseException("Malformed path: unterminated bracket in '" + path + "'");
+                }
+
+                char next = path.charAt(i + 1);
+                if (next == '\'' || next == '"') {
+                    char quote = next;
+                    i += 2;
+                    StringBuilder key = new StringBuilder();
+                    boolean closed = false;
+                    while (i < path.length()) {
+                        char ch = path.charAt(i);
+                        if (ch == '\\') {
+                            if (i + 1 >= path.length()) {
+                                throw new DatabaseException("Malformed path: bad escape in '" + path + "'");
+                            }
+                            key.append(path.charAt(i + 1));
+                            i += 2;
+                            continue;
+                        }
+                        if (ch == quote) {
+                            closed = true;
+                            i++;
+                            break;
+                        }
+                        key.append(ch);
+                        i++;
+                    }
+                    if (!closed || i >= path.length() || path.charAt(i) != ']') {
+                        throw new DatabaseException("Malformed path: unterminated quoted key in '" + path + "'");
+                    }
+                    i++; // consume ]
+
+                    if (current.length() > 0) {
+                        tokens.add(current.toString());
+                        current.setLength(0);
+                    }
+                    current.append(key);
+                    continue;
+                }
+
+                int j = i + 1;
+                while (j < path.length() && Character.isWhitespace(path.charAt(j))) j++;
+                int start = j;
+                while (j < path.length() && Character.isDigit(path.charAt(j))) j++;
+                if (start == j) {
+                    throw new DatabaseException("Malformed path: non-numeric index in '" + path + "'");
+                }
+                String idx = path.substring(start, j);
+                while (j < path.length() && Character.isWhitespace(path.charAt(j))) j++;
+                if (j >= path.length() || path.charAt(j) != ']') {
+                    throw new DatabaseException("Malformed path: unterminated index in '" + path + "'");
+                }
+                current.append('[').append(idx).append(']');
+                i = j + 1;
+                continue;
+            }
+
+            current.append(c);
+            i++;
+        }
+
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+        return tokens;
+    }
 
     /**
      * Parses an individual path segment into a base key and optional array indexes.

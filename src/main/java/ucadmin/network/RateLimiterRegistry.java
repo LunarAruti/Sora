@@ -62,8 +62,9 @@ public final class RateLimiterRegistry {
      * @param bucketName identifier for this limiter (e.g., "roblox.read")
      * @param capacity maximum tokens
      * @param refillPerSecond refill rate in tokens per second
+     * @return true if the bucket was created or updated, false otherwise
      */
-    public static void configureBucket(String bucketName, double capacity, double refillPerSecond) {
+    public static boolean configureBucket(String bucketName, double capacity, double refillPerSecond) {
         if (bucketName == null || bucketName.isBlank()) {
             throw new IllegalArgumentException("bucketName must not be null/blank");
         }
@@ -72,25 +73,37 @@ public final class RateLimiterRegistry {
         }
 
         long now = System.currentTimeMillis();
+        final boolean[] changed = { false };
         BUCKETS.compute(bucketName, (name, existing) -> {
             if (existing == null) {
                 Logger.log(Logger.TAG.SYSTEM,
                         "RateLimiterRegistry: created bucket=" + bucketName +
                                 " cap=" + capacity + " rps=" + refillPerSecond);
+                changed[0] = true;
                 return new Bucket(capacity, refillPerSecond, now);
             } else {
+                boolean didChange;
                 synchronized (existing) {
+                    didChange = existing.capacity != capacity || existing.refillPerSecond != refillPerSecond;
                     existing.capacity = capacity;
                     existing.refillPerSecond = refillPerSecond;
                     existing.tokens = Math.min(existing.tokens, capacity);
                     existing.lastRefillMillis = now;
                 }
-                Logger.log(Logger.TAG.SYSTEM,
-                        "RateLimiterRegistry: updated bucket=" + bucketName +
-                                " cap=" + capacity + " rps=" + refillPerSecond);
+                if (didChange) {
+                    Logger.log(Logger.TAG.SYSTEM,
+                            "RateLimiterRegistry: updated bucket=" + bucketName +
+                                    " cap=" + capacity + " rps=" + refillPerSecond);
+                }
+                changed[0] = didChange;
                 return existing;
             }
         });
+        if (!changed[0]) {
+            Logger.log(Logger.TAG.WARN,
+                    "RateLimiterRegistry: configureBucket no-op (unchanged) bucket=" + bucketName);
+        }
+        return changed[0];
     }
 
     /**

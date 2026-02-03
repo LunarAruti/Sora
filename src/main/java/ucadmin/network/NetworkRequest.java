@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  *   - responseType   = JSON_OBJECT
  *   - projectionPath = null (return entire JSON body)
  *   - returnAlias    = name
- *   - cachePath      = mem/database/network/{service}/{returnAlias} (in-memory only)
+ *   - cachePath      = database/network/{service}/{returnAlias}-{fp}.json (temp file)
  *   - priority       = NORMAL
  *   - retryPolicy    = idempotent-only, 3 attempts, exponential backoff, 429/5xx/timeout/network
  *   - failureMode    = FAIL_FAST
@@ -285,16 +285,14 @@ public final class NetworkRequest {
     /** Friendly label for logs/cache; defaults to name. */
     private String returnAlias;
 
-    // ---------------- Caching hint (mem/ mount only) ----------------
+    // ---------------- Caching hint (cache-only temp) ----------------
 
     /**
-     * Default: mem/database/network/{service}/{returnAlias}
-     * This is an in-memory path (not persisted). Future options may snapshot to disk.
+     * Default: database/network/{service}/{returnAlias}-{fp}.json
+     * This is a cache-only temp path; it is not intended to persist to disk.
      */
     private String cachePath;
 
-    /** Optional TTL (seconds) for the in-memory entry. */
-    private Integer cacheTtlSeconds;
 
     /** Optional maximum response size in bytes (null = no explicit per-request cap). */
     private Long maxResponseBytes;
@@ -627,7 +625,7 @@ public final class NetworkRequest {
 
     /**
      * Overrides the default cache path where the response will be written via DBM.
-     * By default, mem/database/network/{service}/{returnAlias} is used.
+     * By default, database/network/{service}/{returnAlias}-{fp}.json is used.
      */
     public NetworkRequest setCachePath(String path) {
         ensureNotSealed();
@@ -635,15 +633,6 @@ public final class NetworkRequest {
         return this;
     }
 
-    /**
-     * Sets an optional TTL (in seconds) for the cached entry.
-     * Null means no per-request TTL; a global cache policy may still apply.
-     */
-    public NetworkRequest setCacheTtlSeconds(Integer ttl) {
-        ensureNotSealed();
-        this.cacheTtlSeconds = ttl;
-        return this;
-    }
 
     /**
      * Sets a per-request maximum response size in bytes.
@@ -810,16 +799,18 @@ public final class NetworkRequest {
         this.finalUrl = renderFinalUrl();
         this.renderedHeaders = renderHeaders();
 
-        // default cache path (in-memory only)
+        // default cache path (cache-only temp)
         if (cachePath == null || cachePath.isBlank()) {
             // Note: simple default; different var combos under same alias may collide.
-            // We'll add param fingerprinting when we wire the mem cache.
             String fp = Integer.toHexString(vars.hashCode() ^
                     path.hashCode() ^
                     type.hashCode() ^
                     (authStrategy != null ? authStrategy.hashCode() : 0));
 
-            this.cachePath = "database/network/" + service + "/" + returnAlias + "-" + fp;
+            this.cachePath = "database/network/" + service + "/" + returnAlias + "-" + fp + ".json";
+        } else if (!cachePath.toLowerCase(Locale.ROOT).endsWith(".json")) {
+            // Enforce JSON cache files for consistent DBM operations.
+            this.cachePath = cachePath + ".json";
         }
 
         sealed = true;
@@ -914,7 +905,6 @@ public final class NetworkRequest {
     public String getRateBucket() { return (rateBucket != null && !rateBucket.isBlank()) ? rateBucket : service; }
     public String getCircuitKey() { return (circuitKey != null && !circuitKey.isBlank()) ? circuitKey : URI.create(requestUrl).getHost(); }
     public String getCachePath() { return cachePath; }
-    public Integer getCacheTtlSeconds() { return cacheTtlSeconds; }
     public Priority getPriority() { return priority; }
     public RetryPolicy getRetryPolicy() { return retryPolicy; }
     public FailureMode getFailureMode() { return failureMode; }
@@ -926,6 +916,16 @@ public final class NetworkRequest {
     public int getMaxRedirects() { return maxRedirects; }
     public boolean isCollectMetrics() { return collectMetrics; }
     public String getDedupeKey() { return dedupeKey; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+
+    /**
+     * Internal escape hatch for the network layer to override cachePath
+     * after seal() (e.g., to avoid collisions). Not part of the public API.
+     */
+    void overrideCachePathInternal(String path) {
+        if (path == null || path.isBlank()) return;
+        this.cachePath = path;
+    }
 
     // ------------- dev ergonomics -------------
 

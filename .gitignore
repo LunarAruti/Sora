@@ -30,7 +30,7 @@ Thumbs.db
 src/main/java/ucadmin/notes.txt
 
 # Optional: keep any docs
-!README.md
+!src/main/README.md
 
 # EXCEPT: ignore Security.java specifically
 src/main/java/ucadmin/main/Security.java

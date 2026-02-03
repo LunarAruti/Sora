@@ -316,7 +316,8 @@ public final class NetworkResult {
      * </ul>
      *
      * <p>The returned value is suitable to pass directly as the {@code value}
-     * parameter to {@code DatabaseManager.writeJSONPathTemp(cachePath, null, value, true)}.</p>
+     * parameter to {@code DatabaseManager.writeJSONPath(cachePath, null, value, true)}
+     * after creating the file and marking it temporary.</p>
      *
      * @param collectMetrics whether to include the {@code network_meta} envelope
      * @return JSONObject or JSONArray representing the DBM root value

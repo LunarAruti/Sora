@@ -91,6 +91,9 @@ public final class QueueManager {
         public static final long MAX_JOURNAL_BYTES   = 512 * 1024; // 512 KiB
         public static final int  MAX_JOURNAL_RECORDS = 2000;       // lines in .patch
 
+        /** How long the shutdown hook waits for the worker to exit (ms). */
+        public static volatile long SHUTDOWN_AWAIT_MS = 15_000;
+
     }
 
     /* ===================== Raw I/O binding ===================== */
@@ -678,6 +681,7 @@ public final class QueueManager {
 
     // Worker lifecycle
     private static final AtomicBoolean RUNNING = new AtomicBoolean(true);
+    private static final AtomicBoolean SHUTTING_DOWN = new AtomicBoolean(false);
     private static final java.util.concurrent.atomic.AtomicReference<Thread> WORKER_THREAD =
             new java.util.concurrent.atomic.AtomicReference<>();
 
@@ -705,26 +709,7 @@ public final class QueueManager {
         // Start the worker; capture the actual running thread inside workerLoop()
         WORKER.submit(QueueManager::workerLoop);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                Logger.log(Logger.TAG.SYSTEM, "QueueManager: Final flush before shutdown...");
-                flushAll(true);
-                Logger.log(Logger.TAG.SYSTEM, "QueueManager: All caches flushed successfully.");
-            } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager: Flush failed during shutdown: " + e.getMessage());
-            } finally {
-                RUNNING.set(false);
-                // Use unpark instead of interrupt to safely wake the worker out of any park/poll
-                wakeWorker();
-                WORKER.shutdown(); // graceful; we’ve already flushed
-                synchronized (MEM_LOCK) {
-                    Logger.log(Logger.TAG.DEBUG,
-                            "QueueManager: Worker stopping. " +
-                                    "Cache entries=" + ENTRIES.size() +
-                                    ", approx memory=" + (TOTAL_CACHE_BYTES / 1024) + " KB.");
-                }
-            }
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(true)));
     }
 
     /* ===================== Public API ===================== */
@@ -1136,10 +1121,70 @@ public final class QueueManager {
         }
     }
 
+    /**
+     * Flushes pending writes, stops the queue worker, and waits for it to exit.
+     *
+     * @return true if shutdown was initiated, false if already shutting down
+     */
+    public static boolean shutdown() {
+        return shutdown(true);
+    }
+
+    /**
+     * Flushes pending writes (optional), stops the queue worker, and waits for it to exit.
+     *
+     * @param flushFirst if true, flushes all caches before stopping the worker
+     * @return true if shutdown was initiated, false if already shutting down
+     */
+    public static boolean shutdown(boolean flushFirst) {
+        if (!SHUTTING_DOWN.compareAndSet(false, true)) {
+            Logger.log(Logger.TAG.WARN, "QueueManager: shutdown() ignored → already shutting down.");
+            return false;
+        }
+
+        if (flushFirst) {
+            try {
+                Logger.log(Logger.TAG.SYSTEM, "QueueManager: Final flush before shutdown...");
+                flushAll(true);
+                Logger.log(Logger.TAG.SYSTEM, "QueueManager: All caches flushed successfully.");
+            } catch (Exception e) {
+                Logger.log(Logger.TAG.ERROR, "QueueManager: Flush failed during shutdown: " + e.getMessage());
+            }
+        }
+
+        RUNNING.set(false);
+        // Use unpark instead of interrupt to safely wake the worker out of any park/poll
+        wakeWorker();
+        WORKER.shutdown(); // graceful; we've already flushed
+        try {
+            if (!WORKER.awaitTermination(Config.SHUTDOWN_AWAIT_MS, TimeUnit.MILLISECONDS)) {
+                Logger.log(Logger.TAG.WARN,
+                        "QueueManager: worker did not terminate within " +
+                                Config.SHUTDOWN_AWAIT_MS + "ms (continuing shutdown).");
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            Logger.log(Logger.TAG.WARN, "QueueManager: shutdown interrupted while awaiting worker stop.");
+        }
+        synchronized (MEM_LOCK) {
+            Logger.log(Logger.TAG.DEBUG,
+                    "QueueManager: Worker stopping. " +
+                            "Cache entries=" + ENTRIES.size() +
+                            ", approx memory=" + (TOTAL_CACHE_BYTES / 1024) + " KB.");
+        }
+        return true;
+    }
+
     /** For monitoring. */
     public static int getQueueSize() { return FLUSH_QUEUE.size(); }
     public static int getCacheSize() { return ENTRIES.size(); }
     public static long getApproxCacheBytes() { synchronized (MEM_LOCK) { return TOTAL_CACHE_BYTES; } }
+    /** Returns true if a cache entry exists for the given path (no load, no mutation). */
+    public static boolean hasCacheEntry(String path) {
+        if (path == null || path.isBlank()) return false;
+        final String npath = normalizeFsPath(path);
+        return ENTRIES.containsKey(npath);
+    }
 
     /* ===================== Worker ===================== */
 
