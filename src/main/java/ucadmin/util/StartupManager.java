@@ -53,6 +53,8 @@ public class StartupManager extends ListenerAdapter {
         Logger.init();
         Logger.log(Logger.TAG.INFO, "UC Admin Bot is online as " + jda.getSelfUser().getName());
 
+        ShutdownManager.registerNoExitShutdownHook();
+
         // Bind low-level RawIO (QueueManager <-> DatabaseManager)
         QueueManager.RawIO.bindLoader(DatabaseManager::readJSONRaw);
         QueueManager.RawIO.bindWriter(DatabaseManager::writeJSONRaw);

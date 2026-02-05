@@ -7,28 +7,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Temporary Files finalized, final push before finishing network module">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Logger modularized, shutdownmanager added, startup deps fixed, network module finished">
+      <change afterPath="$PROJECT_DIR$/src/main/README.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/error_schema.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/TaskException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/ScheduledTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskRegistry.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskScheduler.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/ShutdownManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/commands/ShutdownCommand.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/commit.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/DatabaseManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/DatabaseManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/methods.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/main/TestingGrounds.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/CircuitBreakerRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/HttpExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/HttpExecutor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkJournal.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkJournal.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkResult.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkWorker.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RateLimiterRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryDecider.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/RetryDecider.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/Logger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/Logger.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -37,7 +28,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="52" />
+    <option name="cachedIndexableFilesCount" value="53" />
   </component>
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
@@ -237,7 +228,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770073781320</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Logger modularized, shutdownmanager added, startup deps fixed, network module finished">
+      <option name="closed" value="true" />
+      <created>1770162224910</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1770162224911</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -257,6 +256,7 @@
     <MESSAGE value="Initial network module push" />
     <MESSAGE value="Save before temporary file writing editing." />
     <MESSAGE value="Temporary Files finalized, final push before finishing network module" />
-    <option name="LAST_COMMIT_MESSAGE" value="Temporary Files finalized, final push before finishing network module" />
+    <MESSAGE value="Logger modularized, shutdownmanager added, startup deps fixed, network module finished" />
+    <option name="LAST_COMMIT_MESSAGE" value="Logger modularized, shutdownmanager added, startup deps fixed, network module finished" />
   </component>
 </project>

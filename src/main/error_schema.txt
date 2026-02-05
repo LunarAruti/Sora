@@ -1,0 +1,25 @@
+Network Error Object (TEMP)
+
+All network failures are written as TEMP DBM JSON at the request cache path.
+
+Root shape:
+{
+  "ok": false,
+  "error": {
+    "type": "DECODE_ERROR | REMOTE_STATUS | NETWORK_IO | ...",
+    "reason": "human readable message",
+    "status_code": 0,
+    "trace_id": "uuid",
+    "service": "serviceName",
+    "endpoint": "endpointName",
+    "final_url": "https://..."
+  },
+  "body": <projection or parsed JSON>            (optional)
+  "raw_body": "raw response body string"         (optional)
+  "network_meta": { ... }                        (optional, when collectMetrics=true)
+}
+
+Notes:
+- "body" is present when a projection path is provided and the JSON decoded.
+- "raw_body" is present when no JSON body was decoded but a raw response exists.
+- "network_meta" is the same meta map as NetworkResult.toMetaMap().

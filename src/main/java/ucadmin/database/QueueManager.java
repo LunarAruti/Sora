@@ -709,7 +709,7 @@ public final class QueueManager {
         // Start the worker; capture the actual running thread inside workerLoop()
         WORKER.submit(QueueManager::workerLoop);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(true)));
+        // Shutdown hook is registered centrally in ShutdownManager.
     }
 
     /* ===================== Public API ===================== */

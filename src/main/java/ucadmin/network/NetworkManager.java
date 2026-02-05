@@ -181,18 +181,33 @@ public final class NetworkManager {
      * @return true if shutdown was initiated, false if it was already stopped/shutting down
      */
     public static boolean shutdown() {
+        return shutdown(true);
+    }
+
+    /**
+     * Gracefully stops all network worker threads and prevents further requests
+     * from being accepted.
+     *
+     * @param waitForJoin if true, waits briefly for workers to exit
+     * @return true if shutdown was initiated, false if it was already stopped/shutting down
+     */
+    public static boolean shutdown(boolean waitForJoin) {
         if (!STARTED.get()) {
             Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] shutdown() ignored → not started.");
+                    "[NetworkManager] shutdown() ignored -> not started.");
             return false;
         }
         if (!SHUTTING_DOWN.compareAndSet(false, true)) {
             Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] shutdown() ignored → already shutting down.");
+                    "[NetworkManager] shutdown() ignored -> already shutting down.");
             return false;
         }
 
-        Logger.log(Logger.TAG.SYSTEM, "[NetworkManager] Shutting down network workers...");
+        Logger.log(Logger.TAG.SYSTEM,
+                "[NetworkManager] Shutting down network workers (count=" + WORKER_THREADS.size() +
+                        ", waitForJoin=" + waitForJoin +
+                        ", queueSize=" + QUEUE.size() +
+                        ", inflightDedupe=" + INFLIGHT_DEDUPE.size() + ")...");
 
         for (NetworkWorker worker : WORKERS) {
             worker.shutdown();
@@ -202,21 +217,26 @@ public final class NetworkManager {
             t.interrupt();
         }
 
-        for (Thread t : WORKER_THREADS) {
-            try {
-                t.join(3_000L);
-            } catch (InterruptedException ignored) {
-                Logger.log(Logger.TAG.WARN,
-                        "[NetworkManager] shutdown() interrupted while waiting for worker=" + t.getName());
-                Thread.currentThread().interrupt();
+        if (waitForJoin) {
+            for (Thread t : WORKER_THREADS) {
+                try {
+                    t.join(3_000L);
+                } catch (InterruptedException ignored) {
+                    Logger.log(Logger.TAG.WARN,
+                            "[NetworkManager] shutdown() interrupted while waiting for worker=" + t.getName());
+                    Thread.currentThread().interrupt();
+                }
+                if (t.isAlive()) {
+                    Logger.log(Logger.TAG.WARN,
+                            "[NetworkManager] worker still alive after join: " + t.getName());
+                } else {
+                    Logger.log(Logger.TAG.INFO,
+                            "[NetworkManager] worker joined: " + t.getName());
+                }
             }
-            if (t.isAlive()) {
-                Logger.log(Logger.TAG.WARN,
-                        "[NetworkManager] worker still alive after join: " + t.getName());
-            } else {
-                Logger.log(Logger.TAG.INFO,
-                        "[NetworkManager] worker joined: " + t.getName());
-            }
+        } else {
+            Logger.log(Logger.TAG.INFO,
+                    "[NetworkManager] Fast shutdown: join skipped; workers may still be exiting.");
         }
 
         Logger.log(Logger.TAG.SYSTEM, "[NetworkManager] Network workers shut down.");
