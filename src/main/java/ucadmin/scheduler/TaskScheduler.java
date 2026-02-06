@@ -113,7 +113,9 @@ public final class TaskScheduler implements Runnable {
         if (request == null) {
             throw new TaskException("TaskScheduler.schedule: request is null.");
         }
-        request.lock();
+        if (!request.isLocked()) {
+            request.lock();
+        }
         long now = System.currentTimeMillis();
         String id = UUID.randomUUID().toString();
 

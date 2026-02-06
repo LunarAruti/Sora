@@ -27,6 +27,7 @@ public class DependencyManager {
     private static final String GLOBAL_DIR = "database/global";
     private static final String SERVER_DIR = "database/server";
     private static final String USER_DIR   = "database/user";
+    private static final String REGISTRY_DIR = "database/registry";
 
     /** Path to the global bot metadata file. */
     private static final String BOT_FILE = GLOBAL_DIR + "/bot.json";
@@ -44,6 +45,7 @@ public class DependencyManager {
             ensureDirectory(GLOBAL_DIR);
             ensureDirectory(SERVER_DIR);
             ensureDirectory(USER_DIR);
+            ensureDirectory(REGISTRY_DIR);
 
             // === BOT FILE SETUP ===
             if (!fileExists(BOT_FILE)) {

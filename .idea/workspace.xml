@@ -8,19 +8,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9521ff79-4920-4274-becb-7c0614e0e728" name="Changes" comment="Logger modularized, shutdownmanager added, startup deps fixed, network module finished">
-      <change afterPath="$PROJECT_DIR$/src/main/README.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/error_schema.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/exceptions/TaskException.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/ScheduledTask.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskRequest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskScheduler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/ShutdownManager.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/FileTaskRegistry.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/database/QueueManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/network/NetworkManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/network/methods.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/StartupManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskScheduler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/scheduler/TaskScheduler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ucadmin/util/DependencyManager.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,7 +20,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="53" />
+    <option name="cachedIndexableFilesCount" value="48" />
   </component>
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
@@ -43,17 +35,7 @@
         </task>
         <projects_view>
           <tree_state>
-            <expand>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="UC_Admin" type="f1a62948:ProjectNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="UC_Admin" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-            </expand>
+            <expand />
             <select />
           </tree_state>
         </projects_view>
@@ -82,13 +64,13 @@
     &quot;assignee&quot;: &quot;LunarAruti&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/LunarAruti/UC-Admin.git&quot;,
-    &quot;accountId&quot;: &quot;860ed85d-0961-41fa-aed3-aad5d246cb9e&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/LunarAruti/UC-Admin.git",
+    "accountId": "d543118b-530f-4ded-86e3-751ba4bf703c"
   }
-}</component>
-  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\lunar\.gradle\wrapper\dists\gradle-9.1.0-bin\9agqghryom9wkf8r80qlhnts3\gradle-9.1.0" javaHome="C:\Program Files\Java\jdk-24" gradleVersion="9.1.0" />
+}]]></component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\dmay1\.gradle\wrapper\dists\gradle-9.1.0-bin\9agqghryom9wkf8r80qlhnts3\gradle-9.1.0" javaHome="C:\Users\dmay1\.jdks\openjdk-25.0.2" gradleVersion="9.1.0" />
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -104,28 +86,35 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.main.Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.main.MainTester.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [:ucadmin.main.maintester.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin [run].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UC_Admin_Gradle_Run.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/lunar/OneDrive/Desktop/current/UC_Admin/src/storage/databasefinal&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMProjectConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
+    "Gradle.UC_Admin [:ucadmin.Main.main()].executor": "Run",
+    "Gradle.UC_Admin [:ucadmin.main.Main.main()].executor": "Run",
+    "Gradle.UC_Admin [:ucadmin.main.MainTester.main()].executor": "Run",
+    "Gradle.UC_Admin [:ucadmin.main.maintester.main()].executor": "Run",
+    "Gradle.UC_Admin [run].executor": "Run",
+    "Gradle.UC_Admin_Gradle_Run.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "master",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/lunar/OneDrive/Desktop/current/UC_Admin/src/storage/databasefinal",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "run.code.analysis.last.selected.profile": "pProject Default",
+    "settings.editor.selected.configurable": "ml.llm.LLMProjectConfigurable",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\lunar\OneDrive\Desktop\current\UC_Admin\src\storage\databasefinal" />
@@ -160,6 +149,7 @@
     <attachedChunks>
       <set>
         <option value="bundled-jdk-30f59d01ecdd-2fc7cc6b9a17-intellij.indexing.shared.core-IU-253.30387.90" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-IU-253.30387.90" />
       </set>
     </attachedChunks>
   </component>
@@ -171,6 +161,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1761689190958</updated>
+      <workItem from="1770337136748" duration="5524000" />
     </task>
     <task id="LOCAL-00001" summary="Initial project commit">
       <option name="closed" value="true" />
@@ -238,6 +229,9 @@
     </task>
     <option name="localTasksCounter" value="9" />
     <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
     <option name="TAB_STATES">
