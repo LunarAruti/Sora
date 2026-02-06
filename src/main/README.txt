@@ -204,7 +204,6 @@ Internal / helper methods (not public API)
 - writeJSONRaw(String path, JSONObject data)
 - moveToCorrupt(String path)
 
-
 ========================
 Network Module
 ========================
@@ -455,7 +454,6 @@ toCurl()
 - Return: String
 - Purpose: Build a curl command for the sealed request.
 
-
 ========================
 Logger (Util)
 ========================
@@ -492,29 +490,3 @@ Logger.shutdownWait(long timeoutMs)
 ShutdownManager.shutdown(JDA jda)
 - Return: void
 - Purpose: Graceful shutdown sequence (network → batch → queue → JDA → logger).
-
-
-========================
-HTTP Status Codes (common)
-========================
-
-200 OK                - Success; response contains data
-201 Created           - Resource created (often POST)
-202 Accepted          - Accepted for processing (async)
-204 No Content        - Success; no body
-301 Moved Permanently - Permanent redirect
-302 Found             - Temporary redirect
-304 Not Modified      - Cached version still valid
-400 Bad Request       - Malformed request
-401 Unauthorized      - Missing/invalid auth
-403 Forbidden         - Auth ok, not allowed
-404 Not Found         - Endpoint/resource missing
-408 Request Timeout   - Server timed out waiting
-409 Conflict          - Conflicts with current state
-413 Payload Too Large - Request body too large
-415 Unsupported Media Type - Wrong Content-Type
-429 Too Many Requests - Rate limited
-500 Internal Server Error  - Server error
-502 Bad Gateway       - Upstream error
-503 Service Unavailable - Service down/overloaded
-504 Gateway Timeout   - Upstream timeout

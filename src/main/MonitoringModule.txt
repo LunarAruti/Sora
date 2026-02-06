@@ -1,0 +1,25 @@
+Ping
+- Each module implements an interface that require exposure of:
+    - Backlog of jobs yet to be completed
+    - Last job completed
+    - Thread ping
+    - Is running (true if module believes it is active)
+    - Last successful operation time
+    - Recent error count (windowed inside module or raw event feed)
+    - Last error (type/message) for quick diagnosis
+    - Average/percentile job duration (p50/p95)
+    - Backlog growth rate (delta per interval)
+In addition to that, exceptions are tied directly into the monitor, which keeps track of how many occur in x amount of time.
+
+Exceptions
+- All module exceptions are reported to the monitor with timestamp + module id.
+- Monitor keeps a sliding window per module (ex: last 60s).
+- Bursty errors trigger a restart attempt (see Restart section).
+
+Diagnosis -> Fix
+- Backlog growing + last completed age increasing: hanging/throughput collapse -> restart module; if repeats, throttle intake or reduce concurrency.
+- Thread ping missing + is running=false: crash/exited -> restart with backoff.
+- Thread ping missing + is running=true: deadlock/stuck thread -> graceful stop, then force stop + restart.
+- Recent error count spike + last error repeats: looping/spinning -> restart with cooldown; if repeats, quarantine failing task/input.
+- Last successful op old + ping ok + errors low: alive but not succeeding -> restart and watch backlog trend.
+- Job duration p95 rising + backlog growth positive: slowdown/resource pressure -> throttle intake, scale workers, or split batches.
