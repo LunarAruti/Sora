@@ -9,9 +9,12 @@ import org.jetbrains.annotations.NotNull;
 import ucadmin.database.QueueManager;
 import ucadmin.database.DatabaseManager;
 import ucadmin.database.CrashHandler;
+import ucadmin.scheduler.TaskExecutor;
+import ucadmin.scheduler.TaskScheduler;
 
 import ucadmin.exceptions.DatabaseException;
 import ucadmin.exceptions.QueueException;
+import ucadmin.exceptions.TaskException;
 import ucadmin.main.BotConfig;
 import org.json.JSONObject;
 
@@ -86,6 +89,20 @@ public class StartupManager extends ListenerAdapter {
             Logger.log(Logger.TAG.SYSTEM, "Database initialization complete.");
 
             updateStartupCount();
+
+            try {
+                Logger.log(Logger.TAG.SYSTEM, "Starting TaskScheduler...");
+                boolean schedOk = TaskScheduler.start((opKey, opArgs) -> {
+                    TaskExecutor.TaskResult result = TaskExecutor.execute(opKey, opArgs);
+                    if (!result.ok) {
+                        throw new TaskException("TaskExecutor failed: " + result.msg);
+                    }
+                    return result.msg;
+                });
+                Logger.log(Logger.TAG.INFO, "TaskScheduler start initiated=" + schedOk);
+            } catch (TaskException e) {
+                Logger.log(Logger.TAG.ERROR, "TaskScheduler failed: " + e.getMessage());
+            }
 
             ucadmin.network.NetworkManager.start(BotConfig.netWorkerThreads);
             Logger.log(Logger.TAG.INFO, "Network manager Threads binded. Total: " + BotConfig.netWorkerThreads);

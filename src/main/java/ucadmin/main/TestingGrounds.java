@@ -4,61 +4,97 @@ import ucadmin.database.DatabaseManager;
 import ucadmin.database.QueueManager;
 import ucadmin.network.NetworkManager;
 import ucadmin.network.NetworkRequest;
+import ucadmin.scheduler.ExeWhitelist;
+import ucadmin.scheduler.TaskRequest;
+import ucadmin.scheduler.TaskScheduler;
 import ucadmin.util.Logger;
 import ucadmin.util.ShutdownManager;
+
+import static ucadmin.scheduler.TaskScheduler.scheduleRequest;
+
 
 public class TestingGrounds {
 
     public static void TestingGrounds() {
 
-        Logger.log(Logger.TAG.SYSTEM, "=== NETWORK TEST SUITE START (SIMPLE) ===");
+        Logger.log(Logger.TAG.SYSTEM, "=== TASK SCHEDULER SMOKE SUITE ===");
 
         try {
-            // ---------------------------------------------------------
-            // 0) Init
-            // ---------------------------------------------------------
-            DatabaseManager.initialize();
-            NetworkManager.start(3);
+            long base = System.currentTimeMillis();
+            long t1 = base + 60_000L;
+            long t2 = base + 90_000L;
+            long t3 = base + 120_000L;
+            long t4 = base + 150_000L;
+            long t5 = base + 180_000L;
+            long t6 = base + 210_000L;
+            long t7 = base + 600_000L;
 
-            final String userId = "547532739";
-            final String cachePath = "database/network/" + userId + ".json";
+            TaskRequest req1 = new TaskRequest();
+            req1.setName("log-high-priority");
+            req1.setPriority(1);
+            req1.setAbsoluteOnce(t1);
+            req1.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
+            req1.setOpArgs("info,\"priority 1 should run first\"");
+            scheduleRequest(req1);
 
-            NetworkRequest req = new NetworkRequest("roblox", "UserFriendsFind")
-                    .setRequestUrl("https://friends.roblox.com")
-                    .setPath("/v1/users/547532739/friends/find")
-                    .setResponseType(NetworkRequest.ResponseType.JSON_OBJECT)
-                    .setCachePath(cachePath);
+            TaskRequest req2 = new TaskRequest();
+            req2.setName("log-default-priority");
+            req2.setAbsoluteOnce(t1);
+            req2.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
+            req2.setOpArgs("info,default priority");
+            scheduleRequest(req2);
 
-            String resolvedPath = NetworkManager.requestAndReturnCachePath(req);
-            Logger.log(Logger.TAG.INFO, "[NetworkTest] cachePath=" + resolvedPath);
+            TaskRequest req3 = new TaskRequest();
+            req3.setName("print-quoted");
+            req3.setAbsoluteOnce(t2);
+            req3.setOpKey(ExeWhitelist.OpKey.PRINT_MESSAGE);
+            req3.setOpArgs("\"hello, world\"");
+            scheduleRequest(req3);
 
-            // Wait for async workers to complete
-            Thread.sleep(5000);
+            TaskRequest req4 = new TaskRequest();
+            req4.setName("print-empty");
+            req4.setAbsoluteOnce(t3);
+            req4.setOpKey(ExeWhitelist.OpKey.PRINT_MESSAGE);
+            req4.setOpArgs("");
+            scheduleRequest(req4);
 
-            // Mark as permanent after write
-            try {
-                boolean madePerm = DatabaseManager.makePermanent(resolvedPath);
-                Logger.log(Logger.TAG.INFO, "[NetworkTest] makePermanent=" + madePerm + " path=" + resolvedPath);
-            } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "[NetworkTest] makePermanent failed path=" + resolvedPath + " err=" + t.getMessage());
-            }
+            TaskRequest req5 = new TaskRequest();
+            req5.setName("log-system");
+            req5.setAbsoluteOnce(t4);
+            req5.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
+            req5.setOpArgs("system,\"system message test\"");
+            scheduleRequest(req5);
 
-            try {
-                Object root = DatabaseManager.readJSONPath(resolvedPath, "");
-                Logger.log(Logger.TAG.INFO, "[NetworkTest] read root ok path=" + resolvedPath + " type=" +
-                        (root == null ? "null" : root.getClass().getSimpleName()));
-            } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "[NetworkTest] read root failed path=" + resolvedPath + " err=" + t.getMessage());
-            }
+            TaskRequest req6 = new TaskRequest();
+            req6.setName("log-warn");
+            req6.setAbsoluteOnce(t5);
+            req6.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
+            req6.setOpArgs("warn,\"warn with comma, inside\"");
+            scheduleRequest(req6);
 
-            Logger.log(Logger.TAG.INFO, "Queue sizes: flush=" + QueueManager.getQueueSize()
-                    + ", cache=" + QueueManager.getCacheSize());
-            Logger.log(Logger.TAG.SYSTEM, "=== NETWORK TEST SUITE END (SIMPLE) ===");
+            TaskRequest req7 = new TaskRequest();
+            req7.setName("log-error");
+            req7.setAbsoluteOnce(t6);
+            req7.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
+            req7.setOpArgs("error,\"error line\"");
+            scheduleRequest(req7);
+
+            TaskRequest req8 = new TaskRequest();
+            req8.setName("log-debug-late");
+            req8.setAbsoluteOnce(t7);
+            req8.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
+            req8.setOpArgs("debug,\"late debug in 10 minutes\"");
+            scheduleRequest(req8);
 
         } catch (Throwable t) {
-            Logger.log(Logger.TAG.ERROR, "NETWORK TEST SUITE CRASHED: " + t);
+            Logger.log(Logger.TAG.ERROR, "TASK SCHEDULER TEST CRASH: " + t);
         }
 
+        try {
+            Thread.sleep(15 * 60 * 1000L);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
         ShutdownManager.shutdown(null);
 
     }

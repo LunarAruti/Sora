@@ -2,43 +2,8 @@ package ucadmin.scheduler;
 
 import java.util.Objects;
 
-/**
- * ScheduledTask = the single object that represents "a thing the scheduler will run".
- *
- * This is the only object the rest of the bot should need to understand.
- * - Users / modules create a TaskRequest (or build ScheduledTask via a builder).
- * - The scheduler assigns taskId, persists it, indexes it, and executes it when due.
- *
- * TIME MODELS (explicit; no null-magic):
- * 1) ABSOLUTE_ONESHOT:
- *    - Runs once at executeAt (unix ms).
- *    - If the bot is down and it misses the time, it is MISSED and never runs late.
- *
- * 2) ABSOLUTE_INTERVAL:
- *    - Repeats on a wall-clock schedule anchored to executeAt.
- *    - nextDueAt is computed by skipping forward: while(next <= now) next += intervalMs
- *    - No catch-up runs.
- *
- * 3) UPTIME_DELAY:
- *    - Runs once at (bootAt + delayMs).
- *    - Resets on restart. Never runs late if missed.
- *
- * 4) UPTIME_INTERVAL:
- *    - First run at (bootAt + (delayMs if set else intervalMs)), then repeats every intervalMs.
- *    - Skips forward while(next <= now) next += intervalMs
- *    - Resets on restart. No catch-up.
- *
- * PRIORITY:
- * - Only used when multiple tasks are due at the same time.
- * - Lower number = higher priority.
- *
- * STATUS:
- * - Minimal: SCHEDULED / PAUSED / CANCELLED
- * - Optional: DONE / MISSED / ERROR (useful if you keep history rather than deleting).
- */
-public final class ScheduledTask {
 
-    // ========= Enums live here to avoid "enum files spam" while still being readable. =========
+public final class ScheduledTask {
 
     public enum Type {
         ABSOLUTE_ONESHOT,
@@ -58,8 +23,6 @@ public final class ScheduledTask {
         ERROR
     }
 
-    // ========= Required identity + behavior =========
-
     /** Assigned by scheduler. Immutable. */
     public final String taskId;
 
@@ -75,13 +38,13 @@ public final class ScheduledTask {
     /** Lower is "more important" for tie-breaking when multiple tasks are due. */
     public final int priority;
 
-    /** What to execute (usually routed into UC Admin command dispatcher). */
-    public final String command;
+    /** Whitelisted op key to execute. */
+    public final String opKey;
+    /** Op arguments string (comma-separated args). */
+    public final String opArgs;
 
     /** Remaining retries before terminal ERROR (0 = no retries). */
     public final int retriesRemaining;
-
-    // ========= Timing fields (used depending on Type) =========
 
     /** Unix ms. Used by ABSOLUTE_* only. */
     public final Long executeAt;
@@ -92,8 +55,6 @@ public final class ScheduledTask {
     /** Delay from scheduler boot (ms). Used by UPTIME_* types. */
     public final Long delayMs;
 
-    // ========= Metadata / observability =========
-
     public final long createdAt;
     public final long updatedAt;
 
@@ -101,13 +62,15 @@ public final class ScheduledTask {
     public final String lastResult;
     public final long runCount;
 
+    /** Internal constructor used by the builder. */
     private ScheduledTask(Builder b) {
         this.taskId = Objects.requireNonNull(b.taskId, "taskId");
         this.name = Objects.requireNonNull(b.name, "name");
         this.type = Objects.requireNonNull(b.type, "type");
         this.status = Objects.requireNonNull(b.status, "status");
         this.priority = b.priority;
-        this.command = Objects.requireNonNull(b.command, "command");
+        this.opKey = Objects.requireNonNull(b.opKey, "opKey");
+        this.opArgs = b.opArgs;
         this.retriesRemaining = b.retriesRemaining;
 
         this.executeAt = b.executeAt;
@@ -130,6 +93,7 @@ public final class ScheduledTask {
      */
     private void validate() {
         require(!name.isBlank(), "name cannot be blank");
+        require(!opKey.isBlank(), "opKey cannot be blank");
         switch (type) {
             case ABSOLUTE_ONESHOT:
                 require(executeAt != null, "ABSOLUTE_ONESHOT requires executeAt");
@@ -151,10 +115,12 @@ public final class ScheduledTask {
         require(retriesRemaining >= 0, "retriesRemaining must be >= 0");
     }
 
+    /** Throws if validation fails. */
     private static void require(boolean ok, String msg) {
         if (!ok) throw new IllegalArgumentException(msg);
     }
 
+    /** Creates a builder prefilled with this task's values. */
     public Builder toBuilder() {
         return new Builder()
                 .taskId(taskId)
@@ -162,7 +128,8 @@ public final class ScheduledTask {
                 .type(type)
                 .status(status)
                 .priority(priority)
-                .command(command)
+                .opKey(opKey)
+                .opArgs(opArgs)
                 .retriesRemaining(retriesRemaining)
                 .executeAt(executeAt)
                 .intervalMs(intervalMs)
@@ -174,15 +141,14 @@ public final class ScheduledTask {
                 .runCount(runCount);
     }
 
-    // ========= Builder =========
-
     public static final class Builder {
         private String taskId;
         private String name;
         private Type type;
         private Status status = Status.SCHEDULED;
         private int priority = 10;
-        private String command;
+        private String opKey;
+        private String opArgs;
         private int retriesRemaining;
 
         private Long executeAt;
@@ -196,25 +162,43 @@ public final class ScheduledTask {
         private String lastResult;
         private long runCount;
 
+        /** Sets the task id. */
         public Builder taskId(String v) { this.taskId = v; return this; }
+        /** Sets the display name. */
         public Builder name(String v) { this.name = v; return this; }
+        /** Sets the scheduling type. */
         public Builder type(Type v) { this.type = v; return this; }
+        /** Sets the task status. */
         public Builder status(Status v) { this.status = v; return this; }
+        /** Sets the priority. */
         public Builder priority(int v) { this.priority = v; return this; }
-        public Builder command(String v) { this.command = v; return this; }
+        /** Sets the whitelisted op key. */
+        public Builder opKey(String v) { this.opKey = v; return this; }
+        /** Sets the op args string. */
+        public Builder opArgs(String v) { this.opArgs = v; return this; }
+        /** Sets remaining retries. */
         public Builder retriesRemaining(int v) { this.retriesRemaining = v; return this; }
 
+        /** Sets the absolute executeAt time. */
         public Builder executeAt(Long v) { this.executeAt = v; return this; }
+        /** Sets the interval length. */
         public Builder intervalMs(Long v) { this.intervalMs = v; return this; }
+        /** Sets the uptime delay. */
         public Builder delayMs(Long v) { this.delayMs = v; return this; }
 
+        /** Sets created timestamp. */
         public Builder createdAt(long v) { this.createdAt = v; return this; }
+        /** Sets updated timestamp. */
         public Builder updatedAt(long v) { this.updatedAt = v; return this; }
 
+        /** Sets last run timestamp. */
         public Builder lastRunAt(Long v) { this.lastRunAt = v; return this; }
+        /** Sets last result string. */
         public Builder lastResult(String v) { this.lastResult = v; return this; }
+        /** Sets run count. */
         public Builder runCount(long v) { this.runCount = v; return this; }
 
+        /** Builds an immutable ScheduledTask. */
         public ScheduledTask build() { return new ScheduledTask(this); }
     }
 }

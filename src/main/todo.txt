@@ -1,0 +1,3 @@
+
+- figure out why network module creates two notwork workers
+- ensure task scheduler has a no exit shutdown

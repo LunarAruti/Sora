@@ -3,36 +3,30 @@ package ucadmin.scheduler;
 import ucadmin.exceptions.TaskException;
 import ucadmin.util.Logger;
 
+import java.util.Locale;
+
 /**
- * TaskRequest = the "request object" callers build, similar to your NetworkRequest concept.
+ * Request object callers build before scheduling a task.
  *
- * Intent:
- * - Callers should not be forced to know internal storage/indexing details.
- * - Callers fill in fields; scheduler assigns taskId and persists it.
+ * Typical flow:
+ * - Create TaskRequest.
+ * - Set name, type/timing, opKey, opArgs, and optional priority/retries.
+ * - Call TaskScheduler.scheduleRequest(request) to persist and enqueue.
+ * - Use the returned taskId with TaskScheduler.pause/resume/cancel.
  *
- * This class is deliberately small:
- * - Caller sets fields via fluent setters and getters.
- * - Type setters also set timing fields (executeAt/interval/delay) to avoid mismatches.
- * - It can be made "sealable/immutable" later (like NetworkRequest) if you want.
- * - retries = number of extra attempts after the first failure (0 = no retries).
+ * opArgs format:
+ * - Comma-separated list of arguments.
+ * - Quotes preserve commas inside a single argument.
  *
- * USAGE PATTERNS:
- *
- * 1) Absolute one-shot: run at a wall-clock time (unix ms), or miss it.
- *    new TaskRequest().setName("x").setAbsoluteOnce(executeAt).setCommand("cmd")
- *
- * 2) Absolute interval: run on a wall-clock schedule anchored at executeAt, skip missed.
- *    new TaskRequest().setName("x").setAbsoluteInterval(executeAt, intervalMs).setCommand("cmd")
- *
- * 3) Uptime delay: run once after boot. Resets on restart.
- *    new TaskRequest().setName("x").setUptimeDelay(delayMs).setCommand("cmd")
- *
- * 4) Uptime interval: run repeatedly after boot. Resets on restart.
- *    new TaskRequest().setName("x").setUptimeInterval(delayMsOrNull, intervalMs).setCommand("cmd")
+ * lock() validates fields, applies defaults, normalizes opKey, and freezes the request.
  */
 public final class TaskRequest {
     private static final long MIN_INTERVAL_MS = 60L * 60L * 1000L; // 1 hour
+    private static final long ONE_SHOT_GRACE_MS = 30L * 60L * 1000L; // 30 minutes
     private static final int MAX_RETRIES = 5;
+    private static final int MIN_PRIORITY = 0;
+    private static final int MAX_PRIORITY = 100;
+    private static final int MAX_NAME_LEN = 128;
 
     private boolean locked;
 
@@ -42,8 +36,10 @@ public final class TaskRequest {
     private ScheduledTask.Type type;
     /** Lower is higher priority (ties resolved by createdAt/taskId in scheduler). */
     private int priority = 10;
-    /** Command string executed by scheduler's CommandExecutor. */
-    private String command;
+    /** Whitelisted op key executed by scheduler's CommandExecutor. */
+    private String opKey;
+    /** Op arguments string (comma-separated args). */
+    private String opArgs;
     /** Number of retry attempts after the first failure (0 = no retries). */
     private int retries = 0;
 
@@ -51,48 +47,177 @@ public final class TaskRequest {
     private Long intervalMs;
     private Long delayMs;
 
-    /** Creates an empty request; caller must fill fields before locking. */
+    /**
+     * Creates an empty request.
+     * Call setters to populate fields before lock().
+     */
     public TaskRequest() {}
 
-    /** Returns the task display name. */
+    /**
+     * Returns the task display name.
+     *
+     * @return task name or null if not set
+     */
     public String getName() { return name; }
-    /** Returns the scheduling type. */
+
+    /**
+     * Returns the scheduling type.
+     *
+     * @return task type or null if not set
+     */
     public ScheduledTask.Type getType() { return type; }
-    /** Returns the priority (lower means higher priority). */
+
+    /**
+     * Returns the priority (lower means higher priority).
+     *
+     * @return priority value
+     */
     public int getPriority() { return priority; }
-    /** Returns the command string executed by the scheduler. */
-    public String getCommand() { return command; }
-    /** Returns remaining retry attempts after the first failure. */
+
+    /**
+     * Returns the whitelisted op key executed by the scheduler.
+     *
+     * @return normalized opKey or null if not set
+     */
+    public String getOpKey() { return opKey; }
+
+    /**
+     * Returns the op arguments string.
+     *
+     * @return opArgs string or null if not set
+     */
+    public String getOpArgs() { return opArgs; }
+
+    /**
+     * Returns remaining retry attempts after the first failure.
+     *
+     * @return retries count
+     */
     public int getRetries() { return retries; }
-    /** Returns the absolute execution timestamp (ms), if applicable. */
+
+    /**
+     * Returns the absolute execution timestamp (ms), if applicable.
+     *
+     * @return executeAt ms or null if not set
+     */
     public Long getExecuteAt() { return executeAt; }
-    /** Returns the interval length (ms), if applicable. */
+
+    /**
+     * Returns the interval length (ms), if applicable.
+     *
+     * @return interval length or null if not set
+     */
     public Long getIntervalMs() { return intervalMs; }
-    /** Returns the uptime delay (ms), if applicable. */
+
+    /**
+     * Returns the uptime delay (ms), if applicable.
+     *
+     * @return delay length or null if not set
+     */
     public Long getDelayMs() { return delayMs; }
 
-    /** Sets the task name. */
+    /**
+     * Sets the display name for the task.
+     * Required; max length enforced on lock().
+     *
+     * @param name task display name
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setName(String name) { ensureNotLocked(); this.name = name; return this; }
-    /** Sets the task priority. */
+
+    /**
+     * Sets task priority (lower = higher priority).
+     * Valid range enforced on lock().
+     *
+     * @param priority priority value
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setPriority(int priority) { ensureNotLocked(); this.priority = priority; return this; }
-    /** Sets the command string. */
-    public TaskRequest setCommand(String command) { ensureNotLocked(); this.command = command; return this; }
-    /** Sets allowed retry attempts after the first failure. */
+
+    /**
+     * Sets the whitelisted operation key.
+     * opKey is normalized on lock().
+     *
+     * @param opKey whitelisted operation key enum
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
+    public TaskRequest setOpKey(ExeWhitelist.OpKey opKey) {
+        ensureNotLocked();
+        this.opKey = opKey == null ? null : opKey.name();
+        return this;
+    }
+
+    /**
+     * Sets the op arguments string (comma-separated list).
+     * Use quotes to preserve commas inside a single argument.
+     * Empty string is allowed; null is rejected on lock().
+     *
+     * @param opArgs op argument string
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
+    public TaskRequest setOpArgs(String opArgs) { ensureNotLocked(); this.opArgs = opArgs; return this; }
+
+    /**
+     * Sets retry attempts after the first failure.
+     * Valid range enforced on lock().
+     *
+     * @param retries number of retries
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setRetries(int retries) { ensureNotLocked(); this.retries = retries; return this; }
 
     /**
-     * Low-level type setter. Prefer the type-specific setters which set timing fields.
+     * Low-level type setter. Prefer type-specific setters that set timing fields.
+     *
+     * @param type scheduling type
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
      */
     public TaskRequest setType(ScheduledTask.Type type) { ensureNotLocked(); this.type = type; return this; }
 
-    /** Sets the absolute execution timestamp (ms). */
+    /**
+     * Sets the absolute execution timestamp (ms).
+     * Used by ABSOLUTE_* types.
+     *
+     * @param executeAt epoch ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setExecuteAt(Long executeAt) { ensureNotLocked(); this.executeAt = executeAt; return this; }
-    /** Sets the interval length (ms). */
+
+    /**
+     * Sets the interval length (ms).
+     * Used by *_INTERVAL types.
+     *
+     * @param intervalMs interval duration ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setIntervalMs(Long intervalMs) { ensureNotLocked(); this.intervalMs = intervalMs; return this; }
-    /** Sets the uptime delay (ms). */
+
+    /**
+     * Sets the uptime delay (ms).
+     * Used by UPTIME_* types.
+     *
+     * @param delayMs delay duration ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setDelayMs(Long delayMs) { ensureNotLocked(); this.delayMs = delayMs; return this; }
 
-    /** Configures a single absolute execution time. */
+    /**
+     * Configures a single absolute execution time.
+     * Sets type=ABSOLUTE_ONESHOT and clears interval/delay fields.
+     *
+     * @param executeAt epoch ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setAbsoluteOnce(long executeAt) {
         ensureNotLocked();
         this.type = ScheduledTask.Type.ABSOLUTE_ONESHOT;
@@ -102,7 +227,15 @@ public final class TaskRequest {
         return this;
     }
 
-    /** Configures a wall-clock anchored interval schedule. */
+    /**
+     * Configures a wall-clock anchored interval schedule.
+     * Sets type=ABSOLUTE_INTERVAL and clears delay field.
+     *
+     * @param executeAt epoch ms anchor
+     * @param intervalMs interval duration ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setAbsoluteInterval(long executeAt, long intervalMs) {
         ensureNotLocked();
         this.type = ScheduledTask.Type.ABSOLUTE_INTERVAL;
@@ -112,7 +245,14 @@ public final class TaskRequest {
         return this;
     }
 
-    /** Configures a one-shot delay from scheduler boot. */
+    /**
+     * Configures a one-shot delay from scheduler boot.
+     * Sets type=UPTIME_DELAY and clears executeAt/interval.
+     *
+     * @param delayMs delay duration ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setUptimeDelay(long delayMs) {
         ensureNotLocked();
         this.type = ScheduledTask.Type.UPTIME_DELAY;
@@ -122,7 +262,15 @@ public final class TaskRequest {
         return this;
     }
 
-    /** Configures a boot-anchored interval with optional initial delay. */
+    /**
+     * Configures a boot-anchored interval with optional initial delay.
+     * Sets type=UPTIME_INTERVAL and clears executeAt.
+     *
+     * @param delayMsOrNull initial delay or null to default to interval
+     * @param intervalMs interval duration ms
+     * @return this request for chaining
+     * @throws IllegalStateException if already locked
+     */
     public TaskRequest setUptimeInterval(Long delayMsOrNull, long intervalMs) {
         ensureNotLocked();
         this.type = ScheduledTask.Type.UPTIME_INTERVAL;
@@ -133,7 +281,8 @@ public final class TaskRequest {
     }
 
     /**
-     * Validates and fills defaults. Must be called before scheduling.
+     * Validates and fills defaults, then locks the request.
+     * Once locked, setters will throw IllegalStateException.
      *
      * @return this TaskRequest after defaults are applied
      * @throws TaskException when the request is invalid
@@ -145,11 +294,26 @@ public final class TaskRequest {
         if (name == null || name.isBlank()) {
             throw new TaskException("TaskRequest.lock: name is required.");
         }
-        if (command == null || command.isBlank()) {
-            throw new TaskException("TaskRequest.lock: command is required. name=" + name);
+        if (name.length() > MAX_NAME_LEN) {
+            throw new TaskException("TaskRequest.lock: name exceeds " + MAX_NAME_LEN + " chars.");
+        }
+        if (opKey == null || opKey.isBlank()) {
+            throw new TaskException("TaskRequest.lock: opKey is required. name=" + name);
+        }
+        if (opArgs == null) {
+            throw new TaskException("TaskRequest.lock: opArgs is required (use empty string for no args). name=" + name);
+        }
+        opKey = normalizeOpKey(opKey);
+        this.opKey = opKey;
+        if (ExeWhitelist.get(opKey) == null) {
+            throw new TaskException("TaskRequest.lock: opKey not in whitelist. name=" + name + " opKey=" + opKey);
         }
         if (type == null) {
             throw new TaskException("TaskRequest.lock: type is required. name=" + name);
+        }
+        if (priority < MIN_PRIORITY || priority > MAX_PRIORITY) {
+            throw new TaskException("TaskRequest.lock: priority must be " +
+                    MIN_PRIORITY + "-" + MAX_PRIORITY + ". name=" + name);
         }
         if (retries < 0 || retries > MAX_RETRIES) {
             throw new TaskException("TaskRequest.lock: retries must be 0-" + MAX_RETRIES + ". name=" + name);
@@ -162,8 +326,8 @@ public final class TaskRequest {
                 if (executeAt == null) {
                     throw new TaskException("TaskRequest.lock: executeAt required for one-shot. name=" + name);
                 }
-                if (executeAt < now) {
-                    throw new TaskException("TaskRequest.lock: executeAt must be >= now. name=" + name);
+                if (executeAt < (now - ONE_SHOT_GRACE_MS)) {
+                    throw new TaskException("TaskRequest.lock: executeAt is too far in the past. name=" + name);
                 }
                 intervalMs = null;
                 delayMs = null;
@@ -205,20 +369,34 @@ public final class TaskRequest {
                 throw new TaskException("TaskRequest.lock: unknown type. name=" + name);
         }
 
-        Logger.log(Logger.TAG.DEBUG, "TaskRequest locked: name=" + name + " type=" + type);
+        Logger.log(Logger.TAG.DEBUG,
+                "TaskRequest locked: name=" + name +
+                        " type=" + type +
+                        " opKey=" + opKey);
         locked = true;
         return this;
     }
 
-    /** Returns whether this request has been locked/validated. */
+    /**
+     * Returns whether this request has been locked/validated.
+     *
+     * @return true if locked
+     */
     public boolean isLocked() {
         return locked;
     }
 
-    /** Enforces immutability after lock(). */
+    /** Throws IllegalStateException if the request is already locked. */
     private void ensureNotLocked() {
         if (locked) {
             throw new IllegalStateException("TaskRequest is locked.");
         }
+    }
+
+    /** Normalizes opKey for case-insensitive input. */
+    private static String normalizeOpKey(String opKey) {
+        if (opKey == null) return null;
+        String v = opKey.trim();
+        return v.isEmpty() ? v : v.toUpperCase(Locale.ROOT);
     }
 }

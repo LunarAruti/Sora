@@ -11,11 +11,10 @@
 Commit Info
 ========================
 
-- Buffered Logger (single worker, ring cap, shutdown wait), ShutdownManager added.
-- DependencyManager made standalone (direct FS only) and moved earlier in startup.
-- QueueManager gained explicit shutdown (idempotent); shutdown hook delegates to it.
-- Network module stabilized (temp outputs, collision handling, error objects, journals/diagnostics dumps).
-- Parser upgrades + README expanded with full method lists/status codes.
+- TaskScheduler module completed (TaskRequest lock/validation, registry IO, single worker, pause/resume/cancel).
+- TaskExecutor + ExeWhitelist added with OpKey enum, LOG_MESSAGE/PRINT_MESSAGE ops, arg parsing.
+- Task Scheduler public API documented in README with full method lists.
+- ShutdownManager updated to include TaskScheduler in clean/no-exit paths with mutual-exclusion guards.
 
 This document compiles the method lists from:
 - database/methods.txt
@@ -190,19 +189,6 @@ findJSONArray(String filePath, String jsonPath, String keyName, Object targetVal
 copyJSONPath(String filePath, String fromPath, String toPath)
 - Return: boolean
 - Purpose: Copy JSON node from one path to another.
-
-Internal / helper methods (not public API)
-- sanitizeNode(Object node, boolean fixArrays)
-- parseSegment(String token)
-- tryParseJSON(String content, boolean enforceObject)
-- traverseJSONNode(Object node, String prefix, StringBuilder sb, String indent)
-- previewValue(Object val)
-- ensureArraySize(JSONArray array, int targetIndex)
-- clearJSONArray(JSONArray arr)
-- clearJSONObject(JSONObject obj)
-- readJSONRaw(String path)
-- writeJSONRaw(String path, JSONObject data)
-- moveToCorrupt(String path)
 
 ========================
 Network Module
@@ -453,6 +439,153 @@ getDedupeKey()
 toCurl()
 - Return: String
 - Purpose: Build a curl command for the sealed request.
+
+========================
+Task Scheduler Module
+========================
+
+TaskScheduler
+start(TaskScheduler.CommandExecutor executor)
+- Return: boolean
+- Purpose: Start the scheduler worker (true if started, false if already running).
+
+shutdown()
+- Return: boolean
+- Purpose: Stop the scheduler worker and wait for it to exit.
+
+shutdownNoExit()
+- Return: boolean
+- Purpose: Fast shutdown without waiting for the worker to exit.
+
+scheduleRequest(TaskRequest request)
+- Return: String (taskId)
+- Purpose: Validate, persist, and enqueue a TaskRequest.
+
+pause(String taskId)
+- Return: void
+- Purpose: Pause a scheduled task by id.
+
+resume(String taskId)
+- Return: void
+- Purpose: Resume a paused task by id.
+
+cancel(String taskId)
+- Return: void
+- Purpose: Cancel a task by id (removes from registry).
+
+TaskRequest
+TaskRequest()
+- Return: TaskRequest
+- Purpose: Create an empty request for configuration.
+
+setName(String name)
+- Return: TaskRequest
+- Purpose: Set the display name.
+
+setPriority(int priority)
+- Return: TaskRequest
+- Purpose: Set priority (lower is higher priority).
+
+setOpKey(ExeWhitelist.OpKey opKey)
+- Return: TaskRequest
+- Purpose: Set the whitelisted operation key.
+
+setOpArgs(String opArgs)
+- Return: TaskRequest
+- Purpose: Set comma-separated operation arguments.
+
+setRetries(int retries)
+- Return: TaskRequest
+- Purpose: Set retry attempts after the first failure.
+
+setType(ScheduledTask.Type type)
+- Return: TaskRequest
+- Purpose: Set schedule type (prefer specific type setters).
+
+setExecuteAt(Long executeAt)
+- Return: TaskRequest
+- Purpose: Set absolute execution time (ms).
+
+setIntervalMs(Long intervalMs)
+- Return: TaskRequest
+- Purpose: Set interval duration (ms).
+
+setDelayMs(Long delayMs)
+- Return: TaskRequest
+- Purpose: Set uptime delay (ms).
+
+setAbsoluteOnce(long executeAt)
+- Return: TaskRequest
+- Purpose: Configure a one-shot absolute time.
+
+setAbsoluteInterval(long executeAt, long intervalMs)
+- Return: TaskRequest
+- Purpose: Configure a wall-clock interval schedule.
+
+setUptimeDelay(long delayMs)
+- Return: TaskRequest
+- Purpose: Configure a one-shot delay from scheduler boot.
+
+setUptimeInterval(Long delayMsOrNull, long intervalMs)
+- Return: TaskRequest
+- Purpose: Configure a boot-anchored interval schedule.
+
+lock()
+- Return: TaskRequest
+- Purpose: Validate fields and lock the request.
+
+isLocked()
+- Return: boolean
+- Purpose: Whether the request is locked.
+
+getName()
+- Return: String
+- Purpose: Get the display name.
+
+getType()
+- Return: ScheduledTask.Type
+- Purpose: Get the schedule type.
+
+getPriority()
+- Return: int
+- Purpose: Get priority.
+
+getOpKey()
+- Return: String
+- Purpose: Get normalized operation key.
+
+getOpArgs()
+- Return: String
+- Purpose: Get operation arguments.
+
+getRetries()
+- Return: int
+- Purpose: Get retry attempts.
+
+getExecuteAt()
+- Return: Long
+- Purpose: Get absolute execution time.
+
+getIntervalMs()
+- Return: Long
+- Purpose: Get interval duration.
+
+getDelayMs()
+- Return: Long
+- Purpose: Get uptime delay.
+
+TaskExecutor
+execute(String opKey, String opArgs)
+- Return: TaskResult
+- Purpose: Resolve opKey, parse args, and run the whitelist handler.
+
+listOpKeys()
+- Return: Set<String>
+- Purpose: List whitelisted operation keys.
+
+ExeWhitelist
+OpKey (enum)
+- Purpose: Whitelisted operation keys.
 
 ========================
 Logger (Util)

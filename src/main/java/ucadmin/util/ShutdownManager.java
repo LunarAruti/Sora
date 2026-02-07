@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.JDA;
 import ucadmin.database.BatchManager;
 import ucadmin.database.QueueManager;
 import ucadmin.network.NetworkManager;
+import ucadmin.scheduler.TaskScheduler;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -17,6 +18,7 @@ public final class ShutdownManager {
     private ShutdownManager() {}
 
     private static final AtomicBoolean NO_EXIT_SHUTTING_DOWN = new AtomicBoolean(false);
+    private static final AtomicBoolean CLEAN_SHUTTING_DOWN = new AtomicBoolean(false);
     private static final long NO_EXIT_LOGGER_WAIT_MS = 2000L;
 
     /**
@@ -25,6 +27,14 @@ public final class ShutdownManager {
      * @param jda active JDA instance (may be null)
      */
     public static void shutdown(JDA jda) {
+        if (!CLEAN_SHUTTING_DOWN.compareAndSet(false, true)) {
+            Logger.log(Logger.TAG.WARN, "Shutdown: ignored -> already shutting down.");
+            return;
+        }
+        if (NO_EXIT_SHUTTING_DOWN.get()) {
+            Logger.log(Logger.TAG.WARN, "Shutdown: ignored -> no-exit shutdown already running.");
+            return;
+        }
         Logger.log(Logger.TAG.SYSTEM, "Shutdown command received. Beginning graceful termination...");
 
         try {
@@ -33,6 +43,14 @@ public final class ShutdownManager {
             Logger.log(Logger.TAG.INFO, "Shutdown: NetworkManager shutdown initiated=" + netOk);
         } catch (Exception e) {
             Logger.log(Logger.TAG.ERROR, "Shutdown: NetworkManager failed: " + e.getMessage());
+        }
+
+        try {
+            Logger.log(Logger.TAG.SYSTEM, "Shutdown: stopping TaskScheduler...");
+            boolean schedOk = TaskScheduler.shutdown();
+            Logger.log(Logger.TAG.INFO, "Shutdown: TaskScheduler shutdown initiated=" + schedOk);
+        } catch (Exception e) {
+            Logger.log(Logger.TAG.ERROR, "Shutdown: TaskScheduler failed: " + e.getMessage());
         }
 
         try {
@@ -98,6 +116,10 @@ public final class ShutdownManager {
      * @param jda active JDA instance (may be null)
      */
     public static void shutdownNoExit(JDA jda) {
+        if (CLEAN_SHUTTING_DOWN.get()) {
+            Logger.log(Logger.TAG.WARN, "ShutdownNoExit: skipped -> clean shutdown in progress.");
+            return;
+        }
         if (!NO_EXIT_SHUTTING_DOWN.compareAndSet(false, true)) {
             Logger.log(Logger.TAG.WARN, "ShutdownNoExit: ignored -> already shutting down.");
             return;
@@ -111,6 +133,14 @@ public final class ShutdownManager {
             Logger.log(Logger.TAG.INFO, "ShutdownNoExit: NetworkManager shutdown initiated=" + netOk);
         } catch (Exception e) {
             Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: NetworkManager failed: " + e.getMessage());
+        }
+
+        try {
+            Logger.log(Logger.TAG.SYSTEM, "ShutdownNoExit: stopping TaskScheduler (fast)...");
+            boolean schedOk = TaskScheduler.shutdownNoExit();
+            Logger.log(Logger.TAG.INFO, "ShutdownNoExit: TaskScheduler shutdown initiated=" + schedOk);
+        } catch (Exception e) {
+            Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: TaskScheduler failed: " + e.getMessage());
         }
 
         try {
