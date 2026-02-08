@@ -39,7 +39,7 @@ public class StartupManager extends ListenerAdapter {
         JDA jda = event.getJDA();
 
         // Presence
-        jda.getPresence().setActivity(Activity.playing("UC Testing bot..."));
+        jda.getPresence().setActivity(Activity.playing("SORA in-dev v0.1"));
         jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.ONLINE);
 
         // DependencyManager must run before Logger/DB modules.
@@ -54,7 +54,7 @@ public class StartupManager extends ListenerAdapter {
 
         // Logger
         Logger.init();
-        Logger.log(Logger.TAG.INFO, "UC Admin Bot is online as " + jda.getSelfUser().getName());
+        Logger.log(Logger.TAG.INFO, "SORA is online as " + jda.getSelfUser().getName());
 
         ShutdownManager.registerNoExitShutdownHook();
 

@@ -1,0 +1,91 @@
+UC Admin Actions Module Notes
+==============================
+
+Scope: Command-style helpers for common Discord actions.
+Avoid event listener helpers for now (joins/leaves, etc.).
+
+Core messaging
+- send message (text)
+- send message with embeds
+- reply to interaction
+- edit message
+- delete message
+- bulk delete messages
+- pin/unpin message
+- add/remove reactions
+- send typing indicator
+- crosspost (announcement channels)
+
+Interactions and components
+- send message with buttons
+- send message with select menus
+- edit components
+- defer reply
+- follow-up message
+
+Users and moderation
+- mute/unmute
+- deafen/undeafen
+- timeout/untimeout
+- kick
+- ban/unban
+- move user to voice channel
+- disconnect from voice
+- add/remove roles
+- change nickname
+- prune members
+
+Voice and stage
+- join voice
+- leave voice
+- set voice status (mute/deafen self)
+- server mute/deafen
+- stage request to speak / suppress
+
+Channels and threads
+- create channel
+- delete channel
+- edit channel (name/topic/slowmode)
+- set channel permissions
+- move channel to category
+- create thread
+- add/remove thread members
+- archive/unarchive thread
+- lock/unlock thread
+- set thread auto-archive duration
+- set thread slowmode
+- rename thread
+- create category
+- edit category
+- delete category
+- reorder channels/categories
+
+Events and scheduling
+- create scheduled event
+- edit scheduled event
+- cancel scheduled event
+- delete scheduled event
+
+Guild and administration
+- set guild name/icon/banner/splash
+- set verification level
+- set default notifications
+- set system/AFK channel + timeout
+- create role
+- edit role
+- delete role
+- set permissions (channel/role)
+- move role position
+- set role color/hoist/mentionable
+- create/revoke invites
+- create/edit/delete emoji
+- create/edit/delete sticker
+- create/edit/delete webhook
+- send webhook message
+- set bot presence/activity
+- open DM + send DM
+
+Utilities
+- resolve user/channel by id
+- resolve member by id
+- resolve role by id
