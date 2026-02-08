@@ -6,7 +6,6 @@ import ucadmin.database.DatabaseManager;
 import ucadmin.exceptions.DatabaseException;
 import ucadmin.exceptions.NetworkException;
 import ucadmin.util.Logger;
-import ucadmin.network.NetworkJournal;
 
 import java.util.List;
 import java.util.Locale;

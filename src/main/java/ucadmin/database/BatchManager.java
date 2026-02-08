@@ -69,13 +69,20 @@ public final class BatchManager {
         for (int i = 0; i < chars.length; i++) {
             char ch = chars[i];
 
+            if (!inBracket && ch == '\\') {
+                if (i + 1 >= chars.length) {
+                    Logger.log(Logger.TAG.ERROR, "Trailing escape in path: " + path);
+                    throw new BatchException("Invalid escape in path: " + path);
+                }
+                key.append(chars[i + 1]);
+                i++;
+                continue;
+            }
+
             if (ch == '.') {
                 if (!inBracket) {
                     if (key.length() == 0) {
-                        // NEW: allow dot right after a closing bracket, e.g. "a[0].b"
-                        // That means we've already emitted a token for "a[0]" and are starting "b".
                         if (!tokens.isEmpty()) {
-                            // just skip adding a token here; next chars will fill 'key' for the next segment
                             continue;
                         }
                         Logger.log(Logger.TAG.ERROR, "Invalid dot placement in path: " + path);
@@ -92,6 +99,44 @@ public final class BatchManager {
                     Logger.log(Logger.TAG.ERROR, "Nested '[' without closing ']' in path: " + path);
                     throw new BatchException("Invalid '[' nesting in path: " + path);
                 }
+
+                if (i + 1 < chars.length && (chars[i + 1] == '\'' || chars[i + 1] == '"')) {
+                    char quote = chars[i + 1];
+                    i += 2;
+                    StringBuilder quotedKey = new StringBuilder();
+                    boolean closed = false;
+                    while (i < chars.length) {
+                        char qch = chars[i];
+                        if (qch == '\\') {
+                            if (i + 1 >= chars.length) {
+                                Logger.log(Logger.TAG.ERROR, "Bad escape in quoted key: " + path);
+                                throw new BatchException("Invalid escape in quoted key: " + path);
+                            }
+                            quotedKey.append(chars[i + 1]);
+                            i += 2;
+                            continue;
+                        }
+                        if (qch == quote) {
+                            closed = true;
+                            i++;
+                            break;
+                        }
+                        quotedKey.append(qch);
+                        i++;
+                    }
+                    if (!closed || i >= chars.length || chars[i] != ']') {
+                        Logger.log(Logger.TAG.ERROR, "Unterminated quoted key in path: " + path);
+                        throw new BatchException("Unterminated quoted key in path: " + path);
+                    }
+
+                    if (key.length() > 0) {
+                        tokens.add(new PathToken(key.toString(), null));
+                        key.setLength(0);
+                    }
+                    key.append(quotedKey);
+                    continue;
+                }
+
                 inBracket = true;
                 continue;
             }
@@ -108,24 +153,25 @@ public final class BatchManager {
                     throw new BatchException("Empty array index in path: " + path);
                 }
 
+                if (key.length() == 0 && tokens.isEmpty()) {
+                    Logger.log(Logger.TAG.ERROR, "Array index without key is not allowed: " + path);
+                    throw new BatchException("Array index without key is not allowed: " + path);
+                }
+
                 try {
                     int idx = Integer.parseInt(num.toString());
-                    // Emit a token for "key[idx]".
                     tokens.add(new PathToken(key.toString(), idx));
                 } catch (NumberFormatException e) {
                     Logger.log(Logger.TAG.ERROR, "Invalid array index '" + num + "' in path: " + path);
                     throw new BatchException("Invalid array index: " + num + " in path " + path);
                 }
 
-                // After closing bracket we reset the builders:
-                // key is cleared so that a following '.' is allowed (a[0].b)
                 key.setLength(0);
                 num.setLength(0);
                 continue;
             }
 
             if (inBracket) {
-                // inside [ ... ] we only accept digits and optional whitespace
                 if (!Character.isWhitespace(ch)) {
                     if (!Character.isDigit(ch)) {
                         Logger.log(Logger.TAG.ERROR, "Non-numeric array index character '" + ch + "' in path: " + path);
@@ -138,7 +184,6 @@ public final class BatchManager {
             }
         }
 
-        // any trailing key outside of brackets becomes a final token
         if (inBracket) {
             Logger.log(Logger.TAG.ERROR, "Unclosed '[' in path: " + path);
             throw new BatchException("Unclosed '[' in path: " + path);
@@ -179,21 +224,43 @@ public final class BatchManager {
     }
 
     private static Object getChildObject(Object json, PathToken token) {
-        if (json instanceof JSONObject obj) {
-            return obj.has(token.key) ? obj.get(token.key) : obj;
+        Object current = json;
+        if (token.key != null && !token.key.isEmpty()) {
+            if (current instanceof JSONObject obj) {
+                current = obj.has(token.key) ? obj.get(token.key) : obj;
+            } else {
+                return current;
+            }
         }
-        return json;
+        if (token.isArray() && current instanceof JSONArray arr) {
+            if (token.index >= 0 && token.index < arr.length()) {
+                current = arr.get(token.index);
+            }
+        }
+        return current;
     }
 
     private static Object traverseFullPath(Object json, List<PathToken> tokens) {
         Object current = json;
         for (PathToken t : tokens) {
-            if (current instanceof JSONObject o) {
-                current = o.opt(t.key);
-            } else if (current instanceof JSONArray arr && t.isArray()) {
-                if (t.index >= 0 && t.index < arr.length())
-                    current = arr.get(t.index);
-            } else break;
+            if (t.key != null && !t.key.isEmpty()) {
+                if (current instanceof JSONObject o) {
+                    current = o.opt(t.key);
+                } else {
+                    break;
+                }
+            }
+            if (t.isArray()) {
+                if (current instanceof JSONArray arr) {
+                    if (t.index >= 0 && t.index < arr.length()) {
+                        current = arr.get(t.index);
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
         }
         return current;
     }
@@ -222,6 +289,10 @@ public final class BatchManager {
             PathToken next = (i + 1 < tokens.size()) ? tokens.get(i + 1) : null;
 
             if (current instanceof JSONObject obj) {
+                if (t.key == null || t.key.isEmpty()) {
+                    Logger.log(Logger.TAG.ERROR, "Array index without key is not allowed.");
+                    throw new BatchException("Array index without key is not allowed.");
+                }
                 if (!obj.has(t.key)) {
                     if (createMissing) {
                         Logger.log(Logger.TAG.DEBUG, "Creating missing key: " + t.key);
@@ -236,6 +307,10 @@ public final class BatchManager {
                     current = navigateArray(current, t.index, createMissing, t.key, next);
 
             } else if (current instanceof JSONArray arr) {
+                if (!t.isArray()) {
+                    Logger.log(Logger.TAG.ERROR, "Expected array index for path segment.");
+                    throw new BatchException("Expected array index for path segment.");
+                }
                 current = navigateArray(current, t.index, createMissing, t.key, next);
 
             } else {
@@ -270,15 +345,21 @@ public final class BatchManager {
             throw new BatchException("Expected array for key: " + keyName);
         }
 
+        if (index < 0) {
+            Logger.log(Logger.TAG.ERROR, "Negative array index at path: " + keyName + "[" + index + "]");
+            throw new BatchException("Negative array index at path: " + keyName + "[" + index + "]");
+        }
+
         if (index < arr.length()) {
             Logger.log(Logger.TAG.DEBUG, "Accessed existing array index " + index + " for key: " + keyName);
             return arr.get(index);
         }
 
-        if (index == arr.length() && createMissing) {
+        if (createMissing) {
+            int target = Math.min(index, arr.length());
             Object toAdd = (next != null && next.isArray()) ? new JSONArray() : new JSONObject();
             arr.put(toAdd);
-            Logger.log(Logger.TAG.DEBUG, "Created new array element at index " + index + " for key: " + keyName);
+            Logger.log(Logger.TAG.DEBUG, "Created new array element at index " + target + " for key: " + keyName);
             return toAdd;
         }
 
@@ -323,8 +404,27 @@ public final class BatchManager {
         if (tokens.size() == 1) {
             PathToken t = tokens.get(0);
             if (t.isArray()) {
-                Logger.log(Logger.TAG.ERROR, "Cannot set array index directly at root: " + path);
-                throw new BatchException("Cannot set array index directly at root: " + path);
+                if (t.key == null || t.key.isEmpty()) {
+                    Logger.log(Logger.TAG.ERROR, "Cannot set array index directly at root: " + path);
+                    throw new BatchException("Cannot set array index directly at root: " + path);
+                }
+
+                JSONArray arr;
+                Object existing = root.opt(t.key);
+                if (existing == null) {
+                    if (!createMissing)
+                        throw new BatchException("Missing array key at root: " + path);
+                    arr = new JSONArray();
+                    root.put(t.key, arr);
+                } else if (existing instanceof JSONArray) {
+                    arr = (JSONArray) existing;
+                } else {
+                    throw new BatchException("Expected array at root key: " + t.key);
+                }
+
+                insertIntoArray(arr, t.index, value);
+                Logger.log(Logger.TAG.DEBUG, "Value inserted into root array key '" + t.key + "' at index " + t.index);
+                return;
             }
             root.put(t.key, value);
             Logger.log(Logger.TAG.DEBUG, "Root-level key '" + t.key + "' updated successfully.");
@@ -337,27 +437,32 @@ public final class BatchManager {
 
         try {
             if (parent instanceof JSONObject obj) {
-                if (last.isArray())
-                    throw new BatchException("Expected object field, got array index at: " + path);
-                obj.put(last.key, value);
-                Logger.log(Logger.TAG.DEBUG, "Value set at object path: " + path);
+                if (last.isArray()) {
+                    JSONArray arr;
+                    Object existing = obj.opt(last.key);
+                    if (existing == null) {
+                        if (!createMissing)
+                            throw new BatchException("Missing array key at path: " + path);
+                        arr = new JSONArray();
+                        obj.put(last.key, arr);
+                    } else if (existing instanceof JSONArray) {
+                        arr = (JSONArray) existing;
+                    } else {
+                        throw new BatchException("Expected array at path: " + path);
+                    }
+
+                    insertIntoArray(arr, last.index, value);
+                    Logger.log(Logger.TAG.DEBUG, "Value inserted into array at path: " + path);
+                } else {
+                    obj.put(last.key, value);
+                    Logger.log(Logger.TAG.DEBUG, "Value set at object path: " + path);
+                }
             } else if (parent instanceof JSONArray arr) {
                 if (!last.isArray())
                     throw new BatchException("Expected array index for path: " + path);
 
-                int idx = last.index;
-                if (idx < 0)
-                    throw new BatchException("Negative array index at path: " + path);
-
-                // Auto-expand array if createMissing == true
-                if (idx >= arr.length()) {
-                    if (!createMissing)
-                        throw new BatchException("Array index out of range at path: " + path);
-                    ensureArraySize(arr, idx);
-                }
-
-                arr.put(idx, value);
-                Logger.log(Logger.TAG.DEBUG, "Value set in array at index " + idx + " for path: " + path);
+                insertIntoArray(arr, last.index, value);
+                Logger.log(Logger.TAG.DEBUG, "Value inserted into array at index " + last.index + " for path: " + path);
             } else {
                 throw new BatchException("Invalid parent structure at path: " + path);
             }
@@ -516,6 +621,13 @@ public final class BatchManager {
     private static void appendAtPath(JSONObject root, String path, Object value) throws BatchException {
         Logger.log(Logger.TAG.DEBUG, "appendAtPath called for path: " + path);
 
+        if (path != null) {
+            String trimmed = path.trim();
+            if (trimmed.endsWith("[]")) {
+                path = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
         List<PathToken> tokens = parsePath(path);
         if (tokens.isEmpty())
             throw new BatchException("Empty path.");
@@ -546,6 +658,31 @@ public final class BatchManager {
         } catch (Exception e) {
             Logger.log(Logger.TAG.ERROR, "appendAtPath exception at " + path + ": " + e.getMessage());
             throw new BatchException("appendAtPath failed at " + path + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static void insertIntoArray(JSONArray arr, int index, Object value) throws BatchException {
+        if (index < 0) {
+            throw new BatchException("Negative array index at path.");
+        }
+
+        int len = arr.length();
+        int target = Math.min(index, len);
+
+        JSONArray rebuilt = new JSONArray();
+        for (int i = 0; i < len; i++) {
+            if (i == target) {
+                rebuilt.put(value);
+            }
+            rebuilt.put(arr.get(i));
+        }
+        if (target == len) {
+            rebuilt.put(value);
+        }
+
+        DatabaseManager.clearJSONArray(arr);
+        for (int i = 0; i < rebuilt.length(); i++) {
+            arr.put(rebuilt.get(i));
         }
     }
 
@@ -598,7 +735,13 @@ public final class BatchManager {
             throws BatchException {
         if (jsonPath == null || jsonPath.isBlank()) {
             Logger.log(Logger.TAG.DEBUG, "buildWriteJSONPath: empty path → redirecting to replaceRoot");
-            return buildReplaceRoot(value instanceof JSONObject ? (JSONObject) value : new JSONObject().put("value", value));
+            if (value == null) {
+                return buildReplaceRoot(new JSONObject());
+            }
+            if (value instanceof JSONObject obj) {
+                return buildReplaceRoot(obj);
+            }
+            throw new BatchException("writeJSONPath(<root>): replacement must be a JSONObject.");
         }
 
         Logger.log(Logger.TAG.DEBUG, "Building writeJSONPath batch for: " + jsonPath);
@@ -701,8 +844,7 @@ public final class BatchManager {
 
                 // --- CASE 1: root-level array insert ----------------------------
                 if (jsonPath == null || jsonPath.isBlank()) {
-                    // Root must be an array
-                    targetArray = requireJsonType(json, JSONArray.class, "insertJSONArray(root)");
+                    throw new BatchException("insertJSONArray: root arrays are not allowed.");
                 }
 
                 // --- CASE 2: normal nested path --------------------------------
@@ -724,15 +866,16 @@ public final class BatchManager {
 
                 // --- Validate index and perform insert --------------------------
                 int len = targetArray.length();
-                if (index < 0 || index > len)
+                if (index < 0)
                     throw new BatchException("insertJSONArray: invalid index " + index + " (len=" + len + ")");
 
+                int target = Math.min(index, len);
                 JSONArray result = new JSONArray();
                 for (int i = 0; i < len; i++) {
-                    if (i == index) result.put(value);
+                    if (i == target) result.put(value);
                     result.put(targetArray.get(i));
                 }
-                if (index == len) result.put(value);
+                if (target == len) result.put(value);
 
                 DatabaseManager.clearJSONArray(targetArray);
                 for (int i = 0; i < result.length(); i++)
@@ -775,6 +918,10 @@ public final class BatchManager {
         QueueManager.Batch batch = new QueueManager.Batch();
         batch.add(new QueueManager.WriteOp("replaceJSONArray", json -> {
             try {
+                if (jsonPath == null || jsonPath.isBlank()) {
+                    throw new BatchException("replaceJSONArray: root arrays are not allowed.");
+                }
+
                 List<PathToken> tokens = parsePath(jsonPath);
                 Object parent = resolveParent(json, tokens, false);
                 PathToken last = tokens.get(tokens.size() - 1);
@@ -782,14 +929,19 @@ public final class BatchManager {
                 if (!(parent instanceof JSONObject obj))
                     throw new BatchException("Expected JSONObject parent at path: " + jsonPath);
 
-                Object target = obj.opt(last.key);
-                if (!(target instanceof JSONArray arr))
+                Object targetValue = obj.opt(last.key);
+                if (!(targetValue instanceof JSONArray arr))
                     throw new BatchException("Target path is not a JSONArray: " + jsonPath);
 
-                if (index < 0 || index >= arr.length())
+                if (index < 0)
                     throw new BatchException("Index out of range (" + index + ") for array of length " + arr.length());
 
-                arr.put(index, value);
+                int targetIndex = Math.min(index, arr.length());
+                if (targetIndex == arr.length()) {
+                    arr.put(value);
+                } else {
+                    arr.put(targetIndex, value);
+                }
 
             } catch (Exception e) {
                 Logger.log(Logger.TAG.ERROR, "replaceJSONArray failed for path: " + jsonPath + " | " + e.getMessage());

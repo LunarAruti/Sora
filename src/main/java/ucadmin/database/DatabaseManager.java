@@ -1,7 +1,6 @@
 package ucadmin.database;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import ucadmin.exceptions.BatchException;
 import ucadmin.exceptions.DatabaseException;
@@ -12,8 +11,6 @@ import ucadmin.util.Logger;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-
-import static ucadmin.database.QueueManager.RawIO.*;
 
 /**
  * Basic file-based database manager for UC_Admin.
@@ -338,13 +335,14 @@ public class DatabaseManager {
         try {
             Path filePath = Paths.get(path).toAbsolutePath().normalize();
 
-            // Special case: JSON with journal counts as logically existing
+            // Special case: JSON with journal or cache counts as logically existing
             if (path.toLowerCase().endsWith(".json")) {
                 Path base = filePath;
                 Path journal = Paths.get(path + ".patch").toAbsolutePath().normalize();
 
                 if (Files.exists(base) && Files.isRegularFile(base)) return true;
                 if (Files.exists(journal) && Files.isRegularFile(journal)) return true; // journal-only still logical file
+                if (QueueManager.hasCacheEntry(path)) return true;
                 return false;
             }
 
@@ -418,6 +416,7 @@ public class DatabaseManager {
                 }
 
                 if (!ok) throw new DatabaseException("Deletion incomplete for base/journal: " + filePath);
+                QueueManager.onExternalDelete(filePath.toString());
                 Logger.log(Logger.TAG.INFO, "File (JSON+patch) deleted successfully: " + filePath);
                 return true;
             }
@@ -437,6 +436,7 @@ public class DatabaseManager {
                 throw new DatabaseException("Deletion failed: file still exists after delete attempt: " + filePath);
             }
 
+            QueueManager.onExternalDelete(filePath.toString());
             Logger.log(Logger.TAG.INFO, "File deleted successfully: " + filePath);
             return true;
 
@@ -1318,8 +1318,17 @@ public class DatabaseManager {
             throw new DatabaseException("readJSONPath: file path is null or empty.");
         }
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : "'" + jsonPath + "'";
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final String finalPath = normalizedPath;
+        final boolean isRoot = isRootPath(finalPath);
+        String pathForLog = isRoot ? "<root>" : "'" + finalPath + "'";
         Logger.log(Logger.TAG.DEBUG, "Reading JSON path " + pathForLog + " from file: " + filePath);
 
         try {
@@ -1328,15 +1337,19 @@ public class DatabaseManager {
                     null, // Loader handled internally by QueueManager
                     root -> {
                         if (isRoot) {
-                            // Return the entire document (root object/array) as-is
+                            // Root is always an object in this system
                             return (root == JSONObject.NULL) ? null : root;
                         }
                         try {
-                            List<String> tokens = tokenizePath(jsonPath);
+                            List<String> tokens = tokenizePath(finalPath);
                             Object current = root;
 
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
+
+                                if (seg.baseKey.length() == 0 && !seg.indexes.isEmpty()) {
+                                    throw new DatabaseException("Array index without key is not allowed: " + token);
+                                }
 
                                 // Object lookup
                                 if (seg.baseKey.length() > 0) {
@@ -1408,7 +1421,7 @@ public class DatabaseManager {
             throw new DatabaseException("writeJSONPath: file path is null or empty.");
         }
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
+        final boolean isRoot = isRootPath(jsonPath);
         String pathForLog = isRoot ? "<root>" : "'" + jsonPath + "'";
         Logger.log(Logger.TAG.DEBUG, "Writing value to JSON path " + pathForLog + " in file: " + filePath);
 
@@ -1416,24 +1429,23 @@ public class DatabaseManager {
             QueueManager.Batch batch;
 
             if (isRoot) {
-                // Replace entire document; allow JSONObject or JSONArray (and null → {}).
+                // Replace entire document; allow only JSONObject (and null → {}).
                 if (value == null) {
                     Logger.log(Logger.TAG.DEBUG, "writeJSONPath(<root>): null → replacing with empty JSONObject {}");
                     batch = BatchManager.buildReplaceRoot(new JSONObject());
                 } else if (value instanceof JSONObject obj) {
                     Logger.log(Logger.TAG.DEBUG, "writeJSONPath(<root>): JSONObject replacement, keys=" + obj.keySet().size());
                     batch = BatchManager.buildReplaceRoot(obj);
-                } else if (value instanceof org.json.JSONArray arr) {
-                    Logger.log(Logger.TAG.DEBUG, "writeJSONPath(<root>): JSONArray replacement, length=" + arr.length());
-                    // NOTE: BatchManager must support root-array replacement (your other calls already use this).
-                    batch = BatchManager.buildReplaceRoot(arr);
+                } else if (value instanceof org.json.JSONArray) {
+                    Logger.log(Logger.TAG.ERROR, "writeJSONPath(<root>): root arrays are not allowed.");
+                    throw new DatabaseException("writeJSONPath(<root>): root arrays are not allowed.");
                 } else {
                     Logger.log(
                             Logger.TAG.ERROR,
-                            "writeJSONPath: root replacement requires JSONObject or JSONArray (got "
+                            "writeJSONPath: root replacement requires JSONObject (got "
                                     + value.getClass().getSimpleName() + ")."
                     );
-                    throw new DatabaseException("writeJSONPath(<root>): replacement must be a JSONObject or JSONArray.");
+                    throw new DatabaseException("writeJSONPath(<root>): replacement must be a JSONObject.");
                 }
 
             } else {
@@ -1493,7 +1505,7 @@ public class DatabaseManager {
             throw new DatabaseException("removeJSONPath: file path is null or empty.");
         }
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
+        final boolean isRoot = isRootPath(jsonPath);
         String pathForLog = isRoot ? "<root>" : "'" + jsonPath + "'";
         Logger.log(Logger.TAG.DEBUG, "Removing JSON path " + pathForLog + " from file: " + filePath);
 
@@ -1564,8 +1576,17 @@ public class DatabaseManager {
         if (filePath == null || filePath.isBlank())
             throw new DatabaseException("containsJSONPath: file path is null or empty.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final String finalPath = normalizedPath;
+        final boolean isRoot = isRootPath(finalPath);
+        String pathForLog = isRoot ? "<root>" : finalPath;
         Logger.log(Logger.TAG.DEBUG, "Checking JSON path: " + pathForLog + " in " + filePath);
 
         try {
@@ -1580,10 +1601,13 @@ public class DatabaseManager {
                             }
 
                             Object current = root;
-                            List<String> tokens = tokenizePath(jsonPath);
+                            List<String> tokens = tokenizePath(finalPath);
 
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
+
+                                if (seg.baseKey.length() == 0 && !seg.indexes.isEmpty())
+                                    return false;
 
                                 // Step 1: descend into object key
                                 if (seg.baseKey.length() > 0) {
@@ -1653,21 +1677,24 @@ public class DatabaseManager {
         if (filePath == null || filePath.isBlank())
             throw new DatabaseException("appendJSONArray: file path is null or empty.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         Logger.log(Logger.TAG.DEBUG, "Appending to JSONArray at path: " + pathForLog + " (" + filePath + ")");
 
         try {
-            QueueManager.Batch batch;
+            if (isRoot)
+                throw new DatabaseException("appendJSONArray: root arrays are not allowed.");
 
-            if (isRoot) {
-                // Append to root-level array
-                Logger.log(Logger.TAG.DEBUG, "appendJSONArray: targeting root-level array for file: " + filePath);
-                batch = BatchManager.buildAppendJSONArray("", value);
-            } else {
-                batch = BatchManager.buildAppendJSONArray(jsonPath, value);
-            }
+            QueueManager.Batch batch = BatchManager.buildAppendJSONArray(normalizedPath, value);
 
             Boolean result = QueueManager.enqueueBatchAndGet(
                     filePath,
@@ -1726,11 +1753,23 @@ public class DatabaseManager {
         if (filePath == null || filePath.isBlank())
             throw new DatabaseException("countJSONArray: file path is null or empty.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final String finalPath = normalizedPath;
+        final boolean isRoot = isRootPath(finalPath);
+        String pathForLog = isRoot ? "<root>" : finalPath;
         Logger.log(Logger.TAG.DEBUG, "Counting JSONArray elements at: " + pathForLog + " (" + filePath + ")");
 
         try {
+            if (isRoot)
+                throw new DatabaseException("countJSONArray: root arrays are not allowed.");
+
             int count = QueueManager.readValue(
                     filePath,
                     null,
@@ -1739,9 +1778,12 @@ public class DatabaseManager {
                             Object current = root;
 
                             if (!isRoot) {
-                                List<String> tokens = tokenizePath(jsonPath);
+                                List<String> tokens = tokenizePath(finalPath);
                                 for (String token : tokens) {
                                     Segment seg = parseSegment(token);
+
+                                    if (seg.baseKey.length() == 0 && !seg.indexes.isEmpty())
+                                        return 0;
 
                                     if (seg.baseKey.length() > 0) {
                                         if (!(current instanceof JSONObject obj))
@@ -1816,8 +1858,17 @@ public class DatabaseManager {
         if (filePath == null || filePath.isBlank())
             throw new DatabaseException("listJSONKeys: file path is null or empty.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final String finalPath = normalizedPath;
+        final boolean isRoot = isRootPath(finalPath);
+        String pathForLog = isRoot ? "<root>" : finalPath;
 
         Logger.log(Logger.TAG.DEBUG, "Listing JSON keys for file=" + filePath + " path=" + pathForLog);
 
@@ -1829,9 +1880,12 @@ public class DatabaseManager {
                         Object current = root;
 
                         if (!isRoot) {
-                            List<String> tokens = tokenizePath(jsonPath);
+                            List<String> tokens = tokenizePath(finalPath);
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
+
+                                if (seg.baseKey.length() == 0 && !seg.indexes.isEmpty())
+                                    throw new DatabaseException("Array index without key is not allowed: " + token);
 
                                 if (seg.baseKey.length() > 0) {
                                     if (!(current instanceof JSONObject obj))
@@ -1901,8 +1955,17 @@ public class DatabaseManager {
         if (filePath == null || filePath.isBlank())
             throw new DatabaseException("getTypeAtPath: file path is null or empty.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final String finalPath = normalizedPath;
+        final boolean isRoot = isRootPath(finalPath);
+        String pathForLog = isRoot ? "<root>" : finalPath;
         Logger.log(Logger.TAG.DEBUG, "Determining type at " + filePath + "@" + pathForLog);
 
         try {
@@ -1913,9 +1976,12 @@ public class DatabaseManager {
                         Object current = root;
 
                         if (!isRoot) {
-                            List<String> tokens = tokenizePath(jsonPath);
+                            List<String> tokens = tokenizePath(finalPath);
                             for (String token : tokens) {
                                 Segment seg = parseSegment(token);
+
+                                if (seg.baseKey.length() == 0 && !seg.indexes.isEmpty())
+                                    throw new DatabaseException("Array index without key is not allowed: " + token);
 
                                 if (seg.baseKey.length() > 0) {
                                     if (!(current instanceof JSONObject obj))
@@ -1992,7 +2058,7 @@ public class DatabaseManager {
         if (oldKey.equals(newKey))
             throw new DatabaseException("renameJSONKey: oldKey and newKey are identical.");
 
-        final boolean isRoot = (parentPath == null || parentPath.isBlank());
+        final boolean isRoot = isRootPath(parentPath);
         String pathForLog = isRoot ? "<root>" : parentPath;
 
         Logger.log(Logger.TAG.DEBUG, "Renaming key in file=" + filePath + " path=" + pathForLog
@@ -2055,8 +2121,8 @@ public class DatabaseManager {
         if (fromPath == null || toPath == null)
             throw new DatabaseException("moveJSONPath: fromPath or toPath is null.");
 
-        final boolean fromRoot = fromPath.isBlank();
-        final boolean toRoot = toPath.isBlank();
+        final boolean fromRoot = isRootPath(fromPath);
+        final boolean toRoot = isRootPath(toPath);
 
         if (fromRoot && toRoot)
             throw new DatabaseException("moveJSONPath: both fromPath and toPath refer to root (invalid).");
@@ -2276,8 +2342,16 @@ public class DatabaseManager {
         if (root == null)
             throw new DatabaseException("pathExistsOrThrow: root JSONObject is null.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         Logger.log(Logger.TAG.DEBUG, "pathExistsOrThrow checking path: " + pathForLog);
 
@@ -2454,20 +2528,24 @@ public class DatabaseManager {
             throw new DatabaseException("clearJSONArray: file path is null or empty.");
         }
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         Logger.log(Logger.TAG.DEBUG, "Clearing JSONArray at " + pathForLog + " in file " + filePath);
 
         try {
-            QueueManager.Batch batch;
+            if (isRoot)
+                throw new DatabaseException("clearJSONArray: root arrays are not allowed.");
 
-            if (isRoot) {
-                Logger.log(Logger.TAG.DEBUG, "clearJSONArray: clearing root-level array for file: " + filePath);
-                batch = BatchManager.buildReplaceRoot(new JSONArray());
-            } else {
-                batch = BatchManager.buildWriteJSONPath(jsonPath, new JSONArray(), false);
-            }
+            QueueManager.Batch batch = BatchManager.buildWriteJSONPath(jsonPath, new JSONArray(), false);
 
             Boolean result = QueueManager.enqueueBatchAndGet(
                     filePath,
@@ -2522,8 +2600,16 @@ public class DatabaseManager {
             throw new DatabaseException("clearJSONObject: file path is null or empty.");
         }
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         Logger.log(Logger.TAG.DEBUG, "Clearing JSONObject at " + pathForLog + " in file " + filePath);
 
@@ -2603,11 +2689,22 @@ public class DatabaseManager {
         if (index < 0)
             throw new DatabaseException("insertJSONArray: index cannot be negative.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         try {
-            QueueManager.Batch batch = BatchManager.buildInsertJSONArray(isRoot ? "" : jsonPath, index, value);
+            if (isRoot)
+                throw new DatabaseException("insertJSONArray: root arrays are not allowed.");
+
+            QueueManager.Batch batch = BatchManager.buildInsertJSONArray(jsonPath, index, value);
 
             Boolean result = QueueManager.enqueueBatchAndGet(
                     filePath,
@@ -2671,11 +2768,22 @@ public class DatabaseManager {
         if (index < 0)
             throw new DatabaseException("replaceJSONArray: index cannot be negative.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         try {
-            QueueManager.Batch batch = BatchManager.buildReplaceJSONArray(isRoot ? "" : jsonPath, index, value);
+            if (isRoot)
+                throw new DatabaseException("replaceJSONArray: root arrays are not allowed.");
+
+            QueueManager.Batch batch = BatchManager.buildReplaceJSONArray(jsonPath, index, value);
 
             Boolean result = QueueManager.enqueueBatchAndGet(
                     filePath,
@@ -2736,10 +2844,21 @@ public class DatabaseManager {
         if (filePath == null || filePath.isBlank())
             throw new DatabaseException("findJSONArray: file path is null or empty.");
 
-        final boolean isRoot = (jsonPath == null || jsonPath.isBlank());
-        String pathForLog = isRoot ? "<root>" : jsonPath;
+        String normalizedPath = jsonPath;
+        if (normalizedPath != null) {
+            String trimmed = normalizedPath.trim();
+            if (trimmed.endsWith("[]")) {
+                normalizedPath = trimmed.substring(0, trimmed.length() - 2);
+            }
+        }
+
+        final boolean isRoot = isRootPath(normalizedPath);
+        String pathForLog = isRoot ? "<root>" : normalizedPath;
 
         try {
+            if (isRoot)
+                throw new DatabaseException("findJSONArray: root arrays are not allowed.");
+
             Object result = QueueManager.readValue(
                     filePath,
                     null,
@@ -2843,8 +2962,8 @@ public class DatabaseManager {
         if (fromPath == null || toPath == null)
             throw new DatabaseException("copyJSONPath: fromPath or toPath is null.");
 
-        final boolean fromRoot = fromPath.isBlank();
-        final boolean toRoot = toPath.isBlank();
+        final boolean fromRoot = isRootPath(fromPath);
+        final boolean toRoot = isRootPath(toPath);
 
         if (fromRoot && toRoot)
             throw new DatabaseException("copyJSONPath: both source and destination paths refer to root (invalid).");
@@ -2901,6 +3020,10 @@ public class DatabaseManager {
 // =====================
 // Helper Methods
 // =====================
+
+    private static boolean isRootPath(String jsonPath) {
+        return jsonPath == null || jsonPath.isBlank() || "x".equalsIgnoreCase(jsonPath.trim());
+    }
 
     /** Regular expression for parsing array indexes in JSON path segments. */
     private static final java.util.regex.Pattern IDX = java.util.regex.Pattern.compile("\\[(\\d+)]");

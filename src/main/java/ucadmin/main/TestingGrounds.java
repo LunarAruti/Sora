@@ -1,97 +1,100 @@
 package ucadmin.main;
 
+import org.json.JSONObject;
 import ucadmin.database.DatabaseManager;
-import ucadmin.database.QueueManager;
-import ucadmin.network.NetworkManager;
-import ucadmin.network.NetworkRequest;
-import ucadmin.scheduler.ExeWhitelist;
-import ucadmin.scheduler.TaskRequest;
-import ucadmin.scheduler.TaskScheduler;
 import ucadmin.util.Logger;
 import ucadmin.util.ShutdownManager;
-
-import static ucadmin.scheduler.TaskScheduler.scheduleRequest;
-
 
 public class TestingGrounds {
 
     public static void TestingGrounds() {
 
-        Logger.log(Logger.TAG.SYSTEM, "=== TASK SCHEDULER SMOKE SUITE ===");
+        Logger.log(Logger.TAG.SYSTEM, "=== DBM DELETE + COMPLEX JSON TEST ===");
 
         try {
-            long base = System.currentTimeMillis();
-            long t1 = base + 60_000L;
-            long t2 = base + 90_000L;
-            long t3 = base + 120_000L;
-            long t4 = base + 150_000L;
-            long t5 = base + 180_000L;
-            long t6 = base + 210_000L;
-            long t7 = base + 600_000L;
+            String suffix = String.valueOf(System.currentTimeMillis());
+            String deleteFile = "database/user/delete_test_" + suffix + ".json";
+            String complexFile = "database/user/complex_test_" + suffix + ".json";
 
-            TaskRequest req1 = new TaskRequest();
-            req1.setName("log-high-priority");
-            req1.setPriority(1);
-            req1.setAbsoluteOnce(t1);
-            req1.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
-            req1.setOpArgs("info,\"priority 1 should run first\"");
-            scheduleRequest(req1);
+            Logger.log(Logger.TAG.INFO, "delete file test: " + deleteFile);
+            Logger.log(Logger.TAG.INFO, "complex file test: " + complexFile);
 
-            TaskRequest req2 = new TaskRequest();
-            req2.setName("log-default-priority");
-            req2.setAbsoluteOnce(t1);
-            req2.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
-            req2.setOpArgs("info,default priority");
-            scheduleRequest(req2);
+            // DELETE FILE TEST
+            DatabaseManager.createJSON(deleteFile);
+            Logger.log(Logger.TAG.INFO, "delete test: write seed ok=" +
+                    DatabaseManager.writeJSONPath(deleteFile, "seed", 1, true));
+            Logger.log(Logger.TAG.INFO, "delete test: exists after write=" +
+                    DatabaseManager.fileExists(deleteFile));
+            Logger.log(Logger.TAG.INFO, "delete test: delete ok=" +
+                    DatabaseManager.deleteFile(deleteFile));
+            Logger.log(Logger.TAG.INFO, "delete test: exists after delete=" +
+                    DatabaseManager.fileExists(deleteFile));
 
-            TaskRequest req3 = new TaskRequest();
-            req3.setName("print-quoted");
-            req3.setAbsoluteOnce(t2);
-            req3.setOpKey(ExeWhitelist.OpKey.PRINT_MESSAGE);
-            req3.setOpArgs("\"hello, world\"");
-            scheduleRequest(req3);
+            // COMPLEX JSON TEST
+            DatabaseManager.createJSON(complexFile);
+            Logger.log(Logger.TAG.INFO, "complex: write profile.id ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "profile.id", suffix, true));
+            Logger.log(Logger.TAG.INFO, "complex: write profile.name ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "profile.name", "lunar", true));
+            Logger.log(Logger.TAG.INFO, "complex: write profile.stats.level ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "profile.stats.level", 42, true));
+            Logger.log(Logger.TAG.INFO, "complex: write profile.stats.rank ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "profile.stats.rank", "gold", true));
+            Logger.log(Logger.TAG.INFO, "complex: write profile.flags.active ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "profile.flags.active", true, true));
 
-            TaskRequest req4 = new TaskRequest();
-            req4.setName("print-empty");
-            req4.setAbsoluteOnce(t3);
-            req4.setOpKey(ExeWhitelist.OpKey.PRINT_MESSAGE);
-            req4.setOpArgs("");
-            scheduleRequest(req4);
+            Logger.log(Logger.TAG.INFO, "complex: append badge alpha ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "profile.badges", "alpha"));
+            Logger.log(Logger.TAG.INFO, "complex: append badge beta ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "profile.badges", "beta"));
+            Logger.log(Logger.TAG.INFO, "complex: append badge gamma ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "profile.badges", "gamma"));
 
-            TaskRequest req5 = new TaskRequest();
-            req5.setName("log-system");
-            req5.setAbsoluteOnce(t4);
-            req5.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
-            req5.setOpArgs("system,\"system message test\"");
-            scheduleRequest(req5);
+            JSONObject event1 = new JSONObject()
+                    .put("type", "login")
+                    .put("ts", 1)
+                    .put("ip", "127.0.0.1");
+            JSONObject event2 = new JSONObject()
+                    .put("type", "kick")
+                    .put("ts", 2)
+                    .put("reason", "spam");
 
-            TaskRequest req6 = new TaskRequest();
-            req6.setName("log-warn");
-            req6.setAbsoluteOnce(t5);
-            req6.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
-            req6.setOpArgs("warn,\"warn with comma, inside\"");
-            scheduleRequest(req6);
+            Logger.log(Logger.TAG.INFO, "complex: append event1 ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "history.events", event1));
+            Logger.log(Logger.TAG.INFO, "complex: append event2 ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "history.events", event2));
+            Logger.log(Logger.TAG.INFO, "complex: append tag early ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "history.tags", "early"));
+            Logger.log(Logger.TAG.INFO, "complex: append tag beta ok=" +
+                    DatabaseManager.appendJSONArray(complexFile, "history.tags", "beta"));
 
-            TaskRequest req7 = new TaskRequest();
-            req7.setName("log-error");
-            req7.setAbsoluteOnce(t6);
-            req7.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
-            req7.setOpArgs("error,\"error line\"");
-            scheduleRequest(req7);
+            Logger.log(Logger.TAG.INFO, "complex: update profile.stats.level ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "profile.stats.level", 43, true));
+            Logger.log(Logger.TAG.INFO, "complex: update event2.reason ok=" +
+                    DatabaseManager.writeJSONPath(complexFile, "history.events[1].reason", "rule-1", true));
 
-            TaskRequest req8 = new TaskRequest();
-            req8.setName("log-debug-late");
-            req8.setAbsoluteOnce(t7);
-            req8.setOpKey(ExeWhitelist.OpKey.LOG_MESSAGE);
-            req8.setOpArgs("debug,\"late debug in 10 minutes\"");
-            scheduleRequest(req8);
+            Logger.log(Logger.TAG.INFO, "complex: read profile.name -> " +
+                    DatabaseManager.readJSONPath(complexFile, "profile.name"));
+            Logger.log(Logger.TAG.INFO, "complex: read profile.stats.level -> " +
+                    DatabaseManager.readJSONPath(complexFile, "profile.stats.level"));
+            Logger.log(Logger.TAG.INFO, "complex: read badges[2] -> " +
+                    DatabaseManager.readJSONPath(complexFile, "profile.badges[2]"));
+            Logger.log(Logger.TAG.INFO, "complex: read event2.reason -> " +
+                    DatabaseManager.readJSONPath(complexFile, "history.events[1].reason"));
+
+            Logger.log(Logger.TAG.INFO, "complex: remove profile.flags.active ok=" +
+                    DatabaseManager.removeJSONPath(complexFile, "profile.flags.active"));
+            Logger.log(Logger.TAG.INFO, "complex: contains profile.flags.active=" +
+                    DatabaseManager.containsJSONPath(complexFile, "profile.flags.active"));
+
+            System.err.println("test error");
 
         } catch (Throwable t) {
-            Logger.log(Logger.TAG.ERROR, "TASK SCHEDULER TEST CRASH: " + t);
+            Logger.log(Logger.TAG.ERROR, "DBM TEST CRASH: " + t);
         }
 
         try {
-            Thread.sleep(15 * 60 * 1000L);
+            Thread.sleep(1*60000);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
         }

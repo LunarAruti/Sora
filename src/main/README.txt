@@ -11,24 +11,10 @@
 Commit Info
 ========================
 
-- TaskScheduler module completed (TaskRequest lock/validation, registry IO, single worker, pause/resume/cancel).
-- TaskExecutor + ExeWhitelist added with OpKey enum, LOG_MESSAGE/PRINT_MESSAGE ops, arg parsing.
-- Task Scheduler public API documented in README with full method lists.
-- ShutdownManager updated to include TaskScheduler in clean/no-exit paths with mutual-exclusion guards.
+- DBM deleteFile clears queue cache to prevent rematerialized deletes.
+- RegistryEditor API documented with full method list.
+- TestingGrounds updated to validate DBM delete and complex JSON behavior.
 
-This document compiles the method lists from:
-- database/methods.txt
-- network/methods.txt
-- network/status_codes.txt
-
-The goal is a quick, plain-language reference for what each method does and
-what it returns. "Return" notes reflect current code.
-
-========================
-Missing Features
-========================
-
-- Network Module does not automatically enforce async requests
 
 ========================
 Database Module (DBM)
@@ -189,6 +175,74 @@ findJSONArray(String filePath, String jsonPath, String keyName, Object targetVal
 copyJSONPath(String filePath, String fromPath, String toPath)
 - Return: boolean
 - Purpose: Copy JSON node from one path to another.
+
+========================
+Registry Editor
+========================
+
+readUserData(String fileName, String jsonPath)
+- Return: Object
+- Purpose: Read a value from a user JSON file.
+
+writeUserData(String fileName, String jsonPath, Object value)
+- Return: boolean
+- Purpose: Write a value to a user JSON file.
+
+readServerData(String fileName, String jsonPath)
+- Return: Object
+- Purpose: Read a value from a server JSON file.
+
+writeServerData(String fileName, String jsonPath, Object value)
+- Return: boolean
+- Purpose: Write a value to a server JSON file.
+
+readGlobalData(String fileName, String jsonPath)
+- Return: Object
+- Purpose: Read a value from a global JSON file.
+
+writeGlobalData(String fileName, String jsonPath, Object value)
+- Return: boolean
+- Purpose: Write a value to a global JSON file.
+
+readRegistryData(String fileName, String jsonPath)
+- Return: Object
+- Purpose: Read a value from a registry JSON file.
+
+writeRegistryData(String fileName, String jsonPath, Object value)
+- Return: boolean
+- Purpose: Write a value to a registry JSON file.
+
+deleteUserFile(String fileName)
+- Return: boolean
+- Purpose: Delete a user JSON file.
+
+deleteUserPath(String fileName, String jsonPath)
+- Return: boolean
+- Purpose: Delete a path inside a user JSON file.
+
+deleteServerFile(String fileName)
+- Return: boolean
+- Purpose: Delete a server JSON file.
+
+deleteServerPath(String fileName, String jsonPath)
+- Return: boolean
+- Purpose: Delete a path inside a server JSON file.
+
+deleteGlobalFile(String fileName)
+- Return: boolean
+- Purpose: Delete a global JSON file.
+
+deleteGlobalPath(String fileName, String jsonPath)
+- Return: boolean
+- Purpose: Delete a path inside a global JSON file.
+
+deleteRegistryFile(String fileName)
+- Return: boolean
+- Purpose: Delete a registry JSON file.
+
+deleteRegistryPath(String fileName, String jsonPath)
+- Return: boolean
+- Purpose: Delete a path inside a registry JSON file.
 
 ========================
 Network Module
