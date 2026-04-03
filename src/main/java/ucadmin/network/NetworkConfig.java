@@ -111,7 +111,7 @@ public final class NetworkConfig {
      */
     public static boolean addWhitelistedHost(String host) {
         if (host == null || host.isBlank()) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.addWhitelistedHost: invalid host (null/blank)");
+            Logger.log(Logger.TAG.WARN, "[06001] NetworkConfig.addWhitelistedHost: invalid host (null/blank)");
             return false;
         }
         String h = host.trim().toLowerCase();
@@ -120,8 +120,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: added WHITELIST host=" + h);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: WHITELIST no-op (already present) host=" + h);
+            Logger.log(Logger.TAG.WARN, "[06002] NetworkConfig: WHITELIST no-op (already present) host=" + h);
         }
         return changed;
     }
@@ -138,7 +137,7 @@ public final class NetworkConfig {
      */
     public static boolean addBlacklistedHost(String host) {
         if (host == null || host.isBlank()) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.addBlacklistedHost: invalid host (null/blank)");
+            Logger.log(Logger.TAG.WARN, "[06003] NetworkConfig.addBlacklistedHost: invalid host (null/blank)");
             return false;
         }
         String h = host.trim().toLowerCase();
@@ -147,8 +146,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: added BLACKLIST host=" + h);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: BLACKLIST no-op (already present) host=" + h);
+            Logger.log(Logger.TAG.WARN, "[06004] NetworkConfig: BLACKLIST no-op (already present) host=" + h);
         }
         return changed;
     }
@@ -171,7 +169,7 @@ public final class NetworkConfig {
      */
     public static boolean removeWhitelistedHost(String host) {
         if (host == null) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.removeWhitelistedHost: invalid host (null)");
+            Logger.log(Logger.TAG.WARN, "[06005] NetworkConfig.removeWhitelistedHost: invalid host (null)");
             return false;
         }
         String h = host.trim().toLowerCase();
@@ -180,8 +178,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: removed WHITELIST host=" + h);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: WHITELIST no-op (not present) host=" + h);
+            Logger.log(Logger.TAG.WARN, "[06006] NetworkConfig: WHITELIST no-op (not present) host=" + h);
         }
         return changed;
     }
@@ -199,7 +196,7 @@ public final class NetworkConfig {
      */
     public static boolean removeBlacklistedHost(String host) {
         if (host == null) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.removeBlacklistedHost: invalid host (null)");
+            Logger.log(Logger.TAG.WARN, "[06007] NetworkConfig.removeBlacklistedHost: invalid host (null)");
             return false;
         }
         String h = host.trim().toLowerCase();
@@ -208,8 +205,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: removed BLACKLIST host=" + h);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: BLACKLIST no-op (not present) host=" + h);
+            Logger.log(Logger.TAG.WARN, "[06008] NetworkConfig: BLACKLIST no-op (not present) host=" + h);
         }
         return changed;
     }
@@ -329,7 +325,7 @@ public final class NetworkConfig {
      */
     public static boolean setDefaultRateBucket(String key, String bucket) {
         if (key == null || key.isBlank() || bucket == null || bucket.isBlank()) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.setDefaultRateBucket: invalid key/bucket");
+            Logger.log(Logger.TAG.WARN, "[06009] NetworkConfig.setDefaultRateBucket: invalid key/bucket");
             return false;
         }
         String k = key.trim();
@@ -340,8 +336,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: setDefaultRateBucket key=" + k + " bucket=" + b);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: setDefaultRateBucket no-op (unchanged) key=" + k);
+            Logger.log(Logger.TAG.WARN, "[06010] NetworkConfig: setDefaultRateBucket no-op (unchanged) key=" + k);
         }
         return changed;
     }
@@ -359,7 +354,7 @@ public final class NetworkConfig {
      */
     public static boolean removeDefaultRateBucket(String key) {
         if (key == null) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.removeDefaultRateBucket: invalid key (null)");
+            Logger.log(Logger.TAG.WARN, "[06011] NetworkConfig.removeDefaultRateBucket: invalid key (null)");
             return false;
         }
         String k = key.trim();
@@ -369,8 +364,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: removedDefaultRateBucket key=" + k);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: removeDefaultRateBucket no-op (not present) key=" + k);
+            Logger.log(Logger.TAG.WARN, "[06012] NetworkConfig: removeDefaultRateBucket no-op (not present) key=" + k);
         }
         return changed;
     }
@@ -433,7 +427,7 @@ public final class NetworkConfig {
      */
     public static boolean setDefaultMaxResponseBytes(String key, Long maxBytes) {
         if (key == null || key.isBlank()) {
-            Logger.log(Logger.TAG.WARN, "NetworkConfig.setDefaultMaxResponseBytes: invalid key (null/blank)");
+            Logger.log(Logger.TAG.WARN, "[06013] NetworkConfig.setDefaultMaxResponseBytes: invalid key (null/blank)");
             return false;
         }
         String k = key.trim();
@@ -445,8 +439,7 @@ public final class NetworkConfig {
                 Logger.log(Logger.TAG.SYSTEM,
                         "NetworkConfig: removedDefaultMaxBytes key=" + k);
             } else {
-                Logger.log(Logger.TAG.WARN,
-                        "NetworkConfig: removeDefaultMaxBytes no-op (not present) key=" + k);
+                Logger.log(Logger.TAG.WARN, "[06014] NetworkConfig: removeDefaultMaxBytes no-op (not present) key=" + k);
             }
             return changed;
         } else {
@@ -456,8 +449,7 @@ public final class NetworkConfig {
                 Logger.log(Logger.TAG.SYSTEM,
                         "NetworkConfig: setDefaultMaxBytes key=" + k + " bytes=" + maxBytes);
             } else {
-                Logger.log(Logger.TAG.WARN,
-                        "NetworkConfig: setDefaultMaxBytes no-op (unchanged) key=" + k);
+                Logger.log(Logger.TAG.WARN, "[06015] NetworkConfig: setDefaultMaxBytes no-op (unchanged) key=" + k);
             }
             return changed;
         }
@@ -522,8 +514,7 @@ public final class NetworkConfig {
             Logger.log(Logger.TAG.SYSTEM,
                     "NetworkConfig: setGlobalMaxRespBytes=" + GLOBAL_MAX_RESPONSE_BYTES);
         } else {
-            Logger.log(Logger.TAG.WARN,
-                    "NetworkConfig: setGlobalMaxRespBytes no-op (unchanged)");
+            Logger.log(Logger.TAG.WARN, "[06016] NetworkConfig: setGlobalMaxRespBytes no-op (unchanged)");
         }
         return changed;
     }
@@ -601,3 +592,4 @@ public final class NetworkConfig {
                         ", globalMaxRespBytes=" + GLOBAL_MAX_RESPONSE_BYTES);
     }
 }
+

@@ -100,8 +100,7 @@ public final class RateLimiterRegistry {
             }
         });
         if (!changed[0]) {
-            Logger.log(Logger.TAG.WARN,
-                    "RateLimiterRegistry: configureBucket no-op (unchanged) bucket=" + bucketName);
+            Logger.log(Logger.TAG.WARN, "[10001] RateLimiterRegistry: configureBucket no-op (unchanged) bucket=" + bucketName);
         }
         return changed[0];
     }
@@ -181,8 +180,7 @@ public final class RateLimiterRegistry {
                 return true;
             }
 
-            Logger.log(Logger.TAG.WARN,
-                    "RateLimiterRegistry: BLOCKED bucket=" + bucketName +
+            Logger.log(Logger.TAG.WARN, "[10002] RateLimiterRegistry: BLOCKED bucket=" + bucketName +
                             " permits=" + permits +
                             " tokens=" + bucket.tokens);
 
@@ -234,8 +232,7 @@ public final class RateLimiterRegistry {
 
             double deficit = permits - bucket.tokens;
             if (bucket.refillPerSecond <= 0.0) {
-                Logger.log(Logger.TAG.WARN,
-                        "RateLimiterRegistry: bucket misconfigured (rps<=0) → infinite delay bucket=" + bucketName);
+                Logger.log(Logger.TAG.WARN, "[10003] RateLimiterRegistry: bucket misconfigured (rps<=0) → infinite delay bucket=" + bucketName);
                 return Long.MAX_VALUE;
             }
 
@@ -378,3 +375,4 @@ public final class RateLimiterRegistry {
         }
     }
 }
+

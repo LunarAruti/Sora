@@ -50,13 +50,13 @@ public final class BatchManager {
         Logger.log(Logger.TAG.DEBUG, "Parsing JSON path: " + path);
 
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "Path validation failed: null or empty path.");
+            Logger.log(Logger.TAG.ERROR, "[02001] Path validation failed: null or empty path.");
             throw new BatchException("JSON path cannot be null or empty.");
         }
 
         // basic syntax guards (we'll handle dot placement more flexibly below)
         if (path.contains("..") || path.startsWith(".") || path.endsWith(".")) {
-            Logger.log(Logger.TAG.ERROR, "Path validation failed: invalid syntax (" + path + ")");
+            Logger.log(Logger.TAG.ERROR, "[02002] Path validation failed: invalid syntax (" + path + ")");
             throw new BatchException("Invalid JSON path syntax: " + path);
         }
 
@@ -71,7 +71,7 @@ public final class BatchManager {
 
             if (!inBracket && ch == '\\') {
                 if (i + 1 >= chars.length) {
-                    Logger.log(Logger.TAG.ERROR, "Trailing escape in path: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02003] Trailing escape in path: " + path);
                     throw new BatchException("Invalid escape in path: " + path);
                 }
                 key.append(chars[i + 1]);
@@ -85,7 +85,7 @@ public final class BatchManager {
                         if (!tokens.isEmpty()) {
                             continue;
                         }
-                        Logger.log(Logger.TAG.ERROR, "Invalid dot placement in path: " + path);
+                        Logger.log(Logger.TAG.ERROR, "[02004] Invalid dot placement in path: " + path);
                         throw new BatchException("Invalid dot placement in path: " + path);
                     }
                     tokens.add(new PathToken(key.toString(), null));
@@ -96,7 +96,7 @@ public final class BatchManager {
 
             if (ch == '[') {
                 if (inBracket) {
-                    Logger.log(Logger.TAG.ERROR, "Nested '[' without closing ']' in path: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02005] Nested '[' without closing ']' in path: " + path);
                     throw new BatchException("Invalid '[' nesting in path: " + path);
                 }
 
@@ -109,7 +109,7 @@ public final class BatchManager {
                         char qch = chars[i];
                         if (qch == '\\') {
                             if (i + 1 >= chars.length) {
-                                Logger.log(Logger.TAG.ERROR, "Bad escape in quoted key: " + path);
+                                Logger.log(Logger.TAG.ERROR, "[02006] Bad escape in quoted key: " + path);
                                 throw new BatchException("Invalid escape in quoted key: " + path);
                             }
                             quotedKey.append(chars[i + 1]);
@@ -125,7 +125,7 @@ public final class BatchManager {
                         i++;
                     }
                     if (!closed || i >= chars.length || chars[i] != ']') {
-                        Logger.log(Logger.TAG.ERROR, "Unterminated quoted key in path: " + path);
+                        Logger.log(Logger.TAG.ERROR, "[02007] Unterminated quoted key in path: " + path);
                         throw new BatchException("Unterminated quoted key in path: " + path);
                     }
 
@@ -143,18 +143,18 @@ public final class BatchManager {
 
             if (ch == ']') {
                 if (!inBracket) {
-                    Logger.log(Logger.TAG.ERROR, "Unmatched ']' in path: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02008] Unmatched ']' in path: " + path);
                     throw new BatchException("Unmatched ']' in path: " + path);
                 }
                 inBracket = false;
 
                 if (num.length() == 0) {
-                    Logger.log(Logger.TAG.ERROR, "Empty array index in path: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02009] Empty array index in path: " + path);
                     throw new BatchException("Empty array index in path: " + path);
                 }
 
                 if (key.length() == 0 && tokens.isEmpty()) {
-                    Logger.log(Logger.TAG.ERROR, "Array index without key is not allowed: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02010] Array index without key is not allowed: " + path);
                     throw new BatchException("Array index without key is not allowed: " + path);
                 }
 
@@ -162,7 +162,7 @@ public final class BatchManager {
                     int idx = Integer.parseInt(num.toString());
                     tokens.add(new PathToken(key.toString(), idx));
                 } catch (NumberFormatException e) {
-                    Logger.log(Logger.TAG.ERROR, "Invalid array index '" + num + "' in path: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02011] Invalid array index '" + num + "' in path: " + path);
                     throw new BatchException("Invalid array index: " + num + " in path " + path);
                 }
 
@@ -174,7 +174,7 @@ public final class BatchManager {
             if (inBracket) {
                 if (!Character.isWhitespace(ch)) {
                     if (!Character.isDigit(ch)) {
-                        Logger.log(Logger.TAG.ERROR, "Non-numeric array index character '" + ch + "' in path: " + path);
+                        Logger.log(Logger.TAG.ERROR, "[02012] Non-numeric array index character '" + ch + "' in path: " + path);
                         throw new BatchException("Non-numeric array index in path: " + path);
                     }
                     num.append(ch);
@@ -185,7 +185,7 @@ public final class BatchManager {
         }
 
         if (inBracket) {
-            Logger.log(Logger.TAG.ERROR, "Unclosed '[' in path: " + path);
+            Logger.log(Logger.TAG.ERROR, "[02013] Unclosed '[' in path: " + path);
             throw new BatchException("Unclosed '[' in path: " + path);
         }
 
@@ -194,7 +194,7 @@ public final class BatchManager {
         }
 
         if (tokens.isEmpty()) {
-            Logger.log(Logger.TAG.ERROR, "Parsed path is empty after validation: " + path);
+            Logger.log(Logger.TAG.ERROR, "[02014] Parsed path is empty after validation: " + path);
             throw new BatchException("Parsed path is empty: " + path);
         }
 
@@ -290,7 +290,7 @@ public final class BatchManager {
 
             if (current instanceof JSONObject obj) {
                 if (t.key == null || t.key.isEmpty()) {
-                    Logger.log(Logger.TAG.ERROR, "Array index without key is not allowed.");
+                    Logger.log(Logger.TAG.ERROR, "[02015] Array index without key is not allowed.");
                     throw new BatchException("Array index without key is not allowed.");
                 }
                 if (!obj.has(t.key)) {
@@ -298,7 +298,7 @@ public final class BatchManager {
                         Logger.log(Logger.TAG.DEBUG, "Creating missing key: " + t.key);
                         obj.put(t.key, (next != null && next.isArray()) ? new JSONArray() : new JSONObject());
                     } else {
-                        Logger.log(Logger.TAG.ERROR, "Missing key during traversal: " + t.key);
+                        Logger.log(Logger.TAG.ERROR, "[02016] Missing key during traversal: " + t.key);
                         throw new BatchException("Missing key: " + t.key);
                     }
                 }
@@ -308,13 +308,13 @@ public final class BatchManager {
 
             } else if (current instanceof JSONArray arr) {
                 if (!t.isArray()) {
-                    Logger.log(Logger.TAG.ERROR, "Expected array index for path segment.");
+                    Logger.log(Logger.TAG.ERROR, "[02017] Expected array index for path segment.");
                     throw new BatchException("Expected array index for path segment.");
                 }
                 current = navigateArray(current, t.index, createMissing, t.key, next);
 
             } else {
-                Logger.log(Logger.TAG.ERROR, "Invalid structure while traversing key: " + t.key);
+                Logger.log(Logger.TAG.ERROR, "[02018] Invalid structure while traversing key: " + t.key);
                 throw new BatchException("Invalid structure while traversing: " + t.key);
             }
         }
@@ -341,12 +341,12 @@ public final class BatchManager {
                                         String keyName, PathToken next) throws BatchException {
 
         if (!(current instanceof JSONArray arr)) {
-            Logger.log(Logger.TAG.ERROR, "Expected array for key: " + keyName);
+            Logger.log(Logger.TAG.ERROR, "[02019] Expected array for key: " + keyName);
             throw new BatchException("Expected array for key: " + keyName);
         }
 
         if (index < 0) {
-            Logger.log(Logger.TAG.ERROR, "Negative array index at path: " + keyName + "[" + index + "]");
+            Logger.log(Logger.TAG.ERROR, "[02020] Negative array index at path: " + keyName + "[" + index + "]");
             throw new BatchException("Negative array index at path: " + keyName + "[" + index + "]");
         }
 
@@ -363,7 +363,7 @@ public final class BatchManager {
             return toAdd;
         }
 
-        Logger.log(Logger.TAG.ERROR, "Array index out of range for key: " + keyName + "[" + index + "]");
+        Logger.log(Logger.TAG.ERROR, "[02021] Array index out of range for key: " + keyName + "[" + index + "]");
         throw new BatchException("Array index out of range for key: " + keyName + "[" + index + "]");
     }
 
@@ -386,17 +386,17 @@ public final class BatchManager {
         Logger.log(Logger.TAG.DEBUG, "setAtPath called for path: " + path);
 
         if (root == null) {
-            Logger.log(Logger.TAG.ERROR, "setAtPath failed — root is null");
+            Logger.log(Logger.TAG.ERROR, "[02022] setAtPath failed — root is null");
             throw new BatchException("setAtPath: root is null");
         }
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "setAtPath failed — path is null or empty");
+            Logger.log(Logger.TAG.ERROR, "[02023] setAtPath failed — path is null or empty");
             throw new BatchException("setAtPath: path is null or empty");
         }
 
         List<PathToken> tokens = parsePath(path);
         if (tokens.isEmpty()) {
-            Logger.log(Logger.TAG.ERROR, "setAtPath failed — no valid tokens for path: " + path);
+            Logger.log(Logger.TAG.ERROR, "[02024] setAtPath failed — no valid tokens for path: " + path);
             throw new BatchException("setAtPath: no valid tokens for path: " + path);
         }
 
@@ -405,7 +405,7 @@ public final class BatchManager {
             PathToken t = tokens.get(0);
             if (t.isArray()) {
                 if (t.key == null || t.key.isEmpty()) {
-                    Logger.log(Logger.TAG.ERROR, "Cannot set array index directly at root: " + path);
+                    Logger.log(Logger.TAG.ERROR, "[02025] Cannot set array index directly at root: " + path);
                     throw new BatchException("Cannot set array index directly at root: " + path);
                 }
 
@@ -467,7 +467,7 @@ public final class BatchManager {
                 throw new BatchException("Invalid parent structure at path: " + path);
             }
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "setAtPath exception at " + path + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[02026] setAtPath exception at " + path + ": " + e.getMessage());
             throw new BatchException("setAtPath failed at " + path + ": " + e.getMessage(), e);
         }
     }
@@ -483,20 +483,20 @@ public final class BatchManager {
         Logger.log(Logger.TAG.DEBUG, "removeAtPath called for path: " + path);
 
         if (root == null) {
-            Logger.log(Logger.TAG.ERROR, "removeAtPath failed — root is null");
+            Logger.log(Logger.TAG.ERROR, "[02027] removeAtPath failed — root is null");
             throw new BatchException("removeAtPath: root is null");
         }
 
         // Per your current contract, null/blank is NOT allowed here
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "removeAtPath failed — path is null or empty");
+            Logger.log(Logger.TAG.ERROR, "[02028] removeAtPath failed — path is null or empty");
             throw new BatchException("removeAtPath: path is null or empty");
         }
 
         // Parse tokens
         List<PathToken> tokens = parsePath(path);
         if (tokens.isEmpty()) {
-            Logger.log(Logger.TAG.ERROR, "removeAtPath failed — no valid tokens for path: " + path);
+            Logger.log(Logger.TAG.ERROR, "[02029] removeAtPath failed — no valid tokens for path: " + path);
             throw new BatchException("removeAtPath: no valid tokens for path: " + path);
         }
 
@@ -601,10 +601,10 @@ public final class BatchManager {
             throw new BatchException("Invalid parent structure for remove at: " + path);
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "removeAtPath error at " + path + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[02030] removeAtPath error at " + path + ": " + e.getMessage());
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "removeAtPath exception at " + path + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[02031] removeAtPath exception at " + path + ": " + e.getMessage());
             throw new BatchException("removeAtPath failed at " + path + ": " + e.getMessage(), e);
         }
     }
@@ -656,7 +656,7 @@ public final class BatchManager {
                 throw new BatchException("Invalid structure for appendAtPath.");
             }
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "appendAtPath exception at " + path + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[02032] appendAtPath exception at " + path + ": " + e.getMessage());
             throw new BatchException("appendAtPath failed at " + path + ": " + e.getMessage(), e);
         }
     }
@@ -703,18 +703,18 @@ public final class BatchManager {
         Logger.log(Logger.TAG.DEBUG, "Validating batch integrity...");
 
         if (batch == null || batch.isEmpty()) {
-            Logger.log(Logger.TAG.ERROR, "Batch validation failed: empty or null batch.");
+            Logger.log(Logger.TAG.ERROR, "[02033] Batch validation failed: empty or null batch.");
             throw new BatchException("Cannot enqueue empty batch.");
         }
 
         Set<String> names = new HashSet<>();
         for (QueueManager.WriteOp op : batch.ops()) {
             if (op.name == null || op.name.isBlank()) {
-                Logger.log(Logger.TAG.ERROR, "Batch validation failed: unnamed operation detected.");
+                Logger.log(Logger.TAG.ERROR, "[02034] Batch validation failed: unnamed operation detected.");
                 throw new BatchException("Batch contains unnamed operation.");
             }
             if (!names.add(op.name)) {
-                Logger.log(Logger.TAG.ERROR, "Batch validation failed: duplicate operation name '" + op.name + "'");
+                Logger.log(Logger.TAG.ERROR, "[02035] Batch validation failed: duplicate operation name '" + op.name + "'");
                 throw new BatchException("Duplicate operation name in batch: " + op.name);
             }
         }
@@ -887,7 +887,7 @@ public final class BatchManager {
             } catch (BatchException e) {
                 throw new RuntimeException(e);
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "insertJSONArray failed for path: " +
+                Logger.log(Logger.TAG.ERROR, "[02036] insertJSONArray failed for path: " +
                         jsonPath + " | " + e.getMessage());
                 throw new RuntimeException(new BatchException("insertJSONArray failed for path: " + jsonPath, e));
             }
@@ -944,7 +944,7 @@ public final class BatchManager {
                 }
 
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "replaceJSONArray failed for path: " + jsonPath + " | " + e.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[02037] replaceJSONArray failed for path: " + jsonPath + " | " + e.getMessage());
                 throw new RuntimeException(new BatchException("replaceJSONArray failed for path: " + jsonPath, e));
             }
         }));
@@ -1005,10 +1005,10 @@ public final class BatchManager {
                 Logger.log(Logger.TAG.INFO, "renameJSONKey completed successfully at " + parentPath);
 
             } catch (BatchException e) {
-                Logger.log(Logger.TAG.ERROR, "renameJSONKey failed at " + parentPath + ": " + e.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[02038] renameJSONKey failed at " + parentPath + ": " + e.getMessage());
                 throw new RuntimeException(e);
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "renameJSONKey unexpected error: " + e.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[02039] renameJSONKey unexpected error: " + e.getMessage());
                 throw new RuntimeException(new BatchException("renameJSONKey failed at " + parentPath, e));
             }
         }));
@@ -1173,7 +1173,7 @@ public final class BatchManager {
             QueueManager.flushAll(true);
             Logger.log(Logger.TAG.INFO, "BatchManager: flushAll completed successfully.");
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "BatchManager.flushAll failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[02040] BatchManager.flushAll failed: " + e.getMessage());
         }
     }
 
@@ -1187,8 +1187,9 @@ public final class BatchManager {
             QueueManager.flushAll(true);
             Logger.log(Logger.TAG.INFO, "BatchManager shutdown complete. All batches flushed.");
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "BatchManager shutdown failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[02041] BatchManager shutdown failed: " + e.getMessage());
         }
     }
 
 }
+

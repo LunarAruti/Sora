@@ -1,0 +1,480 @@
+Logger Code Reference
+=====================
+
+How To Read
+- First two digits = module.
+- Remaining digits = local issue code inside that module.
+- Read the log line, look up the code here, then apply the short fix.
+
+Module Key
+- `00` Main lifecycle, startup, shutdown, testing, and dependency bootstrap surface.
+- `01` DatabaseManager
+- `02` BatchManager
+- `03` QueueManager
+- `04` CrashHandler
+- `05` HttpExecutor
+- `06` NetworkConfig
+- `07` NetworkManager
+- `08` NetworkRequest
+- `09` NetworkWorker
+- `10` RateLimiterRegistry
+- `11` FileTaskRegistry
+- `12` TaskExecutor
+- `13` TaskScheduler
+
+Notes
+- `DependencyManager` does not emit direct logger warn/error codes; dependency bootstrap failures surface through `0004`.
+- Exception classes are intentionally excluded from this map because they wrap or forward existing failures rather than identify subsystem-specific fixes.
+
+[00] Main Lifecycle
+- `0001` Review the startup stack trace and fix the failing init step.
+- `0002` Avoid interrupting startup before JDA reaches READY.
+- `0003` Register the shutdown hook earlier and avoid late JVM shutdown state.
+- `0004` Fix dependency bootstrap paths, permissions, or missing files.
+- `0005` Repair quarantined files and patch journals before restarting.
+- `0006` Restore or fix write access to database/global/bot.json.
+- `0007` Fix scheduler config, registry data, or executor setup.
+- `0008` Fix the database folder setup, permissions, or DBM errors.
+- `0009` Inspect the exception and fix the failing startup subsystem.
+- `0010` No fix needed; this is the expected testing marker.
+- `0011` Fix the failing TestingGrounds step shown in the exception.
+- `0012` Avoid interrupting the testing harness sleep/shutdown flow.
+- `0013` Prevent duplicate full shutdown requests.
+- `0014` Prevent overlap between full shutdown and no-exit shutdown.
+- `0015` Fix the NetworkManager shutdown failure.
+- `0016` Fix the TaskScheduler shutdown failure.
+- `0017` Fix the BatchManager flush or shutdown failure.
+- `0018` Fix the QueueManager shutdown or flush failure.
+- `0019` Avoid interrupting the shutdown grace wait.
+- `0020` Avoid interrupting JDA teardown during shutdown.
+- `0021` Fix the JDA shutdown failure before retrying shutdown.
+- `0022` No fix needed unless shutdown paths are overlapping unexpectedly.
+- `0023` Prevent duplicate no-exit shutdown calls.
+- `0024` Fix the NetworkManager fast-shutdown failure.
+- `0025` Fix the TaskScheduler fast-shutdown failure.
+- `0026` Fix the QueueManager flushAll(false) failure.
+- `0027` Fix the QueueManager no-exit shutdown failure.
+- `0028` Fix the JDA no-exit shutdown failure.
+- `0029` Avoid interrupting the headless keepalive thread unless shutdown is intentional.
+
+[01] DatabaseManager
+- `01001` Fix database folder creation or write permissions.
+- `01002` Pass a non-empty path.
+- `01003` Grant the required filesystem permissions.
+- `01004` Use a directory path that is not occupied by a file.
+- `01005` Grant write access to the folder.
+- `01006` Check disk state, locks, and folder permissions.
+- `01007` Pass a non-empty folder path.
+- `01008` Use a directory path that is not occupied by a file.
+- `01009` Grant the required filesystem permissions.
+- `01010` Normalize and validate the path first.
+- `01011` Pass a non-empty path.
+- `01012` Do not delete the database root directory.
+- `01013` Confirm the target folder is safe to remove.
+- `01014` Release locks and retry the delete.
+- `01015` Release locks and retry the delete.
+- `01016` Release locks and retry the delete.
+- `01017` Release locks and retry the delete.
+- `01018` Pass a non-empty file path.
+- `01019` Normalize and validate the path first.
+- `01020` Use the correct file or directory path type.
+- `01021` Use a path not occupied by another filesystem object.
+- `01022` Create the parent directory or fix its permissions.
+- `01023` Check disk state, locks, and file permissions.
+- `01024` Grant the required filesystem permissions.
+- `01025` Pass a non-empty file path.
+- `01026` Use the correct file or directory path type.
+- `01027` Grant the required filesystem permissions.
+- `01028` Normalize and validate the path first.
+- `01029` Pass a non-empty file path.
+- `01030` Normalize and validate the path first.
+- `01031` Release locks and retry the delete.
+- `01032` Release locks and retry the delete.
+- `01033` Validate the method arguments before calling.
+- `01034` Normalize and validate the path first.
+- `01035` Fix the queue flush failure before renaming.
+- `01036` Delete the stale journal after confirming the move.
+- `01037` Verify the queue cache was remapped to the new path.
+- `01038` Check locks, permissions, and destination availability.
+- `01039` Validate the method arguments before calling.
+- `01040` Normalize and validate the path first.
+- `01041` Check locks, permissions, and free disk space.
+- `01042` Pass a non-empty file path.
+- `01043` Normalize and validate the path first.
+- `01044` Remove or rename the on-disk file before making it temp.
+- `01045` Load the file into cache before changing its temp state.
+- `01046` Pass a non-empty file path.
+- `01047` Normalize and validate the path first.
+- `01048` Load the file into cache before changing its temp state.
+- `01049` Pass a non-empty file path.
+- `01050` Inspect the queue cache state for the file.
+- `01051` Pass a non-empty folder path.
+- `01052` Point to an existing file or folder.
+- `01053` Use the correct file or directory path type.
+- `01054` Grant the required filesystem permissions.
+- `01055` Pass a non-empty folder path.
+- `01056` Point to an existing file or folder.
+- `01057` Use the correct file or directory path type.
+- `01058` Grant the required filesystem permissions.
+- `01059` Pass a non-empty path.
+- `01060` Point to an existing file or folder.
+- `01061` Pass a non-empty path.
+- `01062` Point to an existing file or folder.
+- `01063` Verify the target path exists and matches the expected type.
+- `01064` Pass a non-empty path.
+- `01065` Point to an existing file or folder.
+- `01066` Verify the target path exists and matches the expected type.
+- `01067` Pass a non-empty path.
+- `01068` Provide a non-null default JSON object.
+- `01069` Normalize and validate the path first.
+- `01070` Use the correct file or directory path type.
+- `01071` Inspect QueueManager for the underlying failure.
+- `01072` Fix the JSON path or batch inputs before retrying.
+- `01073` Inspect QueueManager for the underlying failure.
+- `01074` Inspect the exception and current JSON structure.
+- `01075` Pass a non-empty file path.
+- `01076` Create or restore the missing JSON file.
+- `01077` Restore the base file or allow journal reconstruction.
+- `01078` Fix materialization and inspect the base or journal state.
+- `01079` Fix materialization and inspect the base or journal state.
+- `01080` Create the file first, or allow empty initialization.
+- `01081` Fix materialization and inspect the base or journal state.
+- `01082` Inspect the file and patch journal for corruption.
+- `01083` Fix materialization and inspect the base or journal state.
+- `01084` Inspect the file and patch journal for corruption.
+- `01085` Inspect the quarantined file and restore a clean copy.
+- `01086` Fix corrupt-file move permissions and file locks.
+- `01087` Rebuild the cache entry from disk.
+- `01088` Use or convert to an object root.
+- `01089` Use or convert to an object root.
+- `01090` Use or convert to an object root.
+- `01091` Inspect the file and patch journal for corruption.
+- `01092` Verify the JSON path and inspect the read failure.
+- `01093` Inspect QueueManager for the read failure.
+- `01094` Fix the JSON path or underlying queue read error.
+- `01095` Pass a non-empty file path.
+- `01096` Use or convert to an object root.
+- `01097` Inspect QueueManager for the underlying failure.
+- `01098` Fix the JSON path or batch inputs before retrying.
+- `01099` Inspect QueueManager for the underlying failure.
+- `01100` Inspect the exception and current JSON structure.
+- `01101` Pass a non-empty file path.
+- `01102` Inspect QueueManager for the removal failure.
+- `01103` Fix the target JSON path before removing it.
+- `01104` Inspect QueueManager for the removal failure.
+- `01105` Inspect the exception and current JSON structure.
+- `01106` Verify the JSON path and inspect the read failure.
+- `01107` Inspect the exception and current JSON structure.
+- `01108` Inspect QueueManager for the underlying failure.
+- `01109` Fix the JSON path or batch inputs before retrying.
+- `01110` Inspect QueueManager for the underlying failure.
+- `01111` Inspect the exception and current JSON structure.
+- `01112` Verify the target array path and structure.
+- `01113` Verify the target array path and structure.
+- `01114` Verify the JSON path and inspect the read failure.
+- `01115` Fix the target JSON path before listing keys.
+- `01116` Inspect the exception and current JSON structure.
+- `01117` Fix the target JSON path before reading its type.
+- `01118` Fix the target JSON path before reading its type.
+- `01119` Inspect the exception and current JSON structure.
+- `01120` Inspect QueueManager for the underlying failure.
+- `01121` Fix the JSON path or batch inputs before retrying.
+- `01122` Inspect QueueManager for the underlying failure.
+- `01123` Inspect the exception and current JSON structure.
+- `01124` Verify the source and destination JSON paths.
+- `01125` Inspect QueueManager for the underlying failure.
+- `01126` Fix the JSON path or batch inputs before retrying.
+- `01127` Inspect QueueManager for the underlying failure.
+- `01128` Inspect the exception and current JSON structure.
+- `01129` Fix materialization and inspect the base or journal state.
+- `01130` Inspect QueueManager for the underlying failure.
+- `01131` Inspect QueueManager for the sanitize read failure.
+- `01132` Inspect the exception and current JSON structure.
+- `01133` Pass a non-empty file path.
+- `01134` Inspect QueueManager for the tree read failure.
+- `01135` Inspect the exception and current JSON structure.
+- `01136` Inspect the exception and current JSON structure.
+- `01137` Pass a non-empty file path.
+- `01138` Inspect QueueManager for the underlying failure.
+- `01139` Fix the JSON path or batch inputs before retrying.
+- `01140` Inspect QueueManager for the underlying failure.
+- `01141` Inspect the exception and current JSON structure.
+- `01142` Pass a non-empty file path.
+- `01143` Inspect QueueManager for the underlying failure.
+- `01144` Fix the JSON path or batch inputs before retrying.
+- `01145` Inspect QueueManager for the underlying failure.
+- `01146` Inspect the exception and current JSON structure.
+- `01147` Fix the JSON path or batch inputs before retrying.
+- `01148` Inspect QueueManager for the underlying failure.
+- `01149` Inspect the exception and current JSON structure.
+- `01150` Fix the JSON path or batch inputs before retrying.
+- `01151` Inspect QueueManager for the underlying failure.
+- `01152` Inspect the exception and current JSON structure.
+- `01153` Verify the target array path, type, and index.
+- `01154` Inspect the exception and current JSON structure.
+- `01155` Fix the JSON path or batch inputs before retrying.
+- `01156` Inspect QueueManager for the underlying failure.
+- `01157` Inspect the exception and current JSON structure.
+- `01158` Fix the JSON path syntax.
+- `01159` Use a numeric array index in the JSON path.
+- `01160` Fix the JSON text before parsing.
+- `01161` Pass a non-empty file path.
+- `01162` Review the storage fallback and accept or correct it.
+- `01163` Inspect the file and patch journal for corruption.
+- `01164` Inspect the file and patch journal for corruption.
+- `01165` Inspect the file and patch journal for corruption.
+- `01166` Pass a non-empty file path.
+- `01167` Create the parent directory or fix its permissions.
+- `01168` Review the storage fallback and accept or correct it.
+- `01169` Review the storage fallback and accept or correct it.
+- `01170` Check disk state, locks, and write permissions.
+- `01171` Pass a non-empty file path.
+- `01172` Confirm the file exists before quarantining it.
+- `01173` Inspect the quarantined file and restore a clean copy.
+- `01174` Inspect the quarantined file and restore a clean copy.
+- `01175` Fix corrupt-file move permissions and file locks.
+- `01176` Fix corrupt-file move permissions and file locks.
+- `01177` Review the storage fallback and accept or correct it.
+- `01178` Review the storage fallback and accept or correct it.
+- `01179` Fix materialization or journal truncation before retrying rotation.
+- `01180` Inspect journal stats and rotation checks.
+
+[02] BatchManager
+- `02001` Pass a non-empty path.
+- `02002` Fix the JSON path syntax.
+- `02003` Fix the JSON path syntax.
+- `02004` Fix the JSON path syntax.
+- `02005` Fix the JSON path syntax.
+- `02006` Fix the JSON path syntax.
+- `02007` Fix the JSON path syntax.
+- `02008` Fix the JSON path syntax.
+- `02009` Use a valid numeric array index.
+- `02010` Add an object key before the array index.
+- `02011` Use a valid numeric array index.
+- `02012` Use a valid numeric array index.
+- `02013` Fix the JSON path syntax.
+- `02014` Fix the JSON path syntax.
+- `02015` Add an object key before the array index.
+- `02016` Create the missing key or enable path creation.
+- `02017` Use a valid numeric array index.
+- `02018` Fix the object or array structure at that path.
+- `02019` Make that path resolve to a JSONArray.
+- `02020` Use a valid numeric array index.
+- `02021` Use a valid numeric array index.
+- `02022` Initialize the root object before modifying JSON.
+- `02023` Pass a valid JSON path before modifying JSON.
+- `02024` Pass a valid JSON path before modifying JSON.
+- `02025` Write to a keyed array, not a root array index.
+- `02026` Inspect the exception and current JSON structure.
+- `02027` Initialize the root object before modifying JSON.
+- `02028` Pass a valid JSON path before modifying JSON.
+- `02029` Pass a valid JSON path before modifying JSON.
+- `02030` Inspect the path and current JSON structure.
+- `02031` Inspect the exception and current JSON structure.
+- `02032` Inspect the exception and current JSON structure.
+- `02033` Build a non-empty batch before validation.
+- `02034` Use unique non-empty batch operation names.
+- `02035` Use unique non-empty batch operation names.
+- `02036` Verify the target array path, type, and index.
+- `02037` Verify the target array path, type, and index.
+- `02038` Check the parent path and key names.
+- `02039` Inspect the exception and current JSON structure.
+- `02040` Inspect QueueManager flush or shutdown errors.
+- `02041` Inspect QueueManager flush or shutdown errors.
+
+[03] QueueManager
+- `03001` Bind the required RawIO delegate during startup.
+- `03002` Bind each RawIO delegate only once.
+- `03003` Bind the required RawIO delegate during startup.
+- `03004` Bind each RawIO delegate only once.
+- `03005` Bind the required RawIO delegate during startup.
+- `03006` Bind each RawIO delegate only once.
+- `03007` Bind the required RawIO delegate during startup.
+- `03008` Bind each RawIO delegate only once.
+- `03009` Bind the required RawIO delegate during startup.
+- `03010` Bind each RawIO delegate only once.
+- `03011` Bind the required delegate before use.
+- `03012` Inspect DatabaseManager materialize I/O for that path.
+- `03013` Queue only JSON-safe values.
+- `03014` Queue only JSON-safe values.
+- `03015` Inspect the JSON payload for unsupported values.
+- `03016` Inspect the JSON payload for serialization corruption.
+- `03017` Inspect the JSON payload for serialization corruption.
+- `03018` Bind the required delegate before use.
+- `03019` Inspect DatabaseManager read failures for that path.
+- `03020` Inspect DatabaseManager read failures for that path.
+- `03021` Bind the required delegate before use.
+- `03022` Pass a non-null JSONObject to the writer.
+- `03023` Bind the loader to restore read-back verification.
+- `03024` Inspect the on-disk file and loader behavior after write.
+- `03025` Inspect DatabaseManager write failures for that path.
+- `03026` Inspect DatabaseManager write failures for that path.
+- `03027` Bind the required delegate before use.
+- `03028` Inspect the corrupt-path move permissions and file locks.
+- `03029` Bind the required delegate before use.
+- `03030` Inspect patch journal access and rotation state.
+- `03031` Inspect patch journal access and rotation state.
+- `03032` Inspect patch journal access and rotation state.
+- `03033` Inspect patch journal access and rotation state.
+- `03034` Inspect patch append I/O and journal health.
+- `03035` Inspect patch journal access and rotation state.
+- `03036` Pass a non-null read accessor.
+- `03037` Avoid interrupting the active worker or read thread.
+- `03038` Inspect the target path and queue read failure.
+- `03039` Pass a non-null read accessor.
+- `03040` Avoid interrupting the active worker or read thread.
+- `03041` Inspect the target path and queue read failure.
+- `03042` Inspect the batch op and cached JSON structure.
+- `03043` Avoid interrupting the active worker or read thread.
+- `03044` Inspect the queued batch and target path.
+- `03045` Pass a non-empty path.
+- `03046` Pass a non-empty path.
+- `03047` Inspect retries, locks, and underlying DBM I/O.
+- `03048` Avoid interrupting the active worker or read thread.
+- `03049` Pass a non-empty path.
+- `03050` Inspect retries, locks, and underlying DBM I/O.
+- `03051` Avoid interrupting the active worker or read thread.
+- `03052` Avoid duplicate QueueManager shutdown calls.
+- `03053` Fix the pending flush failure before shutdown.
+- `03054` Inspect the worker for blocked I/O or long flushes.
+- `03055` Avoid interrupting the active worker or read thread.
+- `03056` Inspect retries, locks, and underlying DBM I/O.
+- `03057` Inspect retries, locks, and underlying DBM I/O.
+- `03058` Inspect retries, locks, and underlying DBM I/O.
+- `03059` Inspect retries, locks, and underlying DBM I/O.
+- `03060` Inspect retries, locks, and underlying DBM I/O.
+- `03061` Inspect retries, locks, and underlying DBM I/O.
+- `03062` Inspect retries, locks, and underlying DBM I/O.
+- `03063` Inspect retries, locks, and underlying DBM I/O.
+- `03064` Inspect retries, locks, and underlying DBM I/O.
+- `03065` Inspect retries, locks, and underlying DBM I/O.
+- `03066` Inspect retries, locks, and underlying DBM I/O.
+- `03067` Pass a non-empty path.
+- `03068` Reduce cache pressure or raise the memory cap.
+- `03069` Reduce cache pressure or raise the memory cap.
+- `03070` Reduce cache growth or raise the memory cap.
+- `03071` Reduce cache pressure or raise the memory cap.
+- `03072` Fix the loader failure or recreate the file.
+- `03073` Inspect the exception and current JSON structure.
+
+[04] CrashHandler
+- `04001` Check patch-file access and filesystem permissions during recovery scan.
+- `04002` Fix the recovery scan path, permissions, or filesystem access.
+- `04003` Inspect journals from the previous crash and confirm recovery is needed.
+- `04004` Repair the invalid JSON file or journal before startup continues.
+- `04005` Inspect quarantined files and fix corruption before restart.
+- `04006` Fix corrupt-file move permissions or file locks for the base file.
+- `04007` Fix corrupt-file move permissions or file locks for the journal file.
+
+[05] HttpExecutor
+- `05001` Pass a non-null NetworkRequest into HttpExecutor.
+- `05002` Allow the host in NetworkConfig or correct the request URL.
+- `05003` Fix the request URL before execution.
+- `05004` Increase timeout or fix the slow upstream request.
+- `05005` Inspect connectivity, DNS, TLS, or remote host availability.
+- `05006` Avoid cancelling or interrupting the active network request.
+- `05007` Fix the upstream redirect to include a valid Location header.
+- `05008` Fix the upstream redirect target URL.
+- `05009` Use a positive connect timeout.
+
+[06] NetworkConfig
+- `06001` Pass a non-empty hostname before adding it to the whitelist.
+- `06002` No fix needed unless duplicate whitelist adds are unexpected.
+- `06003` Pass a non-empty hostname before adding it to the blacklist.
+- `06004` No fix needed unless duplicate blacklist adds are unexpected.
+- `06005` Pass a non-null hostname before removing it from the whitelist.
+- `06006` No fix needed unless the whitelist entry should already exist.
+- `06007` Pass a non-null hostname before removing it from the blacklist.
+- `06008` No fix needed unless the blacklist entry should already exist.
+- `06009` Pass a non-empty key and bucket name.
+- `06010` No fix needed unless the default rate bucket should have changed.
+- `06011` Pass a non-null key before removing a default rate bucket.
+- `06012` No fix needed unless the default rate bucket should already exist.
+- `06013` Pass a non-empty key before setting default max response bytes.
+- `06014` No fix needed unless a default max-bytes entry should already exist.
+- `06015` No fix needed unless the default max-bytes value should have changed.
+- `06016` No fix needed unless the global max response size should have changed.
+
+[07] NetworkManager
+- `07001` Start NetworkManager with at least one worker.
+- `07002` No fix needed unless start is being called twice unexpectedly.
+- `07003` No fix needed unless shutdown is being called before start unexpectedly.
+- `07004` Avoid duplicate shutdown calls while the manager is already stopping.
+- `07005` Avoid interrupting shutdown while waiting for network workers.
+- `07006` Inspect the worker thread for blocked I/O or a stuck run loop.
+- `07007` Start NetworkManager before submitting requests.
+- `07008` Do not enqueue new requests while shutdown is in progress.
+- `07009` Fix the NetworkRequest validation failure before enqueue.
+- `07010` Reduce queue pressure or increase queue capacity.
+- `07011` Inspect the queue offer failure and worker state.
+- `07012` Inspect the queue state and dedupe cleanup path.
+- `07013` Handle request rejection before expecting a cache path.
+- `07014` Ensure sealed requests always have a non-blank cachePath.
+- `07015` Seal the request before high-level validation.
+- `07016` Use a cachePath under `database/` for DBM-backed results.
+- `07017` Fix DBM path checks or filesystem access for the cache path.
+- `07018` Inspect duplicate cache-path generation and naming collisions.
+- `07019` Fix the DBM write path for diagnostics output.
+- `07020` Fix the DBM write path for network journal output.
+
+[08] NetworkRequest
+- `08001` Fix the request validation error before sealing the NetworkRequest.
+- `08002` Stop mutating the request after calling seal().
+
+[09] NetworkWorker
+- `09001` Avoid interrupting a worker unless shutdown is intentional.
+- `09002` Inspect the uncaught worker exception and failing task.
+- `09003` Inspect the HTTP exception and upstream request state.
+- `09004` Fix the response body or expected JSON response type.
+- `09005` Use a projection only when the response can be decoded as JSON.
+- `09006` Fix the projection path against the returned JSON shape.
+- `09007` Inspect the terminal failure details and upstream request state.
+- `09008` Fix the error response body or expected JSON response type.
+- `09009` Fix the projection path used on the error JSON payload.
+- `09010` Pass a non-null request before writing network results to DBM.
+- `09011` Ensure accepted requests always have a non-blank cachePath.
+- `09012` Fix the DBM write path, permissions, or cached result payload.
+- `09013` Fix DBM path checks or filesystem access for the cache path.
+- `09014` Inspect duplicate cache-path generation and naming collisions.
+
+[10] RateLimiterRegistry
+- `10001` No fix needed unless the bucket configuration should have changed.
+- `10002` Reduce request rate or increase bucket capacity/refill.
+- `10003` Configure the bucket with a positive refill rate.
+
+[11] FileTaskRegistry
+- `11001` Repair or remove the malformed task entry from the registry.
+- `11002` Fix the stored task JSON so it parses into a valid ScheduledTask.
+- `11003` Inspect the bad task payload and repair the registry entry.
+
+[12] TaskExecutor
+- `12001` Use a whitelisted opKey or add the op to ExeWhitelist.
+- `12002` Fix the task opArgs format before execution.
+- `12003` Inspect the whitelisted handler and its inputs.
+
+[13] TaskScheduler
+- `13001` No fix needed unless TaskScheduler.start() is being called twice unexpectedly.
+- `13002` No fix needed unless shutdown is being called before scheduler start unexpectedly.
+- `13003` Ensure the scheduler instance exists before shutdown.
+- `13004` No fix needed unless shutdownNoExit is being called before scheduler start unexpectedly.
+- `13005` Ensure the scheduler instance exists before no-exit shutdown.
+- `13006` No fix needed unless the worker is already running unexpectedly.
+- `13007` Fix registry initialization before starting the scheduler.
+- `13008` Inspect the registry read failure for the task and context.
+- `13009` No fix needed unless a cancel target should already exist.
+- `13010` Fix the registry delete path for cancel operations.
+- `13011` Inspect the task state and reason before skipping it.
+- `13012` Fix the registry update path when marking a task as skipped.
+- `13013` Fix registry refresh after scheduling a new task.
+- `13014` No fix needed unless a pause target should already exist.
+- `13015` No fix needed unless a resume target should already exist.
+- `13016` Fix the registry refresh failure for the given reason.
+- `13017` Reduce due-soon load or increase the cache cap.
+- `13018` Fix periodic registry refresh failures.
+- `13019` No fix needed unless shutdown is being called while already stopped unexpectedly.
+- `13020` Avoid interrupting scheduler shutdown waits.
+- `13021` Inspect the task failure and retry path.
+- `13022` Inspect the task failure, op inputs, and executor result.
+- `13023` Fix the registry delete path for completed one-shot tasks.
+- `13024` Fix the registry delete path for missed one-shot tasks.
+- `13025` Inspect why the one-shot task became overdue before execution.

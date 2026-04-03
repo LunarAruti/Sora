@@ -87,16 +87,26 @@ public class TestingGrounds {
             Logger.log(Logger.TAG.INFO, "complex: contains profile.flags.active=" +
                     DatabaseManager.containsJSONPath(complexFile, "profile.flags.active"));
 
-            System.err.println("test error");
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0010] TestingGrounds emitted synthetic error marker."
+            );
 
         } catch (Throwable t) {
-            Logger.log(Logger.TAG.ERROR, "DBM TEST CRASH: " + t);
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0011] DBM test crash: " + t
+            );
         }
 
         try {
             Thread.sleep(1*60000);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
+            Logger.log(
+                    Logger.TAG.WARN,
+                    "[0012] TestingGrounds sleep interrupted before shutdown."
+            );
         }
         ShutdownManager.shutdown(null);
 

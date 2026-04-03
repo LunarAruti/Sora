@@ -65,7 +65,7 @@ public class DatabaseManager {
             Logger.log(Logger.TAG.INFO, "Database directory structure verified successfully.");
 
         } catch (IOException e) {
-            Logger.log(Logger.TAG.ERROR, "Failed to initialize database structure: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01001] Failed to initialize database structure: " + e.getMessage());
             throw new DatabaseException("Failed to initialize database structure.", e);
         }
     }
@@ -88,7 +88,7 @@ public class DatabaseManager {
      */
     public static String createFolder(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "createFolder: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01002] createFolder: path is null or blank.");
             throw new DatabaseException("Path cannot be null or empty.");
         }
 
@@ -99,13 +99,13 @@ public class DatabaseManager {
             if (Files.exists(dirPath)) {
                 if (Files.isDirectory(dirPath)) {
                     if (!Files.isReadable(dirPath) || !Files.isWritable(dirPath)) {
-                        Logger.log(Logger.TAG.ERROR, "Existing folder lacks permissions: " + dirPath);
+                        Logger.log(Logger.TAG.ERROR, "[01003] Existing folder lacks permissions: " + dirPath);
                         throw new DatabaseException("Folder exists but lacks read/write permissions: " + dirPath);
                     }
                     Logger.log(Logger.TAG.INFO, "Folder already exists and is accessible: " + dirPath);
                     return dirPath.toString();
                 } else {
-                    Logger.log(Logger.TAG.ERROR, "A file already exists at folder path: " + dirPath);
+                    Logger.log(Logger.TAG.ERROR, "[01004] A file already exists at folder path: " + dirPath);
                     throw new DatabaseException("A file already exists at the folder path: " + dirPath);
                 }
             }
@@ -127,7 +127,7 @@ public class DatabaseManager {
                 }
                 Files.deleteIfExists(testFile);
             } catch (IOException permEx) {
-                Logger.log(Logger.TAG.ERROR, "Write permission test failed for folder: " + dirPath);
+                Logger.log(Logger.TAG.ERROR, "[01005] Write permission test failed for folder: " + dirPath);
                 throw new DatabaseException("Folder created but lacks write permissions: " + dirPath, permEx);
             }
 
@@ -135,7 +135,7 @@ public class DatabaseManager {
             return dirPath.toString();
 
         } catch (IOException e) {
-            Logger.log(Logger.TAG.ERROR, "I/O error creating folder at " + dirPath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01006] I/O error creating folder at " + dirPath + ": " + e.getMessage());
             throw new DatabaseException("I/O error while creating folder at: " + dirPath, e);
         }
     }
@@ -149,7 +149,7 @@ public class DatabaseManager {
      */
     public static boolean folderExists(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "folderExists: invalid folder path (null/empty).");
+            Logger.log(Logger.TAG.ERROR, "[01007] folderExists: invalid folder path (null/empty).");
             throw new DatabaseException("Invalid folder path: path is null or empty.");
         }
 
@@ -160,7 +160,7 @@ public class DatabaseManager {
                 return false;
 
             if (!Files.isDirectory(dir)) {
-                Logger.log(Logger.TAG.ERROR, "folderExists: expected directory but found file at " + dir);
+                Logger.log(Logger.TAG.ERROR, "[01008] folderExists: expected directory but found file at " + dir);
                 throw new DatabaseException("Expected a directory, but found a file at: " + dir);
             }
 
@@ -168,13 +168,13 @@ public class DatabaseManager {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
                 // Access test successful
             } catch (IOException e) {
-                Logger.log(Logger.TAG.ERROR, "folderExists: folder exists but cannot be accessed: " + dir);
+                Logger.log(Logger.TAG.ERROR, "[01009] folderExists: folder exists but cannot be accessed: " + dir);
                 throw new DatabaseException("Folder exists but cannot be accessed: " + dir, e);
             }
 
             return true;
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "folderExists: malformed folder path: " + path);
+            Logger.log(Logger.TAG.ERROR, "[01010] folderExists: malformed folder path: " + path);
             throw new DatabaseException("Malformed folder path: " + path, e);
         }
     }
@@ -192,7 +192,7 @@ public class DatabaseManager {
      */
     public static boolean deleteFolder(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "deleteFolder: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01011] deleteFolder: path is null or blank.");
             throw new DatabaseException("Invalid folder path: path is null or empty.");
         }
 
@@ -202,11 +202,11 @@ public class DatabaseManager {
         Path dir = Paths.get(path).toAbsolutePath().normalize();
 
         if (dir.equals(Paths.get(ROOT_DIR).toAbsolutePath())) {
-            Logger.log(Logger.TAG.WARN, "Attempted to delete database root directory. Operation refused.");
+            Logger.log(Logger.TAG.WARN, "[01012] Attempted to delete database root directory. Operation refused.");
             throw new DatabaseException("Refused to delete the database root directory.");
         }
 
-        Logger.log(Logger.TAG.WARN, "Deleting folder and contents: " + dir);
+        Logger.log(Logger.TAG.WARN, "[01013] Deleting folder and contents: " + dir);
 
         try {
             // Verify accessibility
@@ -221,14 +221,14 @@ public class DatabaseManager {
                         try {
                             Files.deleteIfExists(p);
                         } catch (IOException e) {
-                            Logger.log(Logger.TAG.ERROR, "Failed to delete: " + p + " (" + e.getMessage() + ")");
+                            Logger.log(Logger.TAG.ERROR, "[01014] Failed to delete: " + p + " (" + e.getMessage() + ")");
                             throw new UncheckedIOException(e);
                         }
                     });
 
             // Verify deletion
             if (Files.exists(dir)) {
-                Logger.log(Logger.TAG.ERROR, "Folder deletion failed or incomplete: " + dir);
+                Logger.log(Logger.TAG.ERROR, "[01015] Folder deletion failed or incomplete: " + dir);
                 throw new DatabaseException("Folder deletion failed or partially completed: " + dir);
             }
 
@@ -236,10 +236,10 @@ public class DatabaseManager {
             return true;
 
         } catch (UncheckedIOException e) {
-            Logger.log(Logger.TAG.ERROR, "Error deleting folder contents: " + dir + " (" + e.getCause().getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01016] Error deleting folder contents: " + dir + " (" + e.getCause().getMessage() + ")");
             throw new DatabaseException("Error deleting contents of folder: " + dir, e.getCause());
         } catch (IOException e) {
-            Logger.log(Logger.TAG.ERROR, "I/O error deleting folder: " + dir + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01017] I/O error deleting folder: " + dir + " (" + e.getMessage() + ")");
             throw new DatabaseException("I/O error while deleting folder: " + dir, e);
         }
     }
@@ -259,7 +259,7 @@ public class DatabaseManager {
      */
     public static String createFile(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "createFile: file path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01018] createFile: file path is null or empty.");
             throw new DatabaseException("File path is null or empty.");
         }
 
@@ -267,18 +267,18 @@ public class DatabaseManager {
         try {
             filePath = Paths.get(path).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "createFile: invalid path syntax: " + path);
+            Logger.log(Logger.TAG.ERROR, "[01019] createFile: invalid path syntax: " + path);
             throw new DatabaseException("Invalid file path syntax: " + path, e);
         }
 
         if (Files.isDirectory(filePath)) {
-            Logger.log(Logger.TAG.ERROR, "createFile: attempted to create file at directory path: " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01020] createFile: attempted to create file at directory path: " + filePath);
             throw new DatabaseException("Cannot create file because the path points to a directory: " + filePath);
         }
 
         if (Files.exists(filePath)) {
             if (!Files.isRegularFile(filePath)) {
-                Logger.log(Logger.TAG.ERROR, "createFile: non-regular file already exists at: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01021] createFile: non-regular file already exists at: " + filePath);
                 throw new DatabaseException("A non-regular file already exists at: " + filePath);
             }
             Logger.log(Logger.TAG.DEBUG, "createFile: file already exists: " + filePath);
@@ -289,7 +289,7 @@ public class DatabaseManager {
         if (parent != null && !Files.exists(parent)) {
             String createdParent = createFolder(parent.toString());
             if (createdParent == null) {
-                Logger.log(Logger.TAG.ERROR, "createFile: failed to create parent directory: " + parent);
+                Logger.log(Logger.TAG.ERROR, "[01022] createFile: failed to create parent directory: " + parent);
                 throw new DatabaseException("Failed to create parent directory for file: " + parent);
             }
         }
@@ -311,10 +311,10 @@ public class DatabaseManager {
             Logger.log(Logger.TAG.DEBUG, "createFile: file already existed (race-safe): " + filePath);
             return filePath.toString();
         } catch (IOException e) {
-            Logger.log(Logger.TAG.ERROR, "createFile I/O error: " + filePath + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01023] createFile I/O error: " + filePath + " (" + e.getMessage() + ")");
             throw new DatabaseException("I/O error occurred while creating file: " + filePath, e);
         } catch (SecurityException e) {
-            Logger.log(Logger.TAG.ERROR, "createFile security exception: " + filePath + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01024] createFile security exception: " + filePath + " (" + e.getMessage() + ")");
             throw new DatabaseException("Insufficient permissions to create file: " + filePath, e);
         }
     }
@@ -328,7 +328,7 @@ public class DatabaseManager {
      */
     public static boolean fileExists(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "fileExists: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01025] fileExists: path is null or empty.");
             throw new DatabaseException("Invalid file path: path is null or empty.");
         }
 
@@ -349,20 +349,20 @@ public class DatabaseManager {
             if (!Files.exists(filePath)) return false;
 
             if (!Files.isRegularFile(filePath)) {
-                Logger.log(Logger.TAG.ERROR, "fileExists: expected regular file but found directory: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01026] fileExists: expected regular file but found directory: " + filePath);
                 throw new DatabaseException("Path exists but is not a regular file: " + filePath);
             }
 
             try (BufferedReader br = Files.newBufferedReader(filePath)) {
                 // verify readable
             } catch (IOException e) {
-                Logger.log(Logger.TAG.ERROR, "fileExists: cannot read file: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01027] fileExists: cannot read file: " + filePath);
                 throw new DatabaseException("File exists but cannot be read: " + filePath, e);
             }
 
             return true;
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "fileExists: malformed path: " + path);
+            Logger.log(Logger.TAG.ERROR, "[01028] fileExists: malformed path: " + path);
             throw new DatabaseException("Malformed file path: " + path, e);
         }
     }
@@ -376,7 +376,7 @@ public class DatabaseManager {
      */
     public static boolean deleteFile(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "deleteFile: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01029] deleteFile: path is null or empty.");
             throw new DatabaseException("Invalid path provided to deleteFile.");
         }
 
@@ -386,7 +386,7 @@ public class DatabaseManager {
         try {
             filePath = Paths.get(path).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "deleteFile: malformed file path: " + path);
+            Logger.log(Logger.TAG.ERROR, "[01030] deleteFile: malformed file path: " + path);
             throw new DatabaseException("Malformed file path: " + path, e);
         }
 
@@ -432,7 +432,7 @@ public class DatabaseManager {
             Files.delete(filePath);
 
             if (Files.exists(filePath)) {
-                Logger.log(Logger.TAG.ERROR, "deleteFile: file still exists after deletion attempt: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01031] deleteFile: file still exists after deletion attempt: " + filePath);
                 throw new DatabaseException("Deletion failed: file still exists after delete attempt: " + filePath);
             }
 
@@ -443,7 +443,7 @@ public class DatabaseManager {
         } catch (DatabaseException e) {
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "deleteFile I/O error: " + filePath + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01032] deleteFile I/O error: " + filePath + " (" + e.getMessage() + ")");
             throw new DatabaseException("Failed to delete file at path: " + filePath, e);
         }
     }
@@ -461,7 +461,7 @@ public class DatabaseManager {
      */
     public static boolean renameFile(String oldPath, String newPath) throws DatabaseException {
         if (oldPath == null || newPath == null || oldPath.isBlank() || newPath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "renameFile: invalid arguments.");
+            Logger.log(Logger.TAG.ERROR, "[01033] renameFile: invalid arguments.");
             throw new DatabaseException("Invalid arguments provided to renameFile.");
         }
 
@@ -473,7 +473,7 @@ public class DatabaseManager {
             source = Paths.get(oldPath).toAbsolutePath().normalize();
             target = Paths.get(newPath).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "renameFile: invalid source or destination path.");
+            Logger.log(Logger.TAG.ERROR, "[01034] renameFile: invalid source or destination path.");
             throw new DatabaseException("Invalid source or destination path.", e);
         }
 
@@ -483,7 +483,7 @@ public class DatabaseManager {
                 try {
                     QueueManager.flushFile(source.toString(), true);
                 } catch (QueueException qe) {
-                    Logger.log(Logger.TAG.ERROR, "renameFile: flush before move failed: " + source + " — " + qe.getMessage());
+                    Logger.log(Logger.TAG.ERROR, "[01035] renameFile: flush before move failed: " + source + " — " + qe.getMessage());
                     throw new DatabaseException("Failed to flush source before move: " + source, qe);
                 }
 
@@ -499,7 +499,7 @@ public class DatabaseManager {
                             Files.deleteIfExists(oldJ);                              // journal consumed
                             Logger.log(Logger.TAG.DEBUG, "renameFile: materialized & deleted journal: " + oldJ);
                         } catch (IOException delJ) {
-                            Logger.log(Logger.TAG.WARN, "renameFile: could not delete journal after materialize: " + oldJ + " (" + delJ.getMessage() + ")");
+                            Logger.log(Logger.TAG.WARN, "[01036] renameFile: could not delete journal after materialize: " + oldJ + " (" + delJ.getMessage() + ")");
                         }
                     }
                 } catch (Exception matEx) {
@@ -563,7 +563,7 @@ public class DatabaseManager {
                 try {
                     QueueManager.onPathRenamed(source.toString(), target.toString());
                 } catch (Exception qex) {
-                    Logger.log(Logger.TAG.WARN, "renameFile: queue path remap warning for " + source + " → " + target
+                    Logger.log(Logger.TAG.WARN, "[01037] renameFile: queue path remap warning for " + source + " → " + target
                             + " — " + qex.getMessage());
                     // Non-fatal: cache will rehydrate on next access if needed.
                 }
@@ -607,7 +607,7 @@ public class DatabaseManager {
         } catch (DatabaseException e) {
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "renameFile: I/O error while moving file: " + source + " → " + target + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01038] renameFile: I/O error while moving file: " + source + " → " + target + " (" + e.getMessage() + ")");
             throw new DatabaseException("Failed to rename or move file from " + source + " to " + target, e);
         }
     }
@@ -625,7 +625,7 @@ public class DatabaseManager {
      */
     public static boolean copyFile(String sourcePath, String destPath) throws DatabaseException {
         if (sourcePath == null || destPath == null || sourcePath.isBlank() || destPath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "copyFile: invalid arguments.");
+            Logger.log(Logger.TAG.ERROR, "[01039] copyFile: invalid arguments.");
             throw new DatabaseException("Invalid arguments provided to copyFile.");
         }
 
@@ -637,7 +637,7 @@ public class DatabaseManager {
             source = Paths.get(sourcePath).toAbsolutePath().normalize();
             dest   = Paths.get(destPath).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "copyFile: malformed source or destination path.");
+            Logger.log(Logger.TAG.ERROR, "[01040] copyFile: malformed source or destination path.");
             throw new DatabaseException("Malformed source or destination path.", e);
         }
 
@@ -700,7 +700,7 @@ public class DatabaseManager {
         } catch (DatabaseException e) {
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "copyFile: I/O error while copying file: " + source + " → " + dest + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01041] copyFile: I/O error while copying file: " + source + " → " + dest + " (" + e.getMessage() + ")");
             throw new DatabaseException("Failed to copy file from " + source + " to " + dest, e);
         }
     }
@@ -730,7 +730,7 @@ public class DatabaseManager {
      */
     public static boolean makeTemporary(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "makeTemporary: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01042] makeTemporary: path is null or empty.");
             throw new DatabaseException("Path is null or empty.");
         }
 
@@ -738,20 +738,20 @@ public class DatabaseManager {
         try {
             npath = Paths.get(path).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "makeTemporary: invalid path syntax: " + path);
+            Logger.log(Logger.TAG.ERROR, "[01043] makeTemporary: invalid path syntax: " + path);
             throw new DatabaseException("Invalid path syntax: " + path, e);
         }
 
         // Guard: if a base file or journal exists, do NOT allow TEMP.
         // TEMP is intended only for cache-only entries with no disk anchor.
         if (fileExists(npath.toString())) {
-            Logger.log(Logger.TAG.WARN, "makeTemporary: refused (disk entry exists) for " + npath);
+            Logger.log(Logger.TAG.WARN, "[01044] makeTemporary: refused (disk entry exists) for " + npath);
             return false;
         }
 
         boolean changed = QueueManager.makeTemporary(npath.toString());
         if (!changed) {
-            Logger.log(Logger.TAG.WARN, "makeTemporary: no cached file entry affected for " + npath);
+            Logger.log(Logger.TAG.WARN, "[01045] makeTemporary: no cached file entry affected for " + npath);
             return false;
         }
 
@@ -780,7 +780,7 @@ public class DatabaseManager {
      */
     public static boolean makePermanent(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "makePermanent: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01046] makePermanent: path is null or empty.");
             throw new DatabaseException("Path is null or empty.");
         }
 
@@ -788,13 +788,13 @@ public class DatabaseManager {
         try {
             npath = Paths.get(path).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "makePermanent: invalid path syntax: " + path);
+            Logger.log(Logger.TAG.ERROR, "[01047] makePermanent: invalid path syntax: " + path);
             throw new DatabaseException("Invalid path syntax: " + path, e);
         }
 
         boolean changed = QueueManager.makePermanent(npath.toString());
         if (!changed) {
-            Logger.log(Logger.TAG.WARN, "makePermanent: no cached file entry affected for " + npath);
+            Logger.log(Logger.TAG.WARN, "[01048] makePermanent: no cached file entry affected for " + npath);
             return false;
         }
 
@@ -808,13 +808,13 @@ public class DatabaseManager {
      */
     public static boolean cacheExists(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "cacheExists: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01049] cacheExists: path is null or empty.");
             throw new DatabaseException("Path is null or empty.");
         }
         try {
             return QueueManager.hasCacheEntry(path);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "cacheExists: error checking cache for " + path + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01050] cacheExists: error checking cache for " + path + ": " + e.getMessage());
             throw new DatabaseException("cacheExists: failed to check cache for " + path, e);
         }
     }
@@ -830,24 +830,24 @@ public class DatabaseManager {
         Logger.log(Logger.TAG.DEBUG, "Listing files in: " + folderPath);
 
         if (folderPath == null || folderPath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "listFiles failed: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01051] listFiles failed: path is null or blank.");
             throw new DatabaseException("Folder path is null or empty");
         }
 
         File folder = new File(folderPath);
         if (!folder.exists()) {
-            Logger.log(Logger.TAG.ERROR, "listFiles failed: folder does not exist (" + folderPath + ")");
+            Logger.log(Logger.TAG.ERROR, "[01052] listFiles failed: folder does not exist (" + folderPath + ")");
             throw new DatabaseException("Folder does not exist: " + folderPath);
         }
 
         if (!folder.isDirectory()) {
-            Logger.log(Logger.TAG.ERROR, "listFiles failed: specified path is not a directory (" + folderPath + ")");
+            Logger.log(Logger.TAG.ERROR, "[01053] listFiles failed: specified path is not a directory (" + folderPath + ")");
             throw new DatabaseException("Specified path is not a directory: " + folderPath);
         }
 
         File[] fileList = folder.listFiles();
         if (fileList == null) {
-            Logger.log(Logger.TAG.ERROR, "listFiles failed: unable to read folder contents (" + folderPath + ")");
+            Logger.log(Logger.TAG.ERROR, "[01054] listFiles failed: unable to read folder contents (" + folderPath + ")");
             throw new DatabaseException("Failed to list files for folder: " + folderPath);
         }
 
@@ -871,24 +871,24 @@ public class DatabaseManager {
         Logger.log(Logger.TAG.DEBUG, "Listing folders in: " + folderPath);
 
         if (folderPath == null || folderPath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "listFolders failed: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01055] listFolders failed: path is null or blank.");
             throw new DatabaseException("Folder path is null or empty");
         }
 
         File folder = new File(folderPath);
         if (!folder.exists()) {
-            Logger.log(Logger.TAG.ERROR, "listFolders failed: folder does not exist (" + folderPath + ")");
+            Logger.log(Logger.TAG.ERROR, "[01056] listFolders failed: folder does not exist (" + folderPath + ")");
             throw new DatabaseException("Folder does not exist: " + folderPath);
         }
 
         if (!folder.isDirectory()) {
-            Logger.log(Logger.TAG.ERROR, "listFolders failed: specified path is not a directory (" + folderPath + ")");
+            Logger.log(Logger.TAG.ERROR, "[01057] listFolders failed: specified path is not a directory (" + folderPath + ")");
             throw new DatabaseException("Specified path is not a directory: " + folderPath);
         }
 
         File[] fileList = folder.listFiles();
         if (fileList == null) {
-            Logger.log(Logger.TAG.ERROR, "listFolders failed: unable to read directory (" + folderPath + ")");
+            Logger.log(Logger.TAG.ERROR, "[01058] listFolders failed: unable to read directory (" + folderPath + ")");
             throw new DatabaseException("Failed to list folders for directory: " + folderPath);
         }
 
@@ -914,13 +914,13 @@ public class DatabaseManager {
      */
     public static String getExtension(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "getExtension failed: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01059] getExtension failed: path is null or blank.");
             throw new DatabaseException("Path is null or empty");
         }
 
         File file = new File(path);
         if (!file.exists()) {
-            Logger.log(Logger.TAG.ERROR, "getExtension failed: file does not exist (" + path + ")");
+            Logger.log(Logger.TAG.ERROR, "[01060] getExtension failed: file does not exist (" + path + ")");
             throw new DatabaseException("Cannot get extension, file does not exist: " + path);
         }
 
@@ -941,19 +941,19 @@ public class DatabaseManager {
      */
     public static String getParentPath(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "getParentPath failed: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01061] getParentPath failed: path is null or blank.");
             throw new DatabaseException("Path is null or empty");
         }
 
         File file = new File(path);
         if (!file.exists()) {
-            Logger.log(Logger.TAG.ERROR, "getParentPath failed: target does not exist (" + path + ")");
+            Logger.log(Logger.TAG.ERROR, "[01062] getParentPath failed: target does not exist (" + path + ")");
             throw new DatabaseException("Cannot get parent path, file or folder does not exist: " + path);
         }
 
         String parent = file.getParent();
         if (parent == null) {
-            Logger.log(Logger.TAG.ERROR, "getParentPath failed: no parent directory (" + path + ")");
+            Logger.log(Logger.TAG.ERROR, "[01063] getParentPath failed: no parent directory (" + path + ")");
             throw new DatabaseException("Path has no parent directory: " + path);
         }
 
@@ -970,19 +970,19 @@ public class DatabaseManager {
      */
     public static String getFileName(String path) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "getFileName failed: path is null or blank.");
+            Logger.log(Logger.TAG.ERROR, "[01064] getFileName failed: path is null or blank.");
             throw new DatabaseException("Path is null or empty");
         }
 
         File file = new File(path);
         if (!file.exists()) {
-            Logger.log(Logger.TAG.ERROR, "getFileName failed: file/folder does not exist (" + path + ")");
+            Logger.log(Logger.TAG.ERROR, "[01065] getFileName failed: file/folder does not exist (" + path + ")");
             throw new DatabaseException("Cannot get file name, path does not exist: " + path);
         }
 
         String name = file.getName();
         if (name == null || name.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "getFileName failed: unresolved file name (" + path + ")");
+            Logger.log(Logger.TAG.ERROR, "[01066] getFileName failed: unresolved file name (" + path + ")");
             throw new DatabaseException("Failed to resolve file name from path: " + path);
         }
 
@@ -1046,11 +1046,11 @@ public class DatabaseManager {
      */
     public static String createJSON(String path, JSONObject defaultContent) throws DatabaseException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "createJSON called with null or empty path.");
+            Logger.log(Logger.TAG.ERROR, "[01067] createJSON called with null or empty path.");
             throw new DatabaseException("createJSON: path is null or empty.");
         }
         if (defaultContent == null) {
-            Logger.log(Logger.TAG.ERROR, "createJSON called with null defaultContent.");
+            Logger.log(Logger.TAG.ERROR, "[01068] createJSON called with null defaultContent.");
             throw new DatabaseException("createJSON: defaultContent is null.");
         }
 
@@ -1058,12 +1058,12 @@ public class DatabaseManager {
         try {
             jsonPath = Paths.get(path).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            Logger.log(Logger.TAG.ERROR, "createJSON: malformed path " + path);
+            Logger.log(Logger.TAG.ERROR, "[01069] createJSON: malformed path " + path);
             throw new DatabaseException("createJSON: malformed path: " + path, e);
         }
 
         if (Files.exists(jsonPath) && Files.isDirectory(jsonPath)) {
-            Logger.log(Logger.TAG.ERROR, "createJSON: target path points to a directory: " + jsonPath);
+            Logger.log(Logger.TAG.ERROR, "[01070] createJSON: target path points to a directory: " + jsonPath);
             throw new DatabaseException("createJSON: target path is a directory: " + jsonPath);
         }
 
@@ -1089,7 +1089,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "createJSON: failed to queue initialization batch for " + jsonPath);
+                Logger.log(Logger.TAG.ERROR, "[01071] createJSON: failed to queue initialization batch for " + jsonPath);
                 throw new DatabaseException("createJSON: failed to queue initialization batch for: " + jsonPath);
             }
 
@@ -1097,13 +1097,13 @@ public class DatabaseManager {
             return jsonPath.toString();
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "createJSON: batch creation failed for " + jsonPath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01072] createJSON: batch creation failed for " + jsonPath + ": " + e.getMessage());
             throw new DatabaseException("createJSON: failed to build batch for default content: " + jsonPath, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "createJSON: queue insertion failed for " + jsonPath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01073] createJSON: queue insertion failed for " + jsonPath + ": " + e.getMessage());
             throw new DatabaseException("createJSON: queue insertion error for: " + jsonPath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "createJSON: unexpected error for " + jsonPath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01074] createJSON: unexpected error for " + jsonPath + ": " + e.getMessage());
             throw new DatabaseException("createJSON: unexpected error creating JSON file: " + jsonPath, e);
         }
     }
@@ -1139,7 +1139,7 @@ public class DatabaseManager {
             throws DatabaseException {
 
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01075] ensureJSONIntegrity: path is null or empty.");
             throw new DatabaseException("ensureJSONIntegrity: path is null or empty.");
         }
 
@@ -1149,18 +1149,18 @@ public class DatabaseManager {
         // 1) Handle missing file (journal-first reconstruction)
         if (!fileExists(jsonPath.toString())) {
             if (!autoRepair) {
-                Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: file not found (no repair): " + jsonPath);
+                Logger.log(Logger.TAG.ERROR, "[01076] ensureJSONIntegrity: file not found (no repair): " + jsonPath);
                 throw new DatabaseException("ensureJSONIntegrity: file not found: " + jsonPath);
             }
 
-            Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: file missing; attempting reconstruction from journal/base: " + jsonPath);
+            Logger.log(Logger.TAG.WARN, "[01077] ensureJSONIntegrity: file missing; attempting reconstruction from journal/base: " + jsonPath);
             try {
                 // Try to let the queue rebuild from journal if present
                 try {
                     QueueManager.flushFile(jsonPath.toString(), /*materialize=*/true);
                     Logger.log(Logger.TAG.DEBUG, "ensureJSONIntegrity: flush attempted for missing file → " + jsonPath);
                 } catch (QueueException qe) {
-                    Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: flush failed on missing file (continuing): " + qe.getMessage());
+                    Logger.log(Logger.TAG.WARN, "[01078] ensureJSONIntegrity: flush failed on missing file (continuing): " + qe.getMessage());
                 }
 
                 Path base = jsonPath;
@@ -1176,32 +1176,32 @@ public class DatabaseManager {
                     try {
                         QueueManager.flushFile(jsonPath.toString(), /*materialize=*/true);
                     } catch (QueueException qe) {
-                        Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: post-repair materialize failed (continuing): " + qe.getMessage());
+                        Logger.log(Logger.TAG.WARN, "[01079] ensureJSONIntegrity: post-repair materialize failed (continuing): " + qe.getMessage());
                     }
                     Logger.log(Logger.TAG.INFO, "ensureJSONIntegrity: repaired missing file from journal/base: " + jsonPath);
                 } else {
                     // No way to reconstruct — create empty JSON as last resort
-                    Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: no base/journal present; initializing empty JSON for " + jsonPath);
+                    Logger.log(Logger.TAG.WARN, "[01080] ensureJSONIntegrity: no base/journal present; initializing empty JSON for " + jsonPath);
                     createJSON(jsonPath.toString(), new JSONObject());
                     try {
                         QueueManager.flushFile(jsonPath.toString(), /*materialize=*/true);
                         Logger.log(Logger.TAG.INFO, "ensureJSONIntegrity: materialized new empty base for " + jsonPath);
                     } catch (QueueException qe) {
-                        Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: materialize failed for new file " + jsonPath + " — " + qe.getMessage());
+                        Logger.log(Logger.TAG.ERROR, "[01081] ensureJSONIntegrity: materialize failed for new file " + jsonPath + " — " + qe.getMessage());
                         throw new DatabaseException("ensureJSONIntegrity: materialize failed for new file.", qe);
                     }
                     return new IntegrityReport(true, true, "object")
                             .add("Created missing file as empty JSON object (materialized).");
                 }
             } catch (Exception repairEx) {
-                Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: auto-repair reconstruction failed for "
+                Logger.log(Logger.TAG.ERROR, "[01082] ensureJSONIntegrity: auto-repair reconstruction failed for "
                         + jsonPath + ": " + repairEx.getMessage());
                 // Last resort to keep the system usable
                 createJSON(jsonPath.toString(), new JSONObject());
                 try {
                     QueueManager.flushFile(jsonPath.toString(), /*materialize=*/true);
                 } catch (QueueException qe) {
-                    Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: fallback materialize failed: " + qe.getMessage());
+                    Logger.log(Logger.TAG.WARN, "[01083] ensureJSONIntegrity: fallback materialize failed: " + qe.getMessage());
                 }
                 return new IntegrityReport(true, true, "object")
                         .add("Auto-repair reconstruction failed; initialized empty JSON (materialized).");
@@ -1213,15 +1213,15 @@ public class DatabaseManager {
         try {
             data = QueueManager.readValue(jsonPath.toString(), null, json -> json);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: queue read error (possible corruption): " + jsonPath + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01084] ensureJSONIntegrity: queue read error (possible corruption): " + jsonPath + " (" + e.getMessage() + ")");
 
             // Quarantine corrupt on-disk base (best effort)
             try {
                 QueueManager.RawIO.moveToCorrupt(jsonPath.toString());
-                Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: moved corrupt file to quarantine: " + jsonPath);
+                Logger.log(Logger.TAG.WARN, "[01085] ensureJSONIntegrity: moved corrupt file to quarantine: " + jsonPath);
                 Logger.logDump("ENSURE_QUARANTINE\npath=" + jsonPath + "\nerr=" + e.getMessage());
             } catch (Throwable quarantineFail) {
-                Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: quarantine failed for " + jsonPath + " — " + quarantineFail.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[01086] ensureJSONIntegrity: quarantine failed for " + jsonPath + " — " + quarantineFail.getMessage());
             }
 
             // Re-init cache to {} and materialize clean base
@@ -1238,7 +1238,7 @@ public class DatabaseManager {
         }
 
         if (data == null) {
-            Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: cache returned null for " + jsonPath);
+            Logger.log(Logger.TAG.ERROR, "[01087] ensureJSONIntegrity: cache returned null for " + jsonPath);
             throw new DatabaseException("ensureJSONIntegrity: cache returned null JSON for " + jsonPath);
         }
 
@@ -1248,19 +1248,19 @@ public class DatabaseManager {
         // 3) Detect illegal array root (your project policy keeps object root)
         if (enforceObject && data.opt("__ARRAY__") instanceof JSONArray) {
             if (!autoRepair) {
-                Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: array root found but enforceObject=true: " + jsonPath);
+                Logger.log(Logger.TAG.ERROR, "[01088] ensureJSONIntegrity: array root found but enforceObject=true: " + jsonPath);
                 throw new DatabaseException("ensureJSONIntegrity: file has array root but enforceObject=true.");
             }
 
             try {
-                Logger.log(Logger.TAG.WARN, "ensureJSONIntegrity: repairing array root to object: " + jsonPath);
+                Logger.log(Logger.TAG.WARN, "[01089] ensureJSONIntegrity: repairing array root to object: " + jsonPath);
                 QueueManager.Batch b = BatchManager.buildReplaceRoot(new JSONObject());
                 QueueManager.enqueueBatchAndGet(jsonPath.toString(), null, b, json -> true);
                 QueueManager.flushFile(jsonPath.toString(), /*materialize=*/true); // materialize after repair
                 modified = true;
                 topType = "object";
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: failed to replace array root for " + jsonPath + ": " + e.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[01090] ensureJSONIntegrity: failed to replace array root for " + jsonPath + ": " + e.getMessage());
                 throw new DatabaseException("ensureJSONIntegrity: failed to replace array root with object.", e);
             }
 
@@ -1279,7 +1279,7 @@ public class DatabaseManager {
                 modified = true;
             }
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "ensureJSONIntegrity: normalization failed for " + jsonPath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01091] ensureJSONIntegrity: normalization failed for " + jsonPath + ": " + e.getMessage());
             throw new DatabaseException("ensureJSONIntegrity: failed to normalize JSON formatting.", e);
         }
 
@@ -1314,7 +1314,7 @@ public class DatabaseManager {
      */
     public static Object readJSONPath(String filePath, String jsonPath) throws DatabaseException {
         if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "readJSONPath: file path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01092] readJSONPath: file path is null or empty.");
             throw new DatabaseException("readJSONPath: file path is null or empty.");
         }
 
@@ -1384,10 +1384,10 @@ public class DatabaseManager {
             return result;
 
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error for file: " + filePath + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01093] Queue read error for file: " + filePath + " (" + e.getMessage() + ")");
             throw new DatabaseException("Queue read error for file: " + filePath, e);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "Failed to read JSON path " + pathForLog + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01094] Failed to read JSON path " + pathForLog + ": " + e.getMessage());
             throw e;
         }
     }
@@ -1417,7 +1417,7 @@ public class DatabaseManager {
             throws DatabaseException {
 
         if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "writeJSONPath: file path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01095] writeJSONPath: file path is null or empty.");
             throw new DatabaseException("writeJSONPath: file path is null or empty.");
         }
 
@@ -1437,7 +1437,7 @@ public class DatabaseManager {
                     Logger.log(Logger.TAG.DEBUG, "writeJSONPath(<root>): JSONObject replacement, keys=" + obj.keySet().size());
                     batch = BatchManager.buildReplaceRoot(obj);
                 } else if (value instanceof org.json.JSONArray) {
-                    Logger.log(Logger.TAG.ERROR, "writeJSONPath(<root>): root arrays are not allowed.");
+                    Logger.log(Logger.TAG.ERROR, "[01096] writeJSONPath(<root>): root arrays are not allowed.");
                     throw new DatabaseException("writeJSONPath(<root>): root arrays are not allowed.");
                 } else {
                     Logger.log(
@@ -1461,7 +1461,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager reported unsuccessful write for file: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01097] QueueManager reported unsuccessful write for file: " + filePath);
                 throw new DatabaseException("writeJSONPath: queue reported unsuccessful application.");
             }
 
@@ -1469,13 +1469,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "Batch build failed for path " + pathForLog + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01098] Batch build failed for path " + pathForLog + ": " + e.getMessage());
             throw new DatabaseException("writeJSONPath: batch construction failed for path: " + (isRoot ? "<root>" : jsonPath), e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue error writing file '" + filePath + "': " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01099] Queue error writing file '" + filePath + "': " + e.getMessage());
             throw new DatabaseException("writeJSONPath: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected write error for path " + pathForLog + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01100] Unexpected write error for path " + pathForLog + ": " + e.getMessage());
             throw new DatabaseException("writeJSONPath: unexpected error applying write to cache.", e);
         }
     }
@@ -1501,7 +1501,7 @@ public class DatabaseManager {
      */
     public static boolean removeJSONPath(String filePath, String jsonPath) throws DatabaseException {
         if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "removeJSONPath: file path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01101] removeJSONPath: file path is null or empty.");
             throw new DatabaseException("removeJSONPath: file path is null or empty.");
         }
 
@@ -1529,7 +1529,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager failed to apply removal batch for file: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01102] QueueManager failed to apply removal batch for file: " + filePath);
                 throw new DatabaseException("removeJSONPath: queue failed to apply removal batch.");
             }
 
@@ -1537,13 +1537,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "Batch build failed for removal path " + pathForLog + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01103] Batch build failed for removal path " + pathForLog + ": " + e.getMessage());
             throw new DatabaseException("removeJSONPath: batch construction failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue error removing path " + pathForLog + " from file: " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01104] Queue error removing path " + pathForLog + " from file: " + filePath);
             throw new DatabaseException("removeJSONPath: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected error removing JSON path " + pathForLog + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01105] Unexpected error removing JSON path " + pathForLog + ": " + e.getMessage());
             throw new DatabaseException("removeJSONPath: unexpected error applying removal to cache.", e);
         }
     }
@@ -1638,10 +1638,10 @@ public class DatabaseManager {
             Logger.log(Logger.TAG.INFO, "containsJSONPath → " + result + " (" + pathForLog + ")");
             return result;
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error in containsJSONPath: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01106] Queue read error in containsJSONPath: " + e.getMessage());
             throw new DatabaseException("containsJSONPath: queue read error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected cache traversal error in containsJSONPath: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01107] Unexpected cache traversal error in containsJSONPath: " + e.getMessage());
             throw new DatabaseException("containsJSONPath: unexpected cache traversal error.", e);
         }
     }
@@ -1704,7 +1704,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "appendJSONArray queue failed for: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01108] appendJSONArray queue failed for: " + filePath);
                 throw new DatabaseException("appendJSONArray: queue failed to apply append batch for: " + filePath);
             }
 
@@ -1712,13 +1712,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "Batch construction failed in appendJSONArray: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01109] Batch construction failed in appendJSONArray: " + e.getMessage());
             throw new DatabaseException("appendJSONArray: batch construction failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue error in appendJSONArray for file: " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01110] Queue error in appendJSONArray for file: " + filePath);
             throw new DatabaseException("appendJSONArray: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected cache append error in appendJSONArray: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01111] Unexpected cache append error in appendJSONArray: " + e.getMessage());
             throw new DatabaseException("appendJSONArray: unexpected error applying append to cache.", e);
         }
     }
@@ -1820,10 +1820,10 @@ public class DatabaseManager {
             return count;
 
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error in countJSONArray: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01112] Queue read error in countJSONArray: " + e.getMessage());
             throw new DatabaseException("countJSONArray: queue read error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected traversal error in countJSONArray: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01113] Unexpected traversal error in countJSONArray: " + e.getMessage());
             throw new DatabaseException("countJSONArray: unexpected cache traversal error.", e);
         }
     }
@@ -1922,13 +1922,13 @@ public class DatabaseManager {
             return result;
 
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error in listJSONKeys for " + filePath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01114] Queue read error in listJSONKeys for " + filePath + ": " + e.getMessage());
             throw new DatabaseException("listJSONKeys: queue read error for file: " + filePath, e);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "listJSONKeys failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01115] listJSONKeys failed: " + e.getMessage());
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected error in listJSONKeys: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01116] Unexpected error in listJSONKeys: " + e.getMessage());
             throw new DatabaseException("listJSONKeys: unexpected error traversing cache.", e);
         }
     }
@@ -2015,13 +2015,13 @@ public class DatabaseManager {
             return type;
 
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error in getTypeAtPath for " + filePath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01117] Queue read error in getTypeAtPath for " + filePath + ": " + e.getMessage());
             throw new DatabaseException("getTypeAtPath: queue read error for file: " + filePath, e);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "getTypeAtPath failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01118] getTypeAtPath failed: " + e.getMessage());
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected error in getTypeAtPath: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01119] Unexpected error in getTypeAtPath: " + e.getMessage());
             throw new DatabaseException("getTypeAtPath: unexpected cache traversal error.", e);
         }
     }
@@ -2075,7 +2075,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "Queue failed to apply rename batch for " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01120] Queue failed to apply rename batch for " + filePath);
                 throw new DatabaseException("renameJSONKey: queue failed to apply rename batch for: " + filePath);
             }
 
@@ -2083,13 +2083,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "Batch creation failed for renameJSONKey at " + pathForLog + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01121] Batch creation failed for renameJSONKey at " + pathForLog + ": " + e.getMessage());
             throw new DatabaseException("renameJSONKey: batch creation failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue error during renameJSONKey for " + filePath + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01122] Queue error during renameJSONKey for " + filePath + ": " + e.getMessage());
             throw new DatabaseException("renameJSONKey: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected renameJSONKey error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01123] Unexpected renameJSONKey error: " + e.getMessage());
             throw new DatabaseException("renameJSONKey: unexpected error during rename operation.", e);
         }
     }
@@ -2141,7 +2141,7 @@ public class DatabaseManager {
                         try {
                             return fromRoot ? root : readJSONPath(filePath, fromPath);
                         } catch (Exception e) {
-                            Logger.log(Logger.TAG.ERROR, "Failed to read value at source path: " + fromPath);
+                            Logger.log(Logger.TAG.ERROR, "[01124] Failed to read value at source path: " + fromPath);
                             throw new DatabaseException("moveJSONPath: failed to read value from source path: " + fromPath, e);
                         }
                     }
@@ -2165,7 +2165,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "Queue failed to apply move batch for: " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01125] Queue failed to apply move batch for: " + filePath);
                 throw new DatabaseException("moveJSONPath: queue failed to apply move batch for: " + filePath);
             }
 
@@ -2175,16 +2175,16 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "Batch construction failed (" +
+            Logger.log(Logger.TAG.ERROR, "[01126] Batch construction failed (" +
                     (fromRoot ? "<root>" : fromPath) + " → " + (toRoot ? "<root>" : toPath) +
                     "): " + e.getMessage());
             throw new DatabaseException("moveJSONPath: batch construction failed for fromPath: " +
                     (fromRoot ? "<root>" : fromPath) + " → " + (toRoot ? "<root>" : toPath), e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue operation failed for file: " + filePath + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.ERROR, "[01127] Queue operation failed for file: " + filePath + " (" + e.getMessage() + ")");
             throw new DatabaseException("moveJSONPath: queue operation failed for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected cache-level error during move operation: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01128] Unexpected cache-level error during move operation: " + e.getMessage());
             throw new DatabaseException("moveJSONPath: unexpected cache-level error during move operation.", e);
         }
     }
@@ -2238,12 +2238,12 @@ public class DatabaseManager {
                                     QueueManager.flushFile(filePath, /*materialize=*/true);
                                     Logger.log(Logger.TAG.INFO, "sanitizeJSON: materialized repaired base for " + filePath);
                                 } catch (QueueException qe) {
-                                    Logger.log(Logger.TAG.ERROR, "sanitizeJSON: materialize failed after repair for " + filePath + " — " + qe.getMessage());
+                                    Logger.log(Logger.TAG.ERROR, "[01129] sanitizeJSON: materialize failed after repair for " + filePath + " — " + qe.getMessage());
                                     throw new DatabaseException("sanitizeJSON: materialize failed after repair.", qe);
                                 }
 
                             } catch (Exception e) {
-                                Logger.log(Logger.TAG.ERROR, "Failed to enqueue sanitized structure for: " + filePath);
+                                Logger.log(Logger.TAG.ERROR, "[01130] Failed to enqueue sanitized structure for: " + filePath);
                                 throw new DatabaseException("sanitizeJSON: failed to enqueue sanitized structure.", e);
                             }
                         } else {
@@ -2254,12 +2254,12 @@ public class DatabaseManager {
                     }
             );
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error during sanitizeJSON for: " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01131] Queue read error during sanitizeJSON for: " + filePath);
             throw new DatabaseException("sanitizeJSON: queue read error for file: " + filePath, e);
         } catch (DatabaseException e) {
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected cache traversal error during sanitizeJSON for: " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01132] Unexpected cache traversal error during sanitizeJSON for: " + filePath);
             throw new DatabaseException("sanitizeJSON: unexpected cache traversal error.", e);
         }
     }
@@ -2431,7 +2431,7 @@ public class DatabaseManager {
      */
     public static String buildJSONTree(String filePath, boolean compact) throws DatabaseException {
         if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "buildJSONTree: file path null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01133] buildJSONTree: file path null or empty.");
             throw new DatabaseException("buildJSONTree: file path is null or empty.");
         }
 
@@ -2451,13 +2451,13 @@ public class DatabaseManager {
             return result;
 
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "Queue read error while building JSON tree for " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01134] Queue read error while building JSON tree for " + filePath);
             throw new DatabaseException("buildJSONTree: queue read error for file: " + filePath, e);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "DatabaseException while building JSON tree: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01135] DatabaseException while building JSON tree: " + e.getMessage());
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Unexpected error during buildJSONTree: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01136] Unexpected error during buildJSONTree: " + e.getMessage());
             throw new DatabaseException("buildJSONTree: unexpected error while generating JSON tree.", e);
         }
     }
@@ -2524,7 +2524,7 @@ public class DatabaseManager {
      */
     public static boolean clearJSONArray(String filePath, String jsonPath) throws DatabaseException {
         if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONArray: file path null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01137] clearJSONArray: file path null or empty.");
             throw new DatabaseException("clearJSONArray: file path is null or empty.");
         }
 
@@ -2555,7 +2555,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "clearJSONArray: queue failed for " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01138] clearJSONArray: queue failed for " + filePath);
                 throw new DatabaseException("clearJSONArray: queue failed to apply array clear batch for: " + filePath);
             }
 
@@ -2563,13 +2563,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONArray: batch creation failed (" + pathForLog + ")");
+            Logger.log(Logger.TAG.ERROR, "[01139] clearJSONArray: batch creation failed (" + pathForLog + ")");
             throw new DatabaseException("clearJSONArray: batch creation failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONArray: queue error for file " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01140] clearJSONArray: queue error for file " + filePath);
             throw new DatabaseException("clearJSONArray: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONArray: unexpected cache-level error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01141] clearJSONArray: unexpected cache-level error: " + e.getMessage());
             throw new DatabaseException("clearJSONArray: unexpected cache-level error during array clear.", e);
         }
     }
@@ -2596,7 +2596,7 @@ public class DatabaseManager {
      */
     public static boolean clearJSONObject(String filePath, String jsonPath) throws DatabaseException {
         if (filePath == null || filePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONObject: file path null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01142] clearJSONObject: file path null or empty.");
             throw new DatabaseException("clearJSONObject: file path is null or empty.");
         }
 
@@ -2631,7 +2631,7 @@ public class DatabaseManager {
             );
 
             if (!Boolean.TRUE.equals(result)) {
-                Logger.log(Logger.TAG.ERROR, "clearJSONObject: queue failed for " + filePath);
+                Logger.log(Logger.TAG.ERROR, "[01143] clearJSONObject: queue failed for " + filePath);
                 throw new DatabaseException("clearJSONObject: queue failed to apply object clear batch for: " + filePath);
             }
 
@@ -2639,13 +2639,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONObject: batch creation failed (" + pathForLog + ")");
+            Logger.log(Logger.TAG.ERROR, "[01144] clearJSONObject: batch creation failed (" + pathForLog + ")");
             throw new DatabaseException("clearJSONObject: batch creation failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONObject: queue error for file " + filePath);
+            Logger.log(Logger.TAG.ERROR, "[01145] clearJSONObject: queue error for file " + filePath);
             throw new DatabaseException("clearJSONObject: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "clearJSONObject: unexpected cache-level error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01146] clearJSONObject: unexpected cache-level error: " + e.getMessage());
             throw new DatabaseException("clearJSONObject: unexpected cache-level error during object clear.", e);
         }
     }
@@ -2720,13 +2720,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "insertJSONArray batch construction failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01147] insertJSONArray batch construction failed: " + e.getMessage());
             throw new DatabaseException("insertJSONArray: batch construction failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "insertJSONArray queue error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01148] insertJSONArray queue error: " + e.getMessage());
             throw new DatabaseException("insertJSONArray: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "insertJSONArray unexpected error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01149] insertJSONArray unexpected error: " + e.getMessage());
             throw new DatabaseException("insertJSONArray: unexpected cache-level error during array insert.", e);
         }
     }
@@ -2799,13 +2799,13 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "replaceJSONArray batch construction failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01150] replaceJSONArray batch construction failed: " + e.getMessage());
             throw new DatabaseException("replaceJSONArray: batch construction failed for path: " + pathForLog, e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "replaceJSONArray queue error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01151] replaceJSONArray queue error: " + e.getMessage());
             throw new DatabaseException("replaceJSONArray: queue error for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "replaceJSONArray unexpected error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01152] replaceJSONArray unexpected error: " + e.getMessage());
             throw new DatabaseException("replaceJSONArray: unexpected cache-level error during array replace.", e);
         }
     }
@@ -2915,12 +2915,12 @@ public class DatabaseManager {
             return result;
 
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "findJSONArray queue read error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01153] findJSONArray queue read error: " + e.getMessage());
             throw new DatabaseException("findJSONArray: queue read error for file: " + filePath, e);
         } catch (DatabaseException e) {
             throw e;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "findJSONArray unexpected error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01154] findJSONArray unexpected error: " + e.getMessage());
             throw new DatabaseException("findJSONArray: unexpected error during cache search.", e);
         }
     }
@@ -3005,14 +3005,14 @@ public class DatabaseManager {
             return true;
 
         } catch (BatchException e) {
-            Logger.log(Logger.TAG.ERROR, "copyJSONPath batch build failed: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01155] copyJSONPath batch build failed: " + e.getMessage());
             throw new DatabaseException("copyJSONPath: batch construction failed (" +
                     (fromRoot ? "<root>" : fromPath) + " → " + (toRoot ? "<root>" : toPath) + ")", e);
         } catch (QueueException e) {
-            Logger.log(Logger.TAG.ERROR, "copyJSONPath queue error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01156] copyJSONPath queue error: " + e.getMessage());
             throw new DatabaseException("copyJSONPath: queue operation failed for file: " + filePath, e);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "copyJSONPath unexpected error: " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01157] copyJSONPath unexpected error: " + e.getMessage());
             throw new DatabaseException("copyJSONPath: unexpected cache-level error during copy operation.", e);
         }
     }
@@ -3148,7 +3148,7 @@ public class DatabaseManager {
      */
     private static Segment parseSegment(String token) throws DatabaseException {
         if (token == null || token.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "parseSegment: malformed path (empty segment)");
+            Logger.log(Logger.TAG.ERROR, "[01158] parseSegment: malformed path (empty segment)");
             throw new DatabaseException("Malformed path: empty segment");
         }
 
@@ -3159,7 +3159,7 @@ public class DatabaseManager {
             try {
                 idxs.add(Integer.parseInt(m.group(1)));
             } catch (NumberFormatException nfe) {
-                Logger.log(Logger.TAG.ERROR, "Malformed array index in segment '" + token + "'");
+                Logger.log(Logger.TAG.ERROR, "[01159] Malformed array index in segment '" + token + "'");
                 throw new DatabaseException("Malformed array index in segment '" + token + "'", nfe);
             }
         }
@@ -3267,7 +3267,7 @@ public class DatabaseManager {
                 return new ParseResult(true, null, "array", null, a);
             } catch (Exception e2) {
                 String msg = (e1.getMessage() != null ? e1.getMessage() : "Unknown parse error");
-                Logger.log(Logger.TAG.ERROR, "tryParseJSON failed: " + msg);
+                Logger.log(Logger.TAG.ERROR, "[01160] tryParseJSON failed: " + msg);
                 return new ParseResult(false, msg, null, null, null);
             }
         }
@@ -3319,7 +3319,7 @@ public class DatabaseManager {
         Logger.log(Logger.TAG.SYSTEM, "readJSONRaw(begin): path=" + path);
 
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "readJSONRaw: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01161] readJSONRaw: path is null or empty.");
             throw new IllegalArgumentException("readJSONRaw: path is null or empty");
         }
 
@@ -3367,7 +3367,7 @@ public class DatabaseManager {
                 if (journalExists && journalBytes > 0) {
                     Logger.log(Logger.TAG.INFO, "readJSONRaw: base not found; reconstructing from journal: " + path);
                 } else {
-                    Logger.log(Logger.TAG.WARN, "readJSONRaw: base file not found, starting from {}: " + path);
+                    Logger.log(Logger.TAG.WARN, "[01162] readJSONRaw: base file not found, starting from {}: " + path);
                 }
                 parsed = new JSONObject();
             }
@@ -3390,7 +3390,7 @@ public class DatabaseManager {
                         try {
                             rec = new org.json.JSONObject(raw);
                         } catch (org.json.JSONException je) {
-                            Logger.log(Logger.TAG.ERROR, "readJSONRaw: bad journal JSON at line " + ln +
+                            Logger.log(Logger.TAG.ERROR, "[01163] readJSONRaw: bad journal JSON at line " + ln +
                                     " of " + journal + " — " + je.getMessage());
 
                             // >>> DUMP: malformed journal line (truncate to 512 chars)
@@ -3485,7 +3485,7 @@ public class DatabaseManager {
             return parsed;
 
         } catch (org.json.JSONException je) {
-            Logger.log(Logger.TAG.ERROR, "readJSONRaw: invalid JSON in base or journal merge: " + path + " — " + je.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01164] readJSONRaw: invalid JSON in base or journal merge: " + path + " — " + je.getMessage());
 
             // >>> DUMP: base/merged invalid JSON (include first 512 bytes of file if possible)
             try {
@@ -3506,7 +3506,7 @@ public class DatabaseManager {
             throw new Exception("Invalid JSON while reading/merging " + path, je);
 
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "readJSONRaw: I/O or replay error for " + path + ": " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01165] readJSONRaw: I/O or replay error for " + path + ": " + e.getMessage());
 
             // >>> DUMP: overall replay failure
             try {
@@ -3532,7 +3532,7 @@ public class DatabaseManager {
     public static void writeJSONRaw(String path, JSONObject data) throws Exception {
         final long t0 = System.nanoTime();
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "writeJSONRaw: path is null or empty");
+            Logger.log(Logger.TAG.ERROR, "[01166] writeJSONRaw: path is null or empty");
             throw new IllegalArgumentException("writeJSONRaw: path is null or empty");
         }
         if (data == null) data = new JSONObject();
@@ -3555,7 +3555,7 @@ public class DatabaseManager {
                 java.nio.file.Files.createDirectories(parent);
                 Logger.log(Logger.TAG.INFO, "writeJSONRaw: parent dirs created: " + parent);
             } catch (Exception mk) {
-                Logger.log(Logger.TAG.ERROR, "writeJSONRaw: failed to create parent dir: " + parent + " (" + mk.getClass().getSimpleName() + ")");
+                Logger.log(Logger.TAG.ERROR, "[01167] writeJSONRaw: failed to create parent dir: " + parent + " (" + mk.getClass().getSimpleName() + ")");
                 throw new Exception("writeJSONRaw: failed to create parent directories for " + path, mk);
             }
         }
@@ -3596,7 +3596,7 @@ public class DatabaseManager {
                 Logger.log(Logger.TAG.DEBUG, "writeJSONRaw: moved with ATOMIC_MOVE ("
                         + ((System.nanoTime() - m0) / 1_000_000) + " ms)");
             } catch (java.nio.file.AtomicMoveNotSupportedException amnse) {
-                Logger.log(Logger.TAG.WARN, "writeJSONRaw: ATOMIC_MOVE not supported; using REPLACE_EXISTING (" + amnse.getMessage() + ")");
+                Logger.log(Logger.TAG.WARN, "[01168] writeJSONRaw: ATOMIC_MOVE not supported; using REPLACE_EXISTING (" + amnse.getMessage() + ")");
                 java.nio.file.Files.move(tmp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 Logger.log(Logger.TAG.DEBUG, "writeJSONRaw: moved with REPLACE_EXISTING ("
                         + ((System.nanoTime() - m0) / 1_000_000) + " ms)");
@@ -3610,7 +3610,7 @@ public class DatabaseManager {
                     dirCh.force(true);
                 } catch (Exception dirSyncFail) {
                     // Non-fatal on Windows; directory handles can be weird.
-                    Logger.log(Logger.TAG.WARN, "writeJSONRaw: dir fsync skipped (" + dirSyncFail.getClass().getSimpleName() + ")");
+                    Logger.log(Logger.TAG.WARN, "[01169] writeJSONRaw: dir fsync skipped (" + dirSyncFail.getClass().getSimpleName() + ")");
                 }
                 Logger.log(Logger.TAG.DEBUG, "writeJSONRaw: dir fsync done ("
                         + ((System.nanoTime() - d0) / 1_000_000) + " ms)");
@@ -3637,7 +3637,7 @@ public class DatabaseManager {
             } catch (Exception ignore) {
                 Logger.log(Logger.TAG.DEBUG, "writeJSONRaw: temp cleanup failed (" + ignore.getClass().getSimpleName() + "): " + ignore.getMessage());
             }
-            Logger.log(Logger.TAG.ERROR, "writeJSONRaw: failure for " + path + " — "
+            Logger.log(Logger.TAG.ERROR, "[01170] writeJSONRaw: failure for " + path + " — "
                     + e.getClass().getSimpleName() + ": " + e.getMessage());
             throw new Exception("I/O or validation error while writing JSON to " + path, e);
         }
@@ -3654,7 +3654,7 @@ public class DatabaseManager {
         Logger.logDump("CORRUPT_QUARANTINE_BEGIN\npath=" + path);
 
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "moveToCorrupt: path is null or empty.");
+            Logger.log(Logger.TAG.ERROR, "[01171] moveToCorrupt: path is null or empty.");
             Logger.logDump("CORRUPT_QUARANTINE_ABORT\npath=" + path + "\nreason=null_or_blank");
             throw new IllegalArgumentException("moveToCorrupt: path is null or empty");
         }
@@ -3663,7 +3663,7 @@ public class DatabaseManager {
         java.io.File srcFile = src.toFile();
 
         if (!srcFile.exists()) {
-            Logger.log(Logger.TAG.WARN, "moveToCorrupt: attempted to move nonexistent file: " + src);
+            Logger.log(Logger.TAG.WARN, "[01172] moveToCorrupt: attempted to move nonexistent file: " + src);
             Logger.logDump("CORRUPT_QUARANTINE_SKIP_NONEXISTENT\npath=" + src);
             Logger.log(Logger.TAG.SYSTEM, "moveToCorrupt(end): path=" + path + " elapsedMs=" + ((System.nanoTime()-t0)/1_000_000));
             return;
@@ -3711,7 +3711,7 @@ public class DatabaseManager {
             java.nio.file.Files.move(src, dest,
                     java.nio.file.StandardCopyOption.ATOMIC_MOVE,
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            Logger.log(Logger.TAG.WARN, "Corrupt file moved (atomic): " + src.getFileName() + " → " + dest);
+            Logger.log(Logger.TAG.WARN, "[01173] Corrupt file moved (atomic): " + src.getFileName() + " → " + dest);
 
             // DUMP: success via atomic
             Logger.logDump(
@@ -3749,7 +3749,7 @@ public class DatabaseManager {
                 // Try to delete source (may fail on Windows if locked)
                 try {
                     java.nio.file.Files.delete(src);
-                    Logger.log(Logger.TAG.WARN, "Corrupt file copied & deleted: " + src.getFileName() + " → " + dest);
+                    Logger.log(Logger.TAG.WARN, "[01174] Corrupt file copied & deleted: " + src.getFileName() + " → " + dest);
 
                     // DUMP: success via copy+delete
                     Logger.logDump(
@@ -3761,7 +3761,7 @@ public class DatabaseManager {
                     );
 
                 } catch (Exception delFail) {
-                    Logger.log(Logger.TAG.ERROR, "moveToCorrupt: source delete failed after copy (likely locked). "
+                    Logger.log(Logger.TAG.ERROR, "[01175] moveToCorrupt: source delete failed after copy (likely locked). "
                             + "Left original in place. " + delFail.getClass().getSimpleName() + ": " + delFail.getMessage());
 
                     // DUMP: copy succeeded but delete failed
@@ -3776,7 +3776,7 @@ public class DatabaseManager {
                 }
 
             } catch (Exception copyFail) {
-                Logger.log(Logger.TAG.ERROR, "moveToCorrupt: copy+delete fallback failed: "
+                Logger.log(Logger.TAG.ERROR, "[01176] moveToCorrupt: copy+delete fallback failed: "
                         + copyFail.getClass().getSimpleName() + ": " + copyFail.getMessage());
 
                 // DUMP: fallback failed
@@ -3846,7 +3846,7 @@ public class DatabaseManager {
             if (QueueManager.Config.JOURNAL_MAX_BYTES > 0 && java.nio.file.Files.exists(journal)) {
                 long size = java.nio.file.Files.size(journal);
                 if (size >= QueueManager.Config.JOURNAL_MAX_BYTES) {
-                    Logger.log(Logger.TAG.WARN, "appendJSONPatch: journal size " + size +
+                    Logger.log(Logger.TAG.WARN, "[01177] appendJSONPatch: journal size " + size +
                             " ≥ cap " + QueueManager.Config.JOURNAL_MAX_BYTES + " → rotating: " + journal);
                     rotate = true;
                 }
@@ -3859,7 +3859,7 @@ public class DatabaseManager {
                     while (br.readLine() != null) lines++;
                 }
                 if (lines >= QueueManager.Config.JOURNAL_MAX_RECORDS) {
-                    Logger.log(Logger.TAG.WARN, "appendJSONPatch: journal lines " + lines +
+                    Logger.log(Logger.TAG.WARN, "[01178] appendJSONPatch: journal lines " + lines +
                             " ≥ cap " + QueueManager.Config.JOURNAL_MAX_RECORDS + " → rotating: " + journal);
                     rotate = true;
                 }
@@ -3881,13 +3881,13 @@ public class DatabaseManager {
                     }
                     Logger.log(Logger.TAG.INFO, "appendJSONPatch: rotation complete (journal truncated): " + journal);
                 } catch (Exception rotEx) {
-                    Logger.log(Logger.TAG.ERROR, "appendJSONPatch: rotation failed for " + journal +
+                    Logger.log(Logger.TAG.ERROR, "[01179] appendJSONPatch: rotation failed for " + journal +
                             " — " + rotEx.getMessage() + " (continuing without rotation)");
                 }
             }
         } catch (Exception rotGateEx) {
             // Rotation gate failure must not block forward progress
-            Logger.log(Logger.TAG.ERROR, "appendJSONPatch: rotation gate check failed — " + rotGateEx.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[01180] appendJSONPatch: rotation gate check failed — " + rotGateEx.getMessage());
         }
 
         // --- Build one NDJSON record: {"ts":..., "patch":{ "a.b": <val or null>, ... }} ---
@@ -3998,3 +3998,5 @@ public class DatabaseManager {
         }
     }
 }
+
+

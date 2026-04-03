@@ -139,11 +139,11 @@ public final class QueueManager {
         /** Binds a loader function for reading JSON files. */
         public static void bindLoader(RawLoader l) {
             if (l == null) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager.RawIO: bindLoader received null.");
+                Logger.log(Logger.TAG.ERROR, "[03001] QueueManager.RawIO: bindLoader received null.");
                 throw new IllegalArgumentException("RawIO.bindLoader: loader cannot be null");
             }
             if (LOADER != null) {
-                Logger.log(Logger.TAG.WARN, "QueueManager.RawIO: loader already bound; rebinding.");
+                Logger.log(Logger.TAG.WARN, "[03002] QueueManager.RawIO: loader already bound; rebinding.");
             }
             LOADER = l;
             Logger.log(Logger.TAG.SYSTEM, "QueueManager.RawIO: bound loader.");
@@ -152,11 +152,11 @@ public final class QueueManager {
         /** Binds a writer function for writing JSON files. */
         public static void bindWriter(RawWriter w) {
             if (w == null) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager.RawIO: bindWriter received null.");
+                Logger.log(Logger.TAG.ERROR, "[03003] QueueManager.RawIO: bindWriter received null.");
                 throw new IllegalArgumentException("RawIO.bindWriter: writer cannot be null");
             }
             if (WRITER != null) {
-                Logger.log(Logger.TAG.WARN, "QueueManager.RawIO: writer already bound; rebinding.");
+                Logger.log(Logger.TAG.WARN, "[03004] QueueManager.RawIO: writer already bound; rebinding.");
             }
             WRITER = w;
             Logger.log(Logger.TAG.SYSTEM, "QueueManager.RawIO: bound writer.");
@@ -165,11 +165,11 @@ public final class QueueManager {
         /** Binds a mover function for relocating corrupt files. */
         public static void bindMover(MoveToCorrupt m) {
             if (m == null) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager.RawIO: bindMover received null.");
+                Logger.log(Logger.TAG.ERROR, "[03005] QueueManager.RawIO: bindMover received null.");
                 throw new IllegalArgumentException("RawIO.bindMover: mover cannot be null");
             }
             if (MOVER != null) {
-                Logger.log(Logger.TAG.WARN, "QueueManager.RawIO: mover already bound; rebinding.");
+                Logger.log(Logger.TAG.WARN, "[03006] QueueManager.RawIO: mover already bound; rebinding.");
             }
             MOVER = m;
             Logger.log(Logger.TAG.SYSTEM, "QueueManager.RawIO: bound mover.");
@@ -178,11 +178,11 @@ public final class QueueManager {
         /** Binds a patch appender for delta persistence. */
         public static void bindPatchAppender(RawPatchAppender a) {
             if (a == null) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager.RawIO: bindPatchAppender received null.");
+                Logger.log(Logger.TAG.ERROR, "[03007] QueueManager.RawIO: bindPatchAppender received null.");
                 throw new IllegalArgumentException("RawIO.bindPatchAppender: appender cannot be null");
             }
             if (PATCH_APPENDER != null) {
-                Logger.log(Logger.TAG.WARN, "QueueManager.RawIO: patch appender already bound; rebinding.");
+                Logger.log(Logger.TAG.WARN, "[03008] QueueManager.RawIO: patch appender already bound; rebinding.");
             }
             PATCH_APPENDER = a;
             Logger.log(Logger.TAG.SYSTEM, "QueueManager.RawIO: bound patch appender.");
@@ -191,11 +191,11 @@ public final class QueueManager {
         /** New: bind materializer */
         public static void bindMaterializer(Materializer m) {
             if (m == null) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager.RawIO: bindMaterializer received null.");
+                Logger.log(Logger.TAG.ERROR, "[03009] QueueManager.RawIO: bindMaterializer received null.");
                 throw new IllegalArgumentException("RawIO.bindMaterializer: materializer cannot be null");
             }
             if (MATERIALIZER != null) {
-                Logger.log(Logger.TAG.WARN, "QueueManager.RawIO: materializer already bound; rebinding.");
+                Logger.log(Logger.TAG.WARN, "[03010] QueueManager.RawIO: materializer already bound; rebinding.");
             }
             MATERIALIZER = m;
             Logger.log(Logger.TAG.SYSTEM, "QueueManager.RawIO: bound materializer.");
@@ -204,7 +204,7 @@ public final class QueueManager {
         /** New: delegate (QueueException wrapper) */
         static void materialize(String path, JSONObject snapshot, boolean verify, boolean deleteJournal) throws QueueException {
             if (MATERIALIZER == null) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.materialize called before materializer bound.");
+                Logger.log(Logger.TAG.ERROR, "[03011] RawIO.materialize called before materializer bound.");
                 throw new QueueException("QueueManager.RawIO.MATERIALIZER not bound");
             }
             Logger.log(Logger.TAG.INFO, "RawIO.materialize(begin): " + path + " (verify=" + verify + ", dropJournal=" + deleteJournal + ")");
@@ -212,7 +212,7 @@ public final class QueueManager {
                 MATERIALIZER.materialize(path, snapshot, verify, deleteJournal);
                 Logger.log(Logger.TAG.INFO, "RawIO.materialize(done): " + path);
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.materialize(failed): " + path + " — " +
+                Logger.log(Logger.TAG.ERROR, "[03012] RawIO.materialize(failed): " + path + " — " +
                         t.getClass().getSimpleName() + ": " + t.getMessage());
                 throw new QueueException("materialize failed for " + path + ": " + t.getMessage(), t);
             }
@@ -239,8 +239,7 @@ public final class QueueManager {
                     double d = n.doubleValue();
                     if (Double.isNaN(d) || Double.isInfinite(d)) {
                         Logger.log(
-                                Logger.TAG.ERROR,
-                                "RawIO.validateJsonTree: invalid numeric value=" + n
+                                Logger.TAG.ERROR, "[03013] RawIO.validateJsonTree: invalid numeric value=" + n
                         );
                         throw new QueueException("Invalid numeric value in JSON: " + n);
                     }
@@ -253,8 +252,7 @@ public final class QueueManager {
 
                 } else {
                     Logger.log(
-                            Logger.TAG.ERROR,
-                            "RawIO.validateJsonTree: unsupported type=" + node.getClass().getName()
+                            Logger.TAG.ERROR, "[03014] RawIO.validateJsonTree: unsupported type=" + node.getClass().getName()
                     );
                     throw new QueueException(
                             "Unsupported JSON type: " + node.getClass().getName()
@@ -266,8 +264,7 @@ public final class QueueManager {
 
             } catch (Throwable t) {
                 Logger.log(
-                        Logger.TAG.ERROR,
-                        "RawIO.validateJsonTree: failure " +
+                        Logger.TAG.ERROR, "[03015] RawIO.validateJsonTree: failure " +
                                 t.getClass().getSimpleName() + ": " + t.getMessage()
                 );
                 throw new QueueException(
@@ -289,7 +286,7 @@ public final class QueueManager {
                 Logger.log(Logger.TAG.DEBUG, "RawIO.roundTripCheck: reparsed size=" + reparsed.length());
                 // quick structural probe (size equality is a coarse check but helps catch truncation)
                 if (obj.length() != reparsed.length()) {
-                    Logger.log(Logger.TAG.ERROR, "RawIO.roundTripCheck: size mismatch ctx=" + contextPath
+                    Logger.log(Logger.TAG.ERROR, "[03016] RawIO.roundTripCheck: size mismatch ctx=" + contextPath
                             + " orig=" + obj.length() + " reparsed=" + reparsed.length());
                     throw new QueueException("Round-trip size mismatch for " + contextPath
                             + " (" + obj.length() + " vs " + reparsed.length() + ")");
@@ -298,7 +295,7 @@ public final class QueueManager {
             } catch (QueueException q) {
                 throw q;
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.roundTripCheck: failed ctx=" + contextPath + " err=" + t.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03017] RawIO.roundTripCheck: failed ctx=" + contextPath + " err=" + t.getMessage());
                 throw new QueueException("Round-trip parse failed for " + contextPath + ": " + t.getMessage(), t);
             }
         }
@@ -310,7 +307,7 @@ public final class QueueManager {
          */
         static JSONObject load(String path) throws QueueException {
             if (LOADER == null) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.load called before loader bound (path=" + path + ")");
+                Logger.log(Logger.TAG.ERROR, "[03018] RawIO.load called before loader bound (path=" + path + ")");
                 throw new QueueException("QueueManager.RawIO.LOADER not bound (path=" + path + ")");
             }
             Logger.log(Logger.TAG.INFO, "RawIO.load(begin): " + path);
@@ -335,10 +332,10 @@ public final class QueueManager {
                 Logger.log(Logger.TAG.INFO, "RawIO.load(done): " + path + " (size=" + obj.length() + ")");
                 return obj;
             } catch (QueueException q) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.load(failed): " + path + " — " + q.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03019] RawIO.load(failed): " + path + " — " + q.getMessage());
                 throw q;
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.load(failed): " + path + " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03020] RawIO.load(failed): " + path + " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
                 throw new QueueException("RawIO.load failed for " + path + ": " + t.getMessage(), t);
             }
         }
@@ -353,11 +350,11 @@ public final class QueueManager {
          */
         static void write(String path, JSONObject json) throws QueueException {
             if (WRITER == null) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.write called before writer bound.");
+                Logger.log(Logger.TAG.ERROR, "[03021] RawIO.write called before writer bound.");
                 throw new QueueException("QueueManager.RawIO.WRITER not bound");
             }
             if (json == null) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.write received null JSON for " + path);
+                Logger.log(Logger.TAG.ERROR, "[03022] RawIO.write received null JSON for " + path);
                 throw new QueueException("RawIO.write: null JSON for " + path);
             }
 
@@ -378,13 +375,13 @@ public final class QueueManager {
 
                 // Read-back verify to ensure on-disk is healthy
                 if (LOADER == null) {
-                    Logger.log(Logger.TAG.WARN, "RawIO.write: LOADER not bound; skipping read-back verify for " + path);
+                    Logger.log(Logger.TAG.WARN, "[03023] RawIO.write: LOADER not bound; skipping read-back verify for " + path);
                 } else {
                     Logger.log(Logger.TAG.DEBUG, "RawIO.write: read-back verify(start) path=" + path);
                     JSONObject verify = LOADER.load(path);
                     Logger.log(Logger.TAG.DEBUG, "RawIO.write: read-back verify got " + (verify == null ? "null" : ("JSONObject size=" + verify.length())));
                     if (verify == null) {
-                        Logger.log(Logger.TAG.ERROR, "RawIO.write: read-back returned null for " + path);
+                        Logger.log(Logger.TAG.ERROR, "[03024] RawIO.write: read-back returned null for " + path);
                         throw new QueueException("Post-write read-back returned null for " + path);
                     }
 
@@ -401,10 +398,10 @@ public final class QueueManager {
                 int utf8Bytes = json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                 Logger.log(Logger.TAG.INFO, "RawIO.write(done): " + path + " (verified, bytes=" + utf8Bytes + ")");
             } catch (QueueException q) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.write(failed): " + path + " — " + q.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03025] RawIO.write(failed): " + path + " — " + q.getMessage());
                 throw q;
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.write(failed): " + path + " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03026] RawIO.write(failed): " + path + " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
                 throw new QueueException("RawIO.write failed for " + path + ": " + t.getMessage(), t);
             }
         }
@@ -414,7 +411,7 @@ public final class QueueManager {
          */
         static void moveToCorrupt(String path) throws QueueException {
             if (MOVER == null) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.moveToCorrupt called before mover bound.");
+                Logger.log(Logger.TAG.ERROR, "[03027] RawIO.moveToCorrupt called before mover bound.");
                 Logger.logDump("MOVE_TO_CORRUPT_PREBIND\npath=" + path + "\nerr=MOVER not bound");
                 throw new QueueException("QueueManager.RawIO.MOVER not bound");
             }
@@ -426,7 +423,7 @@ public final class QueueManager {
                 Logger.log(Logger.TAG.INFO, "RawIO.moveToCorrupt(done): " + path);
                 Logger.logDump("MOVE_TO_CORRUPT_DONE\npath=" + path);
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.moveToCorrupt(failed): " + path + " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03028] RawIO.moveToCorrupt(failed): " + path + " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
                 Logger.logDump(
                         "MOVE_TO_CORRUPT_FAILED\n"
                                 + "path=" + path + "\n"
@@ -440,7 +437,7 @@ public final class QueueManager {
         /** Appends a JSON patch (dot-path → value / JSONObject.NULL) to the journal. */
         static void appendPatch(String path, Map<String, Object> diff) throws QueueException {
             if (PATCH_APPENDER == null) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.appendPatch called before patch appender bound.");
+                Logger.log(Logger.TAG.ERROR, "[03029] RawIO.appendPatch called before patch appender bound.");
                 throw new QueueException("QueueManager.RawIO.PATCH_APPENDER not bound");
             }
 
@@ -465,7 +462,7 @@ public final class QueueManager {
                     try {
                         bytes = java.nio.file.Files.size(journal);
                     } catch (Exception szEx) {
-                        Logger.log(Logger.TAG.WARN, "appendPatch: could not stat journal size: " + journal + " — " + szEx.getMessage());
+                        Logger.log(Logger.TAG.WARN, "[03030] appendPatch: could not stat journal size: " + journal + " — " + szEx.getMessage());
                     }
                 }
 
@@ -485,12 +482,12 @@ public final class QueueManager {
                             }
                         }
                     } catch (Exception lcEx) {
-                        Logger.log(Logger.TAG.WARN, "appendPatch: line-count failed for " + journal + " — " + lcEx.getMessage());
+                        Logger.log(Logger.TAG.WARN, "[03031] appendPatch: line-count failed for " + journal + " — " + lcEx.getMessage());
                     }
                 }
 
                 if (overBytes || overLines) {
-                    Logger.log(Logger.TAG.WARN, "Journal rollover: " + journal +
+                    Logger.log(Logger.TAG.WARN, "[03032] Journal rollover: " + journal +
                             " (bytes=" + bytes + ", overBytes=" + overBytes + ", overLines=" + overLines + ") → materialize");
                     try {
                         // Compact just this file to a clean base and truncate its journal.
@@ -498,7 +495,7 @@ public final class QueueManager {
                         Logger.log(Logger.TAG.INFO, "Journal rollover materialized: " + path);
                     } catch (Throwable t) {
                         // The patch is already durable; don't fail the write on compaction issues.
-                        Logger.log(Logger.TAG.ERROR, "Journal rollover: materialize failed for " + path +
+                        Logger.log(Logger.TAG.ERROR, "[03033] Journal rollover: materialize failed for " + path +
                                 " — " + t.getClass().getSimpleName() + ": " + t.getMessage());
                         Logger.logDump(
                                 "JOURNAL_ROLLOVER_FAIL\n"
@@ -512,7 +509,7 @@ public final class QueueManager {
                 // ----------------------------------------------------------
 
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.appendPatch(failed): " + path + " — " +
+                Logger.log(Logger.TAG.ERROR, "[03034] RawIO.appendPatch(failed): " + path + " — " +
                         t.getClass().getSimpleName() + ": " + t.getMessage());
                 throw new QueueException("appendPatch failed for " + path + ": " + t.getMessage(), t);
             }
@@ -525,7 +522,7 @@ public final class QueueManager {
                 java.nio.file.Files.deleteIfExists(j);
                 Logger.log(Logger.TAG.INFO, "RawIO.truncateJournal(done): " + j);
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "RawIO.truncateJournal(failed): " + j + " — "
+                Logger.log(Logger.TAG.ERROR, "[03035] RawIO.truncateJournal(failed): " + j + " — "
                         + t.getClass().getSimpleName() + ": " + t.getMessage());
                 throw new QueueException("truncateJournal failed for " + j + ": " + t.getMessage(), t);
             }
@@ -733,7 +730,7 @@ public final class QueueManager {
         Logger.log(Logger.TAG.DEBUG, "QueueManager.readValue() called for path: " + npath);
 
         if (accessor == null) {
-            Logger.log(Logger.TAG.ERROR, "QueueManager.readValue(): accessor is null (path=" + npath + ")");
+            Logger.log(Logger.TAG.ERROR, "[03036] QueueManager.readValue(): accessor is null (path=" + npath + ")");
             throw new QueueException("readValue: accessor cannot be null");
         }
 
@@ -759,10 +756,10 @@ public final class QueueManager {
 
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            Logger.log(Logger.TAG.ERROR, "QueueManager.readValue() interrupted for " + npath);
+            Logger.log(Logger.TAG.ERROR, "[03037] QueueManager.readValue() interrupted for " + npath);
             throw new QueueException("readValue interrupted for " + npath, ie);
         } catch (Exception ex) {
-            Logger.log(Logger.TAG.ERROR, "QueueManager.readValue() failed for " + npath + ": " + ex.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[03038] QueueManager.readValue() failed for " + npath + ": " + ex.getMessage());
             throw new QueueException("readValue failed for " + npath, ex);
         } finally {
             e.lock.unlock();
@@ -789,7 +786,7 @@ public final class QueueManager {
         Logger.log(Logger.TAG.DEBUG, "QueueManager.readValue(opts) called for path: " + npath);
 
         if (accessor == null) {
-            Logger.log(Logger.TAG.ERROR, "QueueManager.readValue(opts): accessor is null (path=" + npath + ")");
+            Logger.log(Logger.TAG.ERROR, "[03039] QueueManager.readValue(opts): accessor is null (path=" + npath + ")");
             throw new QueueException("readValue(opts): accessor cannot be null");
         }
 
@@ -815,10 +812,10 @@ public final class QueueManager {
 
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            Logger.log(Logger.TAG.ERROR, "QueueManager.readValue(opts) interrupted for " + npath);
+            Logger.log(Logger.TAG.ERROR, "[03040] QueueManager.readValue(opts) interrupted for " + npath);
             throw new QueueException("readValue(opts) interrupted for " + npath, ie);
         } catch (Exception ex) {
-            Logger.log(Logger.TAG.ERROR, "QueueManager.readValue(opts) failed for " + npath + ": " + ex.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[03041] QueueManager.readValue(opts) failed for " + npath + ": " + ex.getMessage());
             throw new QueueException("readValue(opts) failed for " + npath, ex);
         } finally {
             e.lock.unlock();
@@ -879,7 +876,7 @@ public final class QueueManager {
                     e.lastWriteNanos = System.nanoTime();
                     Logger.log(Logger.TAG.DEBUG, "Applied batch op '" + op.name + "' to " + npath);
                 } catch (Throwable t) {
-                    Logger.log(Logger.TAG.ERROR, "Batch operation '" + op.name + "' failed for " + npath + ": " + t.getMessage());
+                    Logger.log(Logger.TAG.ERROR, "[03042] Batch operation '" + op.name + "' failed for " + npath + ": " + t.getMessage());
                     throw new QueueException("Batch op failed (" + op.name + ") for " + npath, t);
                 }
                 e.pendingOps.addLast(op);
@@ -905,10 +902,10 @@ public final class QueueManager {
 
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            Logger.log(Logger.TAG.ERROR, "QueueManager.enqueueBatchAndGet() interrupted for " + npath);
+            Logger.log(Logger.TAG.ERROR, "[03043] QueueManager.enqueueBatchAndGet() interrupted for " + npath);
             throw new QueueException("enqueueBatchAndGet interrupted for " + npath, ie);
         } catch (Exception ex) {
-            Logger.log(Logger.TAG.ERROR, "QueueManager.enqueueBatchAndGet() failed for " + npath + ": " + ex.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[03044] QueueManager.enqueueBatchAndGet() failed for " + npath + ": " + ex.getMessage());
             throw new QueueException("enqueueBatchAndGet failed for " + npath, ex);
         } finally {
             e.lock.unlock();
@@ -926,7 +923,7 @@ public final class QueueManager {
      */
     public static void requestFlush(String path, boolean force) {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "requestFlush: path is null/blank");
+            Logger.log(Logger.TAG.ERROR, "[03045] requestFlush: path is null/blank");
             return;
         }
         final String npath = normalizeFsPath(path);
@@ -960,7 +957,7 @@ public final class QueueManager {
      */
     public static void flushFile(String path, boolean materialize) throws QueueException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "flushFile: path is null/blank");
+            Logger.log(Logger.TAG.ERROR, "[03046] flushFile: path is null/blank");
             throw new QueueException("flushFile: path is null/blank");
         }
         final String npath = normalizeFsPath(path);
@@ -977,7 +974,7 @@ public final class QueueManager {
             try {
                 while (e.flushing || e.dirty) {
                     if (e.failCount >= Config.MAX_TOTAL_RETRIES && e.lastError != null) {
-                        Logger.log(Logger.TAG.ERROR, "flushFile failed permanently: " + npath);
+                        Logger.log(Logger.TAG.ERROR, "[03047] flushFile failed permanently: " + npath);
                         throw new QueueException("flushFile failing for " + npath, e.lastError);
                     }
                     e.notFlushing.await(1, java.util.concurrent.TimeUnit.SECONDS);
@@ -985,7 +982,7 @@ public final class QueueManager {
                 Logger.log(Logger.TAG.INFO, "flushFile completed: " + npath + " (materialize=" + materialize + ")");
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                Logger.log(Logger.TAG.WARN, "flushFile interrupted: " + npath);
+                Logger.log(Logger.TAG.WARN, "[03048] flushFile interrupted: " + npath);
                 throw new QueueException("flushFile interrupted for " + npath, ie);
             } finally {
                 e.lock.unlock();
@@ -998,7 +995,7 @@ public final class QueueManager {
 
     public static void flushFileMaterialized(String path) throws QueueException {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "flushFileMaterialized: path is null/blank");
+            Logger.log(Logger.TAG.ERROR, "[03049] flushFileMaterialized: path is null/blank");
             throw new QueueException("flushFileMaterialized: path is null/blank");
         }
         final boolean prev = FINAL_MATERIALIZE.getAndSet(true);
@@ -1100,7 +1097,7 @@ public final class QueueManager {
                         if (!shouldWait) break;
 
                         if (e.failCount >= Config.MAX_TOTAL_RETRIES && e.lastError != null) {
-                            Logger.log(Logger.TAG.ERROR, "flushAll failed permanently at " + npath);
+                            Logger.log(Logger.TAG.ERROR, "[03050] flushAll failed permanently at " + npath);
                             throw new QueueException("flushAll failing at " + npath, e.lastError);
                         }
 
@@ -1108,7 +1105,7 @@ public final class QueueManager {
                     }
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    Logger.log(Logger.TAG.WARN, "flushAll interrupted at " + npath);
+                    Logger.log(Logger.TAG.WARN, "[03051] flushAll interrupted at " + npath);
                     throw new QueueException("flushAll interrupted", ie);
                 } finally {
                     e.lock.unlock();
@@ -1138,7 +1135,7 @@ public final class QueueManager {
      */
     public static boolean shutdown(boolean flushFirst) {
         if (!SHUTTING_DOWN.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN, "QueueManager: shutdown() ignored → already shutting down.");
+            Logger.log(Logger.TAG.WARN, "[03052] QueueManager: shutdown() ignored → already shutting down.");
             return false;
         }
 
@@ -1148,7 +1145,7 @@ public final class QueueManager {
                 flushAll(true);
                 Logger.log(Logger.TAG.SYSTEM, "QueueManager: All caches flushed successfully.");
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "QueueManager: Flush failed during shutdown: " + e.getMessage());
+                Logger.log(Logger.TAG.ERROR, "[03053] QueueManager: Flush failed during shutdown: " + e.getMessage());
             }
         }
 
@@ -1158,13 +1155,12 @@ public final class QueueManager {
         WORKER.shutdown(); // graceful; we've already flushed
         try {
             if (!WORKER.awaitTermination(Config.SHUTDOWN_AWAIT_MS, TimeUnit.MILLISECONDS)) {
-                Logger.log(Logger.TAG.WARN,
-                        "QueueManager: worker did not terminate within " +
+                Logger.log(Logger.TAG.WARN, "[03054] QueueManager: worker did not terminate within " +
                                 Config.SHUTDOWN_AWAIT_MS + "ms (continuing shutdown).");
             }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            Logger.log(Logger.TAG.WARN, "QueueManager: shutdown interrupted while awaiting worker stop.");
+            Logger.log(Logger.TAG.WARN, "[03055] QueueManager: shutdown interrupted while awaiting worker stop.");
         }
         synchronized (MEM_LOCK) {
             Logger.log(Logger.TAG.DEBUG,
@@ -1218,7 +1214,7 @@ public final class QueueManager {
                         Logger.log(Logger.TAG.INFO, "Flush(done,FORCED): " + path + " ("
                                 + ((System.nanoTime() - t0) / 1_000_000) + " ms)");
                     } catch (Throwable t) {
-                        Logger.log(Logger.TAG.ERROR, "Flush(failed,FORCED): " + path + " — "
+                        Logger.log(Logger.TAG.ERROR, "[03056] Flush(failed,FORCED): " + path + " — "
                                 + t.getClass().getSimpleName() + ": " + (t.getMessage() == null ? "<no message>" : t.getMessage()));
                         t.printStackTrace();
                     }
@@ -1238,7 +1234,7 @@ public final class QueueManager {
                         Logger.log(Logger.TAG.INFO, "Flush(done): " + path + " ("
                                 + ((System.nanoTime() - t0) / 1_000_000) + " ms)");
                     } catch (Throwable t) {
-                        Logger.log(Logger.TAG.ERROR, "Flush(failed): " + path + " — "
+                        Logger.log(Logger.TAG.ERROR, "[03057] Flush(failed): " + path + " — "
                                 + t.getClass().getSimpleName() + ": " + (t.getMessage() == null ? "<no message>" : t.getMessage()));
                         t.printStackTrace();
                     }
@@ -1259,7 +1255,7 @@ public final class QueueManager {
                 if (!RUNNING.get()) break;
                 Logger.log(Logger.TAG.DEBUG, "Worker: spurious interrupt observed; continuing loop.");
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR, "Worker loop error: " + t.getClass().getSimpleName() + ": "
+                Logger.log(Logger.TAG.ERROR, "[03058] Worker loop error: " + t.getClass().getSimpleName() + ": "
                         + (t.getMessage() == null ? "<no message>" : t.getMessage()));
                 t.printStackTrace();
             }
@@ -1487,7 +1483,7 @@ public final class QueueManager {
                                 RawIO.truncateJournal(npath);
                                 Logger.log(Logger.TAG.INFO, "flushOne: materialized base & truncated journal (final) for " + npath);
                             } catch (Throwable t) {
-                                Logger.log(Logger.TAG.ERROR, "flushOne(finalize): materialize failed for " + npath + " — "
+                                Logger.log(Logger.TAG.ERROR, "[03059] flushOne(finalize): materialize failed for " + npath + " — "
                                         + t.getClass().getSimpleName() + ": " + t.getMessage());
                                 Logger.logDump(
                                         "FINAL_MATERIALIZE_FAIL\n"
@@ -1507,7 +1503,7 @@ public final class QueueManager {
             } catch (Throwable loadOrWriteFailure) {
                 // Anything thrown here means disk state is unusable (parse error, IO error, etc.)
                 lastErr = loadOrWriteFailure;
-                Logger.log(Logger.TAG.ERROR, "flushOne: base load/patch failed for " + npath + " — "
+                Logger.log(Logger.TAG.ERROR, "[03060] flushOne: base load/patch failed for " + npath + " — "
                         + loadOrWriteFailure.getClass().getSimpleName() + ": " + loadOrWriteFailure.getMessage()
                         + " | entering repair flow (attempt " + attempts + "/" + Config.MAX_IMMEDIATE_RETRIES + ")");
 
@@ -1531,7 +1527,7 @@ public final class QueueManager {
                         );
                     } catch (Throwable moverFail) {
                         lastErr = moverFail;
-                        Logger.log(Logger.TAG.ERROR, "flushOne(repair): moveToCorrupt failed for " + npath + " — " + moverFail.getMessage());
+                        Logger.log(Logger.TAG.ERROR, "[03061] flushOne(repair): moveToCorrupt failed for " + npath + " — " + moverFail.getMessage());
                         Logger.logDump(
                                 "REPAIR_MOVE_FAILED\n"
                                         + "path=" + npath + "\n"
@@ -1562,7 +1558,7 @@ public final class QueueManager {
 
                 } catch (Throwable repairFail) {
                     lastErr = repairFail;
-                    Logger.log(Logger.TAG.ERROR, "flushOne(repair) failed for " + npath + " — "
+                    Logger.log(Logger.TAG.ERROR, "[03062] flushOne(repair) failed for " + npath + " — "
                             + repairFail.getClass().getSimpleName() + ": " + repairFail.getMessage());
 
                     if (isTransientIO(repairFail)) {
@@ -1599,10 +1595,10 @@ public final class QueueManager {
                 if (e.failCount >= Config.MAX_TOTAL_RETRIES) {
                     try {
                         RawIO.moveToCorrupt(npath);
-                        Logger.log(Logger.TAG.WARN, "flushOne: moved to corrupt after repeated failures: " + npath
+                        Logger.log(Logger.TAG.WARN, "[03063] flushOne: moved to corrupt after repeated failures: " + npath
                                 + " (failCount=" + e.failCount + ")");
                     } catch (Throwable moverEx) {
-                        Logger.log(Logger.TAG.ERROR, "flushOne: corrupt move failed for " + npath + " — " + moverEx.getMessage());
+                        Logger.log(Logger.TAG.ERROR, "[03064] flushOne: corrupt move failed for " + npath + " — " + moverEx.getMessage());
                     }
 
                     Logger.logDump(
@@ -1614,10 +1610,10 @@ public final class QueueManager {
                                     + "lastErrMsg=" + (lastErr == null ? "<none>" : String.valueOf(lastErr.getMessage()))
                     );
 
-                    Logger.log(Logger.TAG.ERROR, "flushOne failed permanently for " + npath
+                    Logger.log(Logger.TAG.ERROR, "[03065] flushOne failed permanently for " + npath
                             + " (attempts=" + attempts + ", totalFailCount=" + e.failCount + "): " + lastErr);
                 } else {
-                    Logger.log(Logger.TAG.ERROR, "flushOne failed for " + npath
+                    Logger.log(Logger.TAG.ERROR, "[03066] flushOne failed for " + npath
                             + " (attempts=" + attempts + "): " + lastErr);
                 }
             }
@@ -1778,7 +1774,7 @@ public final class QueueManager {
      */
     public static boolean promoteTemp(String path) {
         if (path == null || path.isBlank()) {
-            Logger.log(Logger.TAG.ERROR, "promoteTemp: path is null/blank");
+            Logger.log(Logger.TAG.ERROR, "[03067] promoteTemp: path is null/blank");
             return false;
         }
         final String npath = normalizeFsPath(path);
@@ -1821,7 +1817,7 @@ public final class QueueManager {
             }
         }
 
-        Logger.log(Logger.TAG.WARN, "Memory cap exceeded; initiating enforcement.");
+        Logger.log(Logger.TAG.WARN, "[03068] Memory cap exceeded; initiating enforcement.");
 
         final long now = System.nanoTime();
 
@@ -1892,7 +1888,7 @@ public final class QueueManager {
                 try {
                     if (e.isTemp && !e.flushing && e.data != null && !e.dirty) {
                         requestFlush(npath, /*force=*/true);
-                        Logger.log(Logger.TAG.WARN, "Memory cap: queued CLEAN TEMP cache for delete: " + npath);
+                        Logger.log(Logger.TAG.WARN, "[03069] Memory cap: queued CLEAN TEMP cache for delete: " + npath);
                         return;
                     }
                 } finally { e.lock.unlock(); }
@@ -1912,7 +1908,7 @@ public final class QueueManager {
                         synchronized (MEM_LOCK) {
                             TOTAL_CACHE_BYTES = Math.max(0, TOTAL_CACHE_BYTES - bytes);
                         }
-                        Logger.log(Logger.TAG.WARN, "Evicted clean cache to free memory: " + oldestCleanRegular);
+                        Logger.log(Logger.TAG.WARN, "[03070] Evicted clean cache to free memory: " + oldestCleanRegular);
                         return;
                     }
                 } finally { e.lock.unlock(); }
@@ -1946,7 +1942,7 @@ public final class QueueManager {
                 try {
                     if (e.isTemp && !e.flushing && e.data != null) {
                         requestFlush(npath, /*force=*/true);
-                        Logger.log(Logger.TAG.WARN, "Memory cap: queued TEMP cache for delete (last resort): " + npath);
+                        Logger.log(Logger.TAG.WARN, "[03071] Memory cap: queued TEMP cache for delete (last resort): " + npath);
                         return;
                     }
                 } finally { e.lock.unlock(); }
@@ -2011,7 +2007,7 @@ public final class QueueManager {
         try {
             raw = (rawLoader != null) ? rawLoader.call() : RawIO.load(path);
         } catch (Exception ex) {
-            Logger.log(Logger.TAG.WARN, "ensureCacheLoaded: loader failed, initializing empty JSON for " + path + " — " + ex.getMessage());
+            Logger.log(Logger.TAG.WARN, "[03072] ensureCacheLoaded: loader failed, initializing empty JSON for " + path + " — " + ex.getMessage());
             raw = null;
         }
 
@@ -2025,7 +2021,7 @@ public final class QueueManager {
             loaded = new JSONObject().put("root", arr);
             Logger.log(Logger.TAG.DEBUG, "ensureCacheLoaded: wrapped array root into object for " + path);
         } else {
-            Logger.log(Logger.TAG.WARN, "ensureCacheLoaded: unexpected root type (" + raw.getClass().getSimpleName() + "); using empty object.");
+            Logger.log(Logger.TAG.WARN, "[03073] ensureCacheLoaded: unexpected root type (" + raw.getClass().getSimpleName() + "); using empty object.");
             loaded = new JSONObject();
         }
 
@@ -2292,3 +2288,4 @@ public final class QueueManager {
         }
     }
 }
+

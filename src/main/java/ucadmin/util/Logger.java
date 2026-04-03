@@ -20,6 +20,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class Logger {
 
+    /**
+     * When true, logger output is printed to console only and never written to files.
+     * Useful for local testing where persistent log files are not wanted.
+     */
+    public static volatile boolean CONSOLE_ONLY = BotConfig.CONSOLE_ONLY;
+
     /** Tag categories for log entries. */
     public enum TAG {
         WARN, DEBUG, ERROR, INFO, FLAG, REQUEST, SYSTEM, COMMAND, DUMP, NULL
@@ -61,6 +67,13 @@ public final class Logger {
      * Call once at startup before heavy logging.
      */
     public static synchronized void init() {
+        if (CONSOLE_ONLY) {
+            synchronized (LOG_RING) {
+                LOG_RING.clear();
+            }
+            System.out.print(formatLine(TAG.SYSTEM, "Logger initialized in console-only mode."));
+            return;
+        }
         try {
             // Main log prep (clear)
             File logFile = new File(Config.LOG_FILE);
@@ -97,6 +110,11 @@ public final class Logger {
         if (safeTag != TAG.DUMP && Config.LOG_IGNORE.contains(safeTag)) return;
 
         final String line = formatLine(safeTag, message);
+
+        if (CONSOLE_ONLY) {
+            System.out.print(line);
+            return;
+        }
 
         if (SHUTTING_DOWN.get()) {
             System.err.print(line);
@@ -139,6 +157,10 @@ public final class Logger {
      * @return true if shutdown was initiated, false if it was already shutting down
      */
     public static boolean shutdown() {
+        if (CONSOLE_ONLY) {
+            SHUTTING_DOWN.set(true);
+            return true;
+        }
         if (!SHUTTING_DOWN.compareAndSet(false, true)) return false;
         if (!WORKER_STARTED.get()) {
             if (!QUEUE.isEmpty()) {
@@ -167,6 +189,10 @@ public final class Logger {
      * @return true if the writer stopped within the wait window
      */
     public static boolean shutdownWait(long timeoutMs) {
+        if (CONSOLE_ONLY) {
+            SHUTTING_DOWN.set(true);
+            return true;
+        }
         SHUTTING_DOWN.compareAndSet(false, true);
         if (!WORKER_STARTED.get() && !QUEUE.isEmpty()) {
             ensureWorkerStarted();

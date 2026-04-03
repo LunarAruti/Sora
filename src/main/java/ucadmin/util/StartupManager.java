@@ -36,41 +36,60 @@ public class StartupManager extends ListenerAdapter {
 
     @Override
     public void onReady(@NotNull ReadyEvent event) {
-        JDA jda = event.getJDA();
+        startCore(event.getJDA());
+    }
 
-        // Presence
-        jda.getPresence().setActivity(Activity.playing("SORA in-dev v0.1"));
-        jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.ONLINE);
+    /**
+     * Boots the non-Discord runtime: dependencies, logger, DBM, crash recovery,
+     * scheduler, and network workers. When a JDA instance is provided, Discord
+     * presence and identity logging are also updated.
+     *
+     * @param jda active JDA instance, or null for headless startup
+     * @return true if startup completed, false if startup was blocked or aborted
+     */
+    public static boolean startCore(JDA jda) {
+        final boolean discordMode = (jda != null);
 
-        // DependencyManager must run before Logger/DB modules.
+        if (discordMode) {
+            jda.getPresence().setActivity(Activity.playing("SORA in-dev v0.1"));
+            jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.ONLINE);
+        }
+
         try {
             DependencyManager.initializeDependencies();
         } catch (DatabaseException e) {
-            System.err.println("Dependency initialization failed: " + e.getMessage());
-            jda.getPresence().setActivity(Activity.playing("Startup blocked: deps failed"));
-            jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.DO_NOT_DISTURB);
-            return;
+            System.err.println("[0004] Dependency initialization failed: " + e.getMessage());
+            if (discordMode) {
+                setBlockedPresence(jda, "Startup blocked: deps failed");
+            }
+            return false;
         }
 
-        // Logger
         Logger.init();
-        Logger.log(Logger.TAG.INFO, "SORA is online as " + jda.getSelfUser().getName());
+        Logger.log(
+                Logger.TAG.SYSTEM,
+                "StartupManager: core startup begin mode=" + (discordMode ? "discord" : "headless")
+        );
+
+        if (discordMode) {
+            Logger.log(Logger.TAG.INFO, "SORA is online as " + jda.getSelfUser().getName());
+        } else {
+            Logger.log(Logger.TAG.INFO, "StartupManager: headless mode active; Discord startup skipped.");
+        }
 
         ShutdownManager.registerNoExitShutdownHook();
 
-        // Bind low-level RawIO (QueueManager <-> DatabaseManager)
+        Logger.log(Logger.TAG.SYSTEM, "StartupManager: binding QueueManager raw I/O delegates...");
         QueueManager.RawIO.bindLoader(DatabaseManager::readJSONRaw);
         QueueManager.RawIO.bindWriter(DatabaseManager::writeJSONRaw);
         QueueManager.RawIO.bindMover(DatabaseManager::moveToCorrupt);
         QueueManager.RawIO.bindPatchAppender(DatabaseManager::appendJSONPatch);
-        Logger.log(Logger.TAG.INFO, "Queue-Batch workers binded.");
+        Logger.log(Logger.TAG.INFO, "StartupManager: QueueManager raw I/O delegates bound.");
 
         try {
-            Logger.log(Logger.TAG.SYSTEM, "Starting database initialization...");
-            // Bring DB online (folders, defaults, queue worker, etc.)
+            Logger.log(Logger.TAG.SYSTEM, "StartupManager: starting database initialization...");
             DatabaseManager.initialize();
 
-            // ---- Crash/unclean-shutdown recovery BEFORE other subsystems write ----
             try {
                 CrashHandler.Result r = CrashHandler.checkAndRecover();
                 if (r.recoveryTriggered) {
@@ -79,19 +98,22 @@ public class StartupManager extends ListenerAdapter {
                     Logger.log(Logger.TAG.DEBUG, "CrashHandler: clean previous shutdown.");
                 }
             } catch (DatabaseException | QueueException e) {
-                // Abort further startup per policy (admin action required)
-                Logger.log(Logger.TAG.ERROR, "Startup aborted by CrashHandler: " + e.getMessage());
-                jda.getPresence().setActivity(Activity.playing("Startup blocked: recovery required"));
-                jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.DO_NOT_DISTURB);
-                return;
+                Logger.log(
+                        Logger.TAG.ERROR,
+                        "[0005] Startup aborted by CrashHandler: " + e.getMessage()
+                );
+                if (discordMode) {
+                    setBlockedPresence(jda, "Startup blocked: recovery required");
+                }
+                return false;
             }
-            // ----------------------------------------------------------------------
-            Logger.log(Logger.TAG.SYSTEM, "Database initialization complete.");
+
+            Logger.log(Logger.TAG.SYSTEM, "StartupManager: database initialization complete.");
 
             updateStartupCount();
 
             try {
-                Logger.log(Logger.TAG.SYSTEM, "Starting TaskScheduler...");
+                Logger.log(Logger.TAG.SYSTEM, "StartupManager: starting TaskScheduler...");
                 boolean schedOk = TaskScheduler.start((opKey, opArgs) -> {
                     TaskExecutor.TaskResult result = TaskExecutor.execute(opKey, opArgs);
                     if (!result.ok) {
@@ -101,17 +123,30 @@ public class StartupManager extends ListenerAdapter {
                 });
                 Logger.log(Logger.TAG.INFO, "TaskScheduler start initiated=" + schedOk);
             } catch (TaskException e) {
-                Logger.log(Logger.TAG.ERROR, "TaskScheduler failed: " + e.getMessage());
+                Logger.log(
+                        Logger.TAG.ERROR,
+                        "[0007] TaskScheduler failed: " + e.getMessage()
+                );
             }
 
+            Logger.log(Logger.TAG.SYSTEM, "StartupManager: starting NetworkManager workers...");
             ucadmin.network.NetworkManager.start(BotConfig.netWorkerThreads);
-            Logger.log(Logger.TAG.INFO, "Network manager Threads binded. Total: " + BotConfig.netWorkerThreads);
+            Logger.log(Logger.TAG.INFO, "StartupManager: NetworkManager workers started. Count=" + BotConfig.netWorkerThreads);
+            Logger.log(Logger.TAG.SYSTEM, "StartupManager: core startup complete.");
+            return true;
 
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR, "Database initialization failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0008] Database initialization failed: " + e.getMessage()
+            );
+            return false;
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "Unexpected startup failure: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0009] Unexpected startup failure: " + e.getClass().getSimpleName() + " - " + e.getMessage()
+            );
+            return false;
         }
     }
 
@@ -144,9 +179,23 @@ public class StartupManager extends ListenerAdapter {
 
             Logger.log(Logger.TAG.INFO, "Updated startup count: " + (currentCount + 1));
         } catch (DatabaseException e) {
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0006] Startup count update failed: " + e.getMessage()
+            );
             throw e;
         } catch (Exception e) {
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0006] Startup count update failed: " + e.getMessage()
+            );
             throw new DatabaseException("Startup count update failed: " + e.getMessage(), e);
         }
+    }
+
+    private static void setBlockedPresence(JDA jda, String activityText) {
+        if (jda == null) return;
+        jda.getPresence().setActivity(Activity.playing(activityText));
+        jda.getPresence().setStatus(net.dv8tion.jda.api.OnlineStatus.DO_NOT_DISTURB);
     }
 }

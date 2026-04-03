@@ -76,12 +76,10 @@ final class NetworkWorker implements Runnable {
             } catch (InterruptedException ie) {
                 // Allow graceful shutdown; do not spam logs.
                 if (!running.get()) break;
-                Logger.log(Logger.TAG.WARN,
-                        "[NetworkWorker " + workerName + "] interrupted while running, continuing: " + ie.getMessage());
+                Logger.log(Logger.TAG.WARN, "[09001] [NetworkWorker " + workerName + "] interrupted while running, continuing: " + ie.getMessage());
 
             } catch (Throwable t) {
-                Logger.log(Logger.TAG.ERROR,
-                        "[NetworkWorker " + workerName + "] UNCAUGHT throwable: " + t.toString());
+                Logger.log(Logger.TAG.ERROR, "[09002] [NetworkWorker " + workerName + "] UNCAUGHT throwable: " + t.toString());
                 t.printStackTrace(); // ensure visibility in JVM logs
             }
         }
@@ -211,8 +209,7 @@ final class NetworkWorker implements Runnable {
                     CircuitBreakerRegistry.recordFailure(circuitKey, now);
                     completedAtMillis = System.currentTimeMillis();
 
-                    Logger.log(Logger.TAG.ERROR,
-                            "[NetworkWorker " + workerName + "] HTTP exception: " + e.getMessage());
+                    Logger.log(Logger.TAG.ERROR, "[09003] [NetworkWorker " + workerName + "] HTTP exception: " + e.getMessage());
                 }
             }
 
@@ -295,8 +292,7 @@ final class NetworkWorker implements Runnable {
                     jsonDecoded = true;
                 }
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR,
-                        "[NetworkWorker " + workerName + "] JSON decode failed on success: " + e.getMessage() +
+                Logger.log(Logger.TAG.ERROR, "[09004] [NetworkWorker " + workerName + "] JSON decode failed on success: " + e.getMessage() +
                                 " service=" + request.getService() +
                                 " name=" + request.getName() +
                                 " traceId=" + request.getTraceId());
@@ -328,8 +324,7 @@ final class NetworkWorker implements Runnable {
         Object projectionValue = null;
         if (request.getProjectionPath() != null && !request.getProjectionPath().isBlank()) {
             if (!jsonDecoded) {
-                Logger.log(Logger.TAG.WARN,
-                        "[NetworkWorker " + workerName + "] Projection requested but JSON not decoded. " +
+                Logger.log(Logger.TAG.WARN, "[09005] [NetworkWorker " + workerName + "] Projection requested but JSON not decoded. " +
                                 "projection=" + request.getProjectionPath() +
                                 " traceId=" + request.getTraceId());
                 handleFinalFailure(
@@ -350,8 +345,7 @@ final class NetworkWorker implements Runnable {
                 Object root = (jsonObject != null) ? jsonObject : jsonArray;
                 projectionValue = applyProjection(root, request.getProjectionPath());
             } catch (Exception e) {
-                Logger.log(Logger.TAG.WARN,
-                        "[NetworkWorker " + workerName + "] Projection failed: " + e.getMessage() +
+                Logger.log(Logger.TAG.WARN, "[09006] [NetworkWorker " + workerName + "] Projection failed: " + e.getMessage() +
                                 " projection=" + request.getProjectionPath() +
                                 " traceId=" + request.getTraceId());
                 handleFinalFailure(
@@ -393,8 +387,7 @@ final class NetworkWorker implements Runnable {
             urlForLog = "<unavailable>";
         }
 
-        Logger.log(Logger.TAG.ERROR,
-                "[NetworkWorker " + workerName + "] FINAL FAILURE service=" +
+        Logger.log(Logger.TAG.ERROR, "[09007] [NetworkWorker " + workerName + "] FINAL FAILURE service=" +
                         request.getService() +
                         " name=" + request.getName() +
                         " traceId=" + request.getTraceId() +
@@ -419,8 +412,7 @@ final class NetworkWorker implements Runnable {
                     jsonDecoded = true;
                 }
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR,
-                        "[NetworkWorker " + workerName + "] JSON decode failed on failure: " + e.getMessage() +
+                Logger.log(Logger.TAG.ERROR, "[09008] [NetworkWorker " + workerName + "] JSON decode failed on failure: " + e.getMessage() +
                                 " service=" + request.getService() +
                                 " name=" + request.getName() +
                                 " traceId=" + request.getTraceId());
@@ -458,8 +450,7 @@ final class NetworkWorker implements Runnable {
                     Object root = (jsonObject != null) ? jsonObject : jsonArray;
                     projectionValue = applyProjection(root, request.getProjectionPath());
                 } catch (Exception e) {
-                    Logger.log(Logger.TAG.WARN,
-                            "[NetworkWorker " + workerName + "] Projection failed on error path: " + e.getMessage() +
+                    Logger.log(Logger.TAG.WARN, "[09009] [NetworkWorker " + workerName + "] Projection failed on error path: " + e.getMessage() +
                                     " projection=" + request.getProjectionPath() +
                                     " traceId=" + request.getTraceId());
                 }
@@ -611,14 +602,12 @@ final class NetworkWorker implements Runnable {
      */
     private void writeToDbm(NetworkRequest request, Object value) {
         if (request == null) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkWorker " + workerName + "] DBM write skipped: request is null");
+            Logger.log(Logger.TAG.ERROR, "[09010] [NetworkWorker " + workerName + "] DBM write skipped: request is null");
             return;
         }
         String cachePath = request.getCachePath();
         if (cachePath == null || cachePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkWorker " + workerName + "] DBM write skipped: cachePath is null/blank " +
+            Logger.log(Logger.TAG.ERROR, "[09011] [NetworkWorker " + workerName + "] DBM write skipped: cachePath is null/blank " +
                             "service=" + request.getService() +
                             " name=" + request.getName() +
                             " traceId=" + request.getTraceId());
@@ -639,8 +628,7 @@ final class NetworkWorker implements Runnable {
                             " name=" + request.getName() +
                             " traceId=" + request.getTraceId());
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkWorker " + workerName + "] DBM write FAILED for path=" +
+            Logger.log(Logger.TAG.ERROR, "[09012] [NetworkWorker " + workerName + "] DBM write FAILED for path=" +
                             path + " service=" + request.getService() +
                             " name=" + request.getName() +
                             " traceId=" + request.getTraceId() +
@@ -665,8 +653,7 @@ final class NetworkWorker implements Runnable {
                 return path;
             }
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkWorker " + workerName + "] cache path check failed, using base: " + e.getMessage());
+            Logger.log(Logger.TAG.WARN, "[09013] [NetworkWorker " + workerName + "] cache path check failed, using base: " + e.getMessage());
             return path;
         }
 
@@ -676,8 +663,7 @@ final class NetworkWorker implements Runnable {
         String candidate = stem + suffix + ".json";
 
         request.overrideCachePathInternal(candidate);
-        Logger.log(Logger.TAG.WARN,
-                "[NetworkWorker " + workerName + "] cache path collision; using " + candidate);
+        Logger.log(Logger.TAG.WARN, "[09014] [NetworkWorker " + workerName + "] cache path collision; using " + candidate);
         return candidate;
     }
 
@@ -940,3 +926,4 @@ final class NetworkWorker implements Runnable {
         return "Network error";
     }
 }
+

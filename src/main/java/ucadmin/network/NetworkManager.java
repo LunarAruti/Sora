@@ -128,13 +128,11 @@ public final class NetworkManager {
      */
     public static boolean start(int workerCount) {
         if (workerCount < 1) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] Invalid workerCount=" + workerCount);
+            Logger.log(Logger.TAG.ERROR, "[07001] [NetworkManager] Invalid workerCount=" + workerCount);
             throw new IllegalArgumentException("workerCount must be >= 1 (was " + workerCount + ")");
         }
         if (!STARTED.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] start() ignored → already started.");
+            Logger.log(Logger.TAG.WARN, "[07002] [NetworkManager] start() ignored → already started.");
             return false;
         }
 
@@ -193,13 +191,11 @@ public final class NetworkManager {
      */
     public static boolean shutdown(boolean waitForJoin) {
         if (!STARTED.get()) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] shutdown() ignored -> not started.");
+            Logger.log(Logger.TAG.WARN, "[07003] [NetworkManager] shutdown() ignored -> not started.");
             return false;
         }
         if (!SHUTTING_DOWN.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] shutdown() ignored -> already shutting down.");
+            Logger.log(Logger.TAG.WARN, "[07004] [NetworkManager] shutdown() ignored -> already shutting down.");
             return false;
         }
 
@@ -222,13 +218,11 @@ public final class NetworkManager {
                 try {
                     t.join(3_000L);
                 } catch (InterruptedException ignored) {
-                    Logger.log(Logger.TAG.WARN,
-                            "[NetworkManager] shutdown() interrupted while waiting for worker=" + t.getName());
+                    Logger.log(Logger.TAG.WARN, "[07005] [NetworkManager] shutdown() interrupted while waiting for worker=" + t.getName());
                     Thread.currentThread().interrupt();
                 }
                 if (t.isAlive()) {
-                    Logger.log(Logger.TAG.WARN,
-                            "[NetworkManager] worker still alive after join: " + t.getName());
+                    Logger.log(Logger.TAG.WARN, "[07006] [NetworkManager] worker still alive after join: " + t.getName());
                 } else {
                     Logger.log(Logger.TAG.INFO,
                             "[NetworkManager] worker joined: " + t.getName());
@@ -285,8 +279,7 @@ public final class NetworkManager {
         Objects.requireNonNull(request, "request must not be null");
 
         if (!STARTED.get()) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] request() before start(): service=" +
+            Logger.log(Logger.TAG.ERROR, "[07007] [NetworkManager] request() before start(): service=" +
                             request.getService() + ", name=" + request.getName());
             throw new NetworkException(
                     ErrorType.POLICY_VIOLATION,
@@ -295,8 +288,7 @@ public final class NetworkManager {
         }
 
         if (SHUTTING_DOWN.get()) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] Rejecting request during shutdown: service=" +
+            Logger.log(Logger.TAG.WARN, "[07008] [NetworkManager] Rejecting request during shutdown: service=" +
                             request.getService() + ", name=" + request.getName());
             return false;
         }
@@ -304,8 +296,7 @@ public final class NetworkManager {
         try {
             request.seal();
         } catch (IllegalStateException ise) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] request seal() failed: " + ise.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[07009] [NetworkManager] request seal() failed: " + ise.getMessage());
             throw new NetworkException(
                     ErrorType.INVALID_REQUEST,
                     "NetworkRequest failed validation during seal(): " + ise.getMessage(),
@@ -340,8 +331,7 @@ public final class NetworkManager {
 
         int currentSize = QUEUE.size();
         if (currentSize >= MAX_QUEUE_SIZE) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] Queue FULL (" + currentSize + "/" + MAX_QUEUE_SIZE +
+            Logger.log(Logger.TAG.WARN, "[07010] [NetworkManager] Queue FULL (" + currentSize + "/" + MAX_QUEUE_SIZE +
                             ") rejecting request: service=" + request.getService() +
                             ", name=" + request.getName());
 
@@ -358,13 +348,11 @@ public final class NetworkManager {
         try {
             offered = QUEUE.offer(task);
         } catch (Throwable t) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] Exception while enqueuing task: " + t.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[07011] [NetworkManager] Exception while enqueuing task: " + t.getMessage());
         }
 
         if (!offered) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] Failed to enqueue task: service=" +
+            Logger.log(Logger.TAG.ERROR, "[07012] [NetworkManager] Failed to enqueue task: service=" +
                             request.getService() + ", name=" + request.getName());
 
             // mandatory cleanup
@@ -428,15 +416,13 @@ public final class NetworkManager {
         String cachePath = request.getCachePath();
 
         if (!accepted) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] requestAndReturnCachePath: NOT ACCEPTED service=" +
+            Logger.log(Logger.TAG.WARN, "[07013] [NetworkManager] requestAndReturnCachePath: NOT ACCEPTED service=" +
                             request.getService() + ", name=" + request.getName());
             return null;
         }
 
         if (cachePath == null || cachePath.isBlank()) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] NRO has null/blank cachePath after acceptance!");
+            Logger.log(Logger.TAG.ERROR, "[07014] [NetworkManager] NRO has null/blank cachePath after acceptance!");
             throw new NetworkException(
                     ErrorType.INVALID_REQUEST,
                     "NetworkRequest.cachePath is null/blank after request(); cannot determine result location.",
@@ -471,8 +457,7 @@ public final class NetworkManager {
                         request.getService() + ", name=" + request.getName());
 
         if (!request.isSealed()) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] validateHighLevel: request not sealed!");
+            Logger.log(Logger.TAG.ERROR, "[07015] [NetworkManager] validateHighLevel: request not sealed!");
             throw new NetworkException(
                     ErrorType.INVALID_REQUEST,
                     "NetworkRequest must be sealed before enqueue."
@@ -501,8 +486,7 @@ public final class NetworkManager {
         }
 
         if (!cachePath.startsWith("database/")) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] Non-database cachePath: " +
+            Logger.log(Logger.TAG.WARN, "[07016] [NetworkManager] Non-database cachePath: " +
                             cachePath + " service=" + request.getService() +
                             ", name=" + request.getName());
         }
@@ -519,8 +503,7 @@ public final class NetworkManager {
                 return path;
             }
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.WARN,
-                    "[NetworkManager] cache path check failed, using base: " + e.getMessage());
+            Logger.log(Logger.TAG.WARN, "[07017] [NetworkManager] cache path check failed, using base: " + e.getMessage());
             return path;
         }
 
@@ -529,8 +512,7 @@ public final class NetworkManager {
         String suffix = "-dup-" + System.currentTimeMillis() + "-" + CACHE_SUFFIX_COUNTER.incrementAndGet();
         String candidate = stem + suffix + ".json";
 
-        Logger.log(Logger.TAG.WARN,
-                "[NetworkManager] cache path collision; using " + candidate +
+        Logger.log(Logger.TAG.WARN, "[07018] [NetworkManager] cache path collision; using " + candidate +
                         " service=" + request.getService() + " name=" + request.getName());
         return candidate;
     }
@@ -624,8 +606,7 @@ public final class NetworkManager {
             DatabaseManager.makeTemporary(path);
             DatabaseManager.writeJSONPath(path, null, json, true);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] Failed to write diagnostics to DBM at " +
+            Logger.log(Logger.TAG.ERROR, "[07019] [NetworkManager] Failed to write diagnostics to DBM at " +
                             path + ": " + e.getMessage());
             throw new NetworkException(
                     ErrorType.UNKNOWN,
@@ -689,8 +670,7 @@ public final class NetworkManager {
             DatabaseManager.makeTemporary(path);
             DatabaseManager.writeJSONPath(path, null, root, true);
         } catch (DatabaseException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "[NetworkManager] Failed to write NetworkJournal to DBM at " +
+            Logger.log(Logger.TAG.ERROR, "[07020] [NetworkManager] Failed to write NetworkJournal to DBM at " +
                             path + ": " + e.getMessage());
             throw new NetworkException(
                     ErrorType.UNKNOWN,
@@ -712,3 +692,4 @@ public final class NetworkManager {
     }
 
 }
+
