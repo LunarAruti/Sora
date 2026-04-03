@@ -51,7 +51,7 @@ public final class TaskExecutor {
         TaskOpHandler handler = ExeWhitelist.get(normalizedKey);
         if (handler == null) {
             ucadmin.util.Logger.log(ucadmin.util.Logger.TAG.WARN,
-                    "TaskExecutor: opKey not whitelisted opKey=" + normalizedKey);
+                    "[12001] TaskExecutor: opKey not whitelisted opKey=" + normalizedKey);
             return TaskResult.fail("Unknown opKey (not whitelisted): " + normalizedKey);
         }
 
@@ -60,7 +60,7 @@ public final class TaskExecutor {
             parsed = Args.parse(opArgs);
         } catch (IllegalArgumentException e) {
             ucadmin.util.Logger.log(ucadmin.util.Logger.TAG.ERROR,
-                    "TaskExecutor: args parse failed opKey=" + normalizedKey + " err=" + e.getMessage());
+                    "[12002] TaskExecutor: args parse failed opKey=" + normalizedKey + " err=" + e.getMessage());
             throw e;
         }
 
@@ -68,7 +68,7 @@ public final class TaskExecutor {
             return handler.run(parsed);
         } catch (Exception e) {
             ucadmin.util.Logger.log(ucadmin.util.Logger.TAG.ERROR,
-                    "TaskExecutor: handler failed opKey=" + normalizedKey + " err=" + e.getMessage());
+                    "[12003] TaskExecutor: handler failed opKey=" + normalizedKey + " err=" + e.getMessage());
             throw e;
         }
     }

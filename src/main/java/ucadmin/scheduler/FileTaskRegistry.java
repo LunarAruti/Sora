@@ -145,14 +145,14 @@ public final class FileTaskRegistry implements TaskRegistry {
         }
         if (!(raw instanceof JSONObject obj)) {
             markBadTask(taskId, null, "task entry is not an object");
-            Logger.log(Logger.TAG.WARN, "FileTaskRegistry: get bad entry taskId=" + taskId);
+            Logger.log(Logger.TAG.WARN, "[11001] FileTaskRegistry: get bad entry taskId=" + taskId);
             return null;
         }
         try {
             return fromJson(taskId, obj);
         } catch (TaskException e) {
             markBadTask(taskId, obj, e.getMessage());
-            Logger.log(Logger.TAG.WARN, "FileTaskRegistry: get parse failed taskId=" + taskId);
+            Logger.log(Logger.TAG.WARN, "[11002] FileTaskRegistry: get parse failed taskId=" + taskId);
             return null;
         }
     }
@@ -383,7 +383,7 @@ public final class FileTaskRegistry implements TaskRegistry {
 
     /** Marks a malformed task as ERROR, preserving any readable fields. */
     private static void markBadTask(String taskId, JSONObject obj, String reason) {
-        String message = "TaskRegistry: bad task " + taskId + " -> " + reason;
+        String message = "[11003] TaskRegistry: bad task " + taskId + " -> " + reason;
         Logger.log(Logger.TAG.ERROR, message);
         new TaskException(message);
         JSONObject err = new JSONObject();

@@ -28,11 +28,17 @@ public final class ShutdownManager {
      */
     public static void shutdown(JDA jda) {
         if (!CLEAN_SHUTTING_DOWN.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN, "Shutdown: ignored -> already shutting down.");
+            Logger.log(
+                    Logger.TAG.WARN,
+                    "[0013] Shutdown ignored -> already shutting down."
+            );
             return;
         }
         if (NO_EXIT_SHUTTING_DOWN.get()) {
-            Logger.log(Logger.TAG.WARN, "Shutdown: ignored -> no-exit shutdown already running.");
+            Logger.log(
+                    Logger.TAG.WARN,
+                    "[0014] Shutdown ignored -> no-exit shutdown already running."
+            );
             return;
         }
         Logger.log(Logger.TAG.SYSTEM, "Shutdown command received. Beginning graceful termination...");
@@ -42,7 +48,10 @@ public final class ShutdownManager {
             boolean netOk = NetworkManager.shutdown();
             Logger.log(Logger.TAG.INFO, "Shutdown: NetworkManager shutdown initiated=" + netOk);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Shutdown: NetworkManager failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0015] Shutdown: NetworkManager failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -50,7 +59,10 @@ public final class ShutdownManager {
             boolean schedOk = TaskScheduler.shutdown();
             Logger.log(Logger.TAG.INFO, "Shutdown: TaskScheduler shutdown initiated=" + schedOk);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Shutdown: TaskScheduler failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0016] Shutdown: TaskScheduler failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -58,7 +70,10 @@ public final class ShutdownManager {
             BatchManager.shutdown();
             Logger.log(Logger.TAG.INFO, "Shutdown: BatchManager flush complete.");
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Shutdown: BatchManager failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0017] Shutdown: BatchManager failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -66,7 +81,10 @@ public final class ShutdownManager {
             boolean qOk = QueueManager.shutdown(false);
             Logger.log(Logger.TAG.INFO, "Shutdown: QueueManager shutdown initiated=" + qOk);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "Shutdown: QueueManager failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0018] Shutdown: QueueManager failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -74,7 +92,10 @@ public final class ShutdownManager {
             Thread.sleep(2000);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            Logger.log(Logger.TAG.WARN, "Shutdown: interrupted during grace period.");
+            Logger.log(
+                    Logger.TAG.WARN,
+                    "[0019] Shutdown interrupted during grace period."
+            );
         }
 
         if (jda != null) {
@@ -85,9 +106,15 @@ public final class ShutdownManager {
                 Logger.log(Logger.TAG.INFO, "Shutdown: JDA shutdown complete.");
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                Logger.log(Logger.TAG.WARN, "Shutdown: interrupted during JDA shutdown wait.");
+                Logger.log(
+                        Logger.TAG.WARN,
+                        "[0020] Shutdown interrupted during JDA shutdown wait."
+                );
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "Shutdown: JDA shutdown failed: " + e.getMessage());
+                Logger.log(
+                        Logger.TAG.ERROR,
+                        "[0021] Shutdown: JDA shutdown failed: " + e.getMessage()
+                );
             }
         } else {
             Logger.log(Logger.TAG.DEBUG, "Shutdown: JDA instance was null; skipping JDA shutdown.");
@@ -104,10 +131,17 @@ public final class ShutdownManager {
      * Call once during startup.
      */
     public static void registerNoExitShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(
-                new Thread(() -> shutdownNoExit(null), "UC-ShutdownHook")
-        );
-        Logger.log(Logger.TAG.INFO, "ShutdownNoExit: JVM shutdown hook registered.");
+        try {
+            Runtime.getRuntime().addShutdownHook(
+                    new Thread(() -> shutdownNoExit(null), "UC-ShutdownHook")
+            );
+            Logger.log(Logger.TAG.INFO, "ShutdownNoExit: JVM shutdown hook registered.");
+        } catch (RuntimeException e) {
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0003] ShutdownNoExit: JVM shutdown hook registration failed: " + e.getMessage()
+            );
+        }
     }
 
     /**
@@ -117,11 +151,17 @@ public final class ShutdownManager {
      */
     public static void shutdownNoExit(JDA jda) {
         if (CLEAN_SHUTTING_DOWN.get()) {
-            Logger.log(Logger.TAG.WARN, "ShutdownNoExit: skipped -> clean shutdown in progress.");
+            Logger.log(
+                    Logger.TAG.WARN,
+                    "[0022] ShutdownNoExit skipped -> clean shutdown in progress."
+            );
             return;
         }
         if (!NO_EXIT_SHUTTING_DOWN.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN, "ShutdownNoExit: ignored -> already shutting down.");
+            Logger.log(
+                    Logger.TAG.WARN,
+                    "[0023] ShutdownNoExit ignored -> already shutting down."
+            );
             return;
         }
 
@@ -132,7 +172,10 @@ public final class ShutdownManager {
             boolean netOk = NetworkManager.shutdown(false);
             Logger.log(Logger.TAG.INFO, "ShutdownNoExit: NetworkManager shutdown initiated=" + netOk);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: NetworkManager failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0024] ShutdownNoExit: NetworkManager failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -140,7 +183,10 @@ public final class ShutdownManager {
             boolean schedOk = TaskScheduler.shutdownNoExit();
             Logger.log(Logger.TAG.INFO, "ShutdownNoExit: TaskScheduler shutdown initiated=" + schedOk);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: TaskScheduler failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0025] ShutdownNoExit: TaskScheduler failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -148,7 +194,10 @@ public final class ShutdownManager {
             QueueManager.flushAll(false);
             Logger.log(Logger.TAG.INFO, "ShutdownNoExit: QueueManager flushAll(false) complete.");
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: QueueManager flushAll(false) failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0026] ShutdownNoExit: QueueManager flushAll(false) failed: " + e.getMessage()
+            );
         }
 
         try {
@@ -156,7 +205,10 @@ public final class ShutdownManager {
             boolean qOk = QueueManager.shutdown(false);
             Logger.log(Logger.TAG.INFO, "ShutdownNoExit: QueueManager shutdown initiated=" + qOk);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: QueueManager failed: " + e.getMessage());
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    "[0027] ShutdownNoExit: QueueManager failed: " + e.getMessage()
+            );
         }
 
         if (jda != null) {
@@ -165,7 +217,10 @@ public final class ShutdownManager {
                 jda.shutdown();
                 Logger.log(Logger.TAG.INFO, "ShutdownNoExit: JDA shutdown complete.");
             } catch (Exception e) {
-                Logger.log(Logger.TAG.ERROR, "ShutdownNoExit: JDA shutdown failed: " + e.getMessage());
+                Logger.log(
+                        Logger.TAG.ERROR,
+                        "[0028] ShutdownNoExit: JDA shutdown failed: " + e.getMessage()
+                );
             }
         } else {
             Logger.log(Logger.TAG.DEBUG, "ShutdownNoExit: JDA instance was null; skipping JDA shutdown.");

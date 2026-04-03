@@ -84,7 +84,7 @@ final class HttpExecutor {
      */
     static HttpAttemptResult executeSingleAttempt(NetworkRequest request) throws NetworkException {
         if (request == null) {
-            Logger.log(Logger.TAG.ERROR, "HttpExecutor: null request");
+            Logger.log(Logger.TAG.ERROR, "[05001] HttpExecutor: null request");
             throw new NetworkException(
                     ErrorType.INVALID_REQUEST,
                     "NetworkRequest is null"
@@ -119,8 +119,7 @@ final class HttpExecutor {
                     URI uri = URI.create(currentUrl);
                     String host = uri.getHost();
                     if (!NetworkConfig.isHostAllowed(host)) {
-                        Logger.log(Logger.TAG.ERROR,
-                                "HttpExecutor: POLICY BLOCKED host=" + host + " traceId=" + traceId);
+                        Logger.log(Logger.TAG.ERROR, "[05002] HttpExecutor: POLICY BLOCKED host=" + host + " traceId=" + traceId);
                         throw new NetworkException(
                                 ErrorType.POLICY_VIOLATION,
                                 "Host not allowed by NetworkConfig: " + host,
@@ -133,8 +132,7 @@ final class HttpExecutor {
                         );
                     }
                 } catch (IllegalArgumentException ex) {
-                    Logger.log(Logger.TAG.ERROR,
-                            "HttpExecutor: INVALID URL " + currentUrl + " traceId=" + traceId);
+                    Logger.log(Logger.TAG.ERROR, "[05003] HttpExecutor: INVALID URL " + currentUrl + " traceId=" + traceId);
                     // Malformed URL → treat as invalid request.
                     throw new NetworkException(
                             ErrorType.INVALID_REQUEST,
@@ -166,8 +164,7 @@ final class HttpExecutor {
                             HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
                     );
                 } catch (HttpTimeoutException e) {
-                    Logger.log(Logger.TAG.ERROR,
-                            "HttpExecutor: TIMEOUT url=" + currentUrl + " traceId=" + traceId);
+                    Logger.log(Logger.TAG.ERROR, "[05004] HttpExecutor: TIMEOUT url=" + currentUrl + " traceId=" + traceId);
                     throw new NetworkException(
                             ErrorType.TIMEOUT,
                             "Network request timed out.",
@@ -179,8 +176,7 @@ final class HttpExecutor {
                             null
                     );
                 } catch (IOException e) {
-                    Logger.log(Logger.TAG.ERROR,
-                            "HttpExecutor: NETWORK_IO url=" + currentUrl + " traceId=" + traceId);
+                    Logger.log(Logger.TAG.ERROR, "[05005] HttpExecutor: NETWORK_IO url=" + currentUrl + " traceId=" + traceId);
                     throw new NetworkException(
                             ErrorType.NETWORK_IO,
                             "I/O error while executing network request.",
@@ -193,8 +189,7 @@ final class HttpExecutor {
                     );
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    Logger.log(Logger.TAG.ERROR,
-                            "HttpExecutor: CANCELLED url=" + currentUrl + " traceId=" + traceId);
+                    Logger.log(Logger.TAG.ERROR, "[05006] HttpExecutor: CANCELLED url=" + currentUrl + " traceId=" + traceId);
                     throw new NetworkException(
                             ErrorType.CANCELLED,
                             "Network request was interrupted or cancelled.",
@@ -220,8 +215,7 @@ final class HttpExecutor {
                     String location = firstHeaderIgnoreCase(headers, "Location");
                     if (location == null || location.isBlank()) {
                         // Redirect status without a valid Location header → treat as final.
-                        Logger.log(Logger.TAG.WARN,
-                                "HttpExecutor: redirect missing Location status=" + status +
+                        Logger.log(Logger.TAG.WARN, "[05007] HttpExecutor: redirect missing Location status=" + status +
                                         " url=" + currentUrl + " traceId=" + traceId);
                         long completedNanos = System.nanoTime();
                         return new HttpAttemptResult(
@@ -238,8 +232,7 @@ final class HttpExecutor {
                     String nextUrl = resolveRedirect(currentUrl, location);
                     if (nextUrl == null || nextUrl.isBlank()) {
                         // Invalid redirect target → treat the current response as final.
-                        Logger.log(Logger.TAG.WARN,
-                                "HttpExecutor: redirect invalid Location status=" + status +
+                        Logger.log(Logger.TAG.WARN, "[05008] HttpExecutor: redirect invalid Location status=" + status +
                                         " url=" + currentUrl + " location=" + location +
                                         " traceId=" + traceId);
                         long completedNanos = System.nanoTime();
@@ -295,8 +288,7 @@ final class HttpExecutor {
         }
 
         if (connectTimeout.isNegative() || connectTimeout.isZero()) {
-            Logger.log(Logger.TAG.ERROR,
-                    "HttpExecutor: invalid connectTimeout=" + connectTimeout);
+            Logger.log(Logger.TAG.ERROR, "[05009] HttpExecutor: invalid connectTimeout=" + connectTimeout);
             throw new NetworkException(
                     ErrorType.INVALID_REQUEST,
                     "connectTimeout must be > 0 (was " + connectTimeout + ")"
@@ -497,3 +489,4 @@ final class HttpExecutor {
         }
     }
 }
+

@@ -43,7 +43,7 @@ public final class CrashHandler {
                     && p.toString().endsWith(".json.patch")
                     && Files.size(p) > 0L;
         } catch (IOException e) {
-            Logger.log(Logger.TAG.WARN, "CrashHandler: unable to stat potential patch: " + p + " (" + e.getMessage() + ")");
+            Logger.log(Logger.TAG.WARN, "[04001] CrashHandler: unable to stat potential patch: " + p + " (" + e.getMessage() + ")");
             return false;
         }
     }
@@ -76,7 +76,7 @@ public final class CrashHandler {
         try {
             bases = findPatchedJsonBases();
         } catch (IOException io) {
-            Logger.log(Logger.TAG.ERROR, "CrashHandler: scan failed: " + io.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[04002] CrashHandler: scan failed: " + io.getMessage());
             throw new DatabaseException("CrashHandler scan failed", io);
         }
 
@@ -85,7 +85,7 @@ public final class CrashHandler {
             return new Result(false, 0, 0, List.of());
         }
 
-        Logger.log(Logger.TAG.WARN, "CrashHandler: UNEXPECTED previous exit detected — journals found: " + bases.size());
+        Logger.log(Logger.TAG.WARN, "[04003] CrashHandler: UNEXPECTED previous exit detected — journals found: " + bases.size());
 
         final List<String> quarantined = new ArrayList<>();
         int materialized = 0;
@@ -105,7 +105,7 @@ public final class CrashHandler {
                     String reason = "Integrity invalid"
                             + (report == null ? "" : " messages=" + report.messages);
                     quarantineWithDump(path, journal, reason);
-                    Logger.log(Logger.TAG.ERROR, "CrashHandler: aborting startup — integrity failed for " + path);
+                    Logger.log(Logger.TAG.ERROR, "[04004] CrashHandler: aborting startup — integrity failed for " + path);
                     throw new DatabaseException("Crash recovery aborted — integrity failed for " + path);
                 }
 
@@ -115,7 +115,7 @@ public final class CrashHandler {
                 // Quarantine base and its journal; then abort startup (policy)
                 quarantineWithDump(path, journal, ex.getClass().getSimpleName() + ": " +
                         (ex.getMessage() == null ? "<none>" : ex.getMessage()));
-                Logger.log(Logger.TAG.ERROR, "CrashHandler: aborting startup — " + (quarantined.size() + 1) +
+                Logger.log(Logger.TAG.ERROR, "[04005] CrashHandler: aborting startup — " + (quarantined.size() + 1) +
                         " file(s) quarantined. Admin action required.");
                 quarantined.add(path);
                 throw new DatabaseException("Crash recovery aborted — quarantined: " + quarantined.size(), ex);
@@ -190,14 +190,14 @@ public final class CrashHandler {
         try {
             DatabaseManager.moveToCorrupt(basePath);
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "CrashHandler: moveToCorrupt(base) failed for " + basePath + " — " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[04006] CrashHandler: moveToCorrupt(base) failed for " + basePath + " — " + e.getMessage());
         }
         try {
             if (journal != null && Files.exists(journal)) {
                 DatabaseManager.moveToCorrupt(journal.toString());
             }
         } catch (Exception e) {
-            Logger.log(Logger.TAG.ERROR, "CrashHandler: moveToCorrupt(journal) failed for " + journal + " — " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[04007] CrashHandler: moveToCorrupt(journal) failed for " + journal + " — " + e.getMessage());
         }
 
         Logger.logDump(

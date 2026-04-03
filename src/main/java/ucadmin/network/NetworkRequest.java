@@ -956,14 +956,13 @@ public final class NetworkRequest {
         return s;
     }
     private static void fail(String msg) {
-        Logger.log(Logger.TAG.ERROR, "NRO validation failed: " + msg);
+        Logger.log(Logger.TAG.ERROR, "[08001] NRO validation failed: " + msg);
         throw new IllegalStateException(msg);
     }
     private void ensureSealed() { if (!sealed) fail("REQUEST_NOT_SEALED: Call seal() first."); }
     private void ensureNotSealed() {
         if (sealed) {
-            Logger.log(Logger.TAG.ERROR,
-                    "NRO: attempted mutation after seal() for " + service + "/" + name);
+            Logger.log(Logger.TAG.ERROR, "[08002] NRO: attempted mutation after seal() for " + service + "/" + name);
             throw new IllegalStateException("REQUEST_IMMUTABLE: This NetworkRequest is sealed.");
         }
     }
@@ -1056,3 +1055,4 @@ public final class NetworkRequest {
     /** Minimal draft passed to custom signer. */
     public record RequestDraft(Type type, String url, JSONObject jsonBody) { }
 }
+

@@ -74,7 +74,7 @@ public final class TaskScheduler implements Runnable {
     public static boolean start(CommandExecutor executor) throws TaskException {
         Logger.log(Logger.TAG.SYSTEM, "TaskScheduler.start() called.");
         if (!STARTED.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.start() ignored -> already started.");
+            Logger.log(Logger.TAG.WARN, "[13001] TaskScheduler.start() ignored -> already started.");
             return false;
         }
         if (executor == null) {
@@ -102,11 +102,11 @@ public final class TaskScheduler implements Runnable {
     public static boolean shutdown() {
         Logger.log(Logger.TAG.SYSTEM, "TaskScheduler.shutdown() called.");
         if (!STARTED.compareAndSet(true, false)) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.shutdown() ignored -> not started.");
+            Logger.log(Logger.TAG.WARN, "[13002] TaskScheduler.shutdown() ignored -> not started.");
             return false;
         }
         if (INSTANCE == null) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.shutdown() skipped -> no instance.");
+            Logger.log(Logger.TAG.WARN, "[13003] TaskScheduler.shutdown() skipped -> no instance.");
             return false;
         }
         boolean ok = INSTANCE.shutdown(true);
@@ -123,11 +123,11 @@ public final class TaskScheduler implements Runnable {
     public static boolean shutdownNoExit() {
         Logger.log(Logger.TAG.SYSTEM, "TaskScheduler.shutdownNoExit() called.");
         if (!STARTED.compareAndSet(true, false)) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.shutdownNoExit() ignored -> not started.");
+            Logger.log(Logger.TAG.WARN, "[13004] TaskScheduler.shutdownNoExit() ignored -> not started.");
             return false;
         }
         if (INSTANCE == null) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.shutdownNoExit() skipped -> no instance.");
+            Logger.log(Logger.TAG.WARN, "[13005] TaskScheduler.shutdownNoExit() skipped -> no instance.");
             return false;
         }
         boolean ok = INSTANCE.shutdown(false);
@@ -212,14 +212,14 @@ public final class TaskScheduler implements Runnable {
     /** Starts the worker thread (daemon). */
     public boolean start() throws TaskException {
         if (!running.compareAndSet(false, true)) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.start: ignored -> already running.");
+            Logger.log(Logger.TAG.WARN, "[13006] TaskScheduler.start: ignored -> already running.");
             return false;
         }
         try {
             initFromRegistry();
         } catch (TaskException e) {
             running.set(false);
-            Logger.log(Logger.TAG.ERROR, "TaskScheduler.start: init failed. " + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[13007] TaskScheduler.start: init failed. " + e.getMessage());
             throw e;
         }
         Thread t = new Thread(this, "UC-TaskScheduler");
@@ -356,8 +356,7 @@ public final class TaskScheduler implements Runnable {
         try {
             return taskRegistry.get(taskId);
         } catch (TaskException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "TaskScheduler: failed to load taskId=" + taskId + " context=" + context +
+            Logger.log(Logger.TAG.ERROR, "[13008] TaskScheduler: failed to load taskId=" + taskId + " context=" + context +
                             " err=" + e.getMessage());
             return null;
         }
@@ -368,13 +367,12 @@ public final class TaskScheduler implements Runnable {
         ScheduledTask t = loadTask(taskId, "cancel");
         hotCache.remove(taskId);
         if (t == null) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler: cancel ignored (not found) taskId=" + taskId);
+            Logger.log(Logger.TAG.WARN, "[13009] TaskScheduler: cancel ignored (not found) taskId=" + taskId);
         }
         try {
             taskRegistry.delete(taskId);
         } catch (TaskException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "TaskScheduler: registry delete failed for taskId=" + taskId + " (cancel)");
+            Logger.log(Logger.TAG.ERROR, "[13010] TaskScheduler: registry delete failed for taskId=" + taskId + " (cancel)");
         }
         Logger.log(Logger.TAG.INFO, "TaskScheduler: cancelled taskId=" + taskId);
     }
@@ -383,8 +381,7 @@ public final class TaskScheduler implements Runnable {
     private void skipTask(ScheduledTask task, String reason, TaskException cause) {
         if (task == null) return;
         hotCache.remove(task.taskId);
-        Logger.log(Logger.TAG.ERROR,
-                "TaskScheduler: skipping taskId=" + task.taskId + " reason=" + reason +
+        Logger.log(Logger.TAG.ERROR, "[13011] TaskScheduler: skipping taskId=" + task.taskId + " reason=" + reason +
                         (cause == null ? "" : " err=" + cause.getMessage()));
 
         ScheduledTask failed = task.toBuilder()
@@ -395,8 +392,7 @@ public final class TaskScheduler implements Runnable {
         try {
             taskRegistry.update(failed);
         } catch (TaskException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "TaskScheduler: registry update failed for taskId=" + task.taskId + " (skip)");
+            Logger.log(Logger.TAG.ERROR, "[13012] TaskScheduler: registry update failed for taskId=" + task.taskId + " (skip)");
         }
     }
 
@@ -418,15 +414,14 @@ public final class TaskScheduler implements Runnable {
                     try {
                         refreshFromRegistry(now, "schedule", false);
                     } catch (TaskException e) {
-                        Logger.log(Logger.TAG.ERROR,
-                                "TaskScheduler: refresh failed after schedule err=" + e.getMessage());
+                        Logger.log(Logger.TAG.ERROR, "[13013] TaskScheduler: refresh failed after schedule err=" + e.getMessage());
                     }
                     break;
                 }
                 case PAUSE:
                     ScheduledTask paused = setStatus(cmd.taskId, ScheduledTask.Status.PAUSED);
                     if (paused == null) {
-                        Logger.log(Logger.TAG.WARN, "TaskScheduler: pause ignored (not found) taskId=" + cmd.taskId);
+                        Logger.log(Logger.TAG.WARN, "[13014] TaskScheduler: pause ignored (not found) taskId=" + cmd.taskId);
                     } else {
                         Logger.log(Logger.TAG.INFO, "TaskScheduler: paused taskId=" + cmd.taskId);
                     }
@@ -434,7 +429,7 @@ public final class TaskScheduler implements Runnable {
                 case RESUME: {
                     ScheduledTask t = setStatus(cmd.taskId, ScheduledTask.Status.SCHEDULED);
                     if (t == null) {
-                        Logger.log(Logger.TAG.WARN, "TaskScheduler: resume ignored (not found) taskId=" + cmd.taskId);
+                        Logger.log(Logger.TAG.WARN, "[13015] TaskScheduler: resume ignored (not found) taskId=" + cmd.taskId);
                     } else {
                         Logger.log(Logger.TAG.INFO, "TaskScheduler: resumed taskId=" + cmd.taskId);
                         Long due = computeNextDueAt(t, now);
@@ -461,8 +456,7 @@ public final class TaskScheduler implements Runnable {
         try {
             tasks = taskRegistry.loadAllActive();
         } catch (TaskException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "TaskScheduler: refresh failed reason=" + reason + " err=" + e.getMessage());
+            Logger.log(Logger.TAG.ERROR, "[13016] TaskScheduler: refresh failed reason=" + reason + " err=" + e.getMessage());
             if (throwOnFailure) throw e;
             nextRefreshAt = now + 60_000L;
             return;
@@ -492,8 +486,7 @@ public final class TaskScheduler implements Runnable {
             dueSoon = new ArrayList<>(dueSoon.subList(0, MAX_DUE_SOON_TASKS));
             long refreshEarlyAt = Math.max(now + 5_000L, firstDroppedDue - 30_000L);
             localNextRefresh = Math.min(localNextRefresh, refreshEarlyAt);
-            Logger.log(Logger.TAG.WARN,
-                    "TaskScheduler: due-soon cache capped at " + MAX_DUE_SOON_TASKS +
+            Logger.log(Logger.TAG.WARN, "[13017] TaskScheduler: due-soon cache capped at " + MAX_DUE_SOON_TASKS +
                             " (reason=" + reason + "), will refresh early.");
         }
 
@@ -542,8 +535,7 @@ public final class TaskScheduler implements Runnable {
                 try {
                     refreshFromRegistry(now, "periodic", false);
                 } catch (TaskException e) {
-                    Logger.log(Logger.TAG.ERROR,
-                            "TaskScheduler: periodic refresh failed err=" + e.getMessage());
+                    Logger.log(Logger.TAG.ERROR, "[13018] TaskScheduler: periodic refresh failed err=" + e.getMessage());
                 }
                 now = System.currentTimeMillis();
             }
@@ -601,7 +593,7 @@ public final class TaskScheduler implements Runnable {
     /** Requests shutdown and optionally waits for the worker to exit. */
     public boolean shutdown(boolean waitForJoin) {
         if (!running.compareAndSet(true, false)) {
-            Logger.log(Logger.TAG.WARN, "TaskScheduler.shutdown: ignored -> not running.");
+            Logger.log(Logger.TAG.WARN, "[13019] TaskScheduler.shutdown: ignored -> not running.");
             return false;
         }
         Logger.log(Logger.TAG.SYSTEM, "TaskScheduler: shutdown requested.");
@@ -613,7 +605,7 @@ public final class TaskScheduler implements Runnable {
                     t.join(SHUTDOWN_AWAIT_MS);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    Logger.log(Logger.TAG.WARN, "TaskScheduler: shutdown wait interrupted.");
+                    Logger.log(Logger.TAG.WARN, "[13020] TaskScheduler: shutdown wait interrupted.");
                 }
             }
         }
@@ -683,8 +675,7 @@ public final class TaskScheduler implements Runnable {
                     return;
                 }
                 cacheIfDueSoon(retrying, now + RETRY_BACKOFF_MS, now);
-                Logger.log(Logger.TAG.WARN,
-                        "TaskScheduler: retrying name=" + t.name + " id=" + t.taskId +
+                Logger.log(Logger.TAG.WARN, "[13021] TaskScheduler: retrying name=" + t.name + " id=" + t.taskId +
                                 " opKey=" + t.opKey +
                                 " remaining=" + retrying.retriesRemaining +
                                 " backoffMs=" + RETRY_BACKOFF_MS);
@@ -701,8 +692,7 @@ public final class TaskScheduler implements Runnable {
                 return;
             }
             hotCache.remove(failed.taskId);
-            Logger.log(Logger.TAG.ERROR,
-                    "TaskScheduler: failed name=" + t.name + " id=" + t.taskId +
+            Logger.log(Logger.TAG.ERROR, "[13022] TaskScheduler: failed name=" + t.name + " id=" + t.taskId +
                             " err=" + safeMsg(e.getMessage()));
             return;
         }
@@ -719,8 +709,7 @@ public final class TaskScheduler implements Runnable {
             try {
                 taskRegistry.delete(updated.taskId);
             } catch (TaskException e) {
-                Logger.log(Logger.TAG.ERROR,
-                        "TaskScheduler: registry delete failed for taskId=" + updated.taskId);
+                Logger.log(Logger.TAG.ERROR, "[13023] TaskScheduler: registry delete failed for taskId=" + updated.taskId);
             }
             hotCache.remove(updated.taskId);
             Logger.log(Logger.TAG.INFO,
@@ -768,12 +757,10 @@ public final class TaskScheduler implements Runnable {
         try {
             taskRegistry.delete(updated.taskId);
         } catch (TaskException e) {
-            Logger.log(Logger.TAG.ERROR,
-                    "TaskScheduler: registry delete failed for taskId=" + updated.taskId + " (missed)");
+            Logger.log(Logger.TAG.ERROR, "[13024] TaskScheduler: registry delete failed for taskId=" + updated.taskId + " (missed)");
         }
         hotCache.remove(updated.taskId);
-        Logger.log(Logger.TAG.WARN,
-                "TaskScheduler: missed one-shot name=" + t.name +
+        Logger.log(Logger.TAG.WARN, "[13025] TaskScheduler: missed one-shot name=" + t.name +
                         " id=" + t.taskId +
                         " opKey=" + t.opKey);
     }
@@ -883,3 +870,4 @@ public final class TaskScheduler implements Runnable {
                 .thenComparing(e -> e.taskId);
     }
 }
+
