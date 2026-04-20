@@ -1,0 +1,1 @@
+- Emoji and sticker object are not creatable by the program as there is no implimentation for saving attachments

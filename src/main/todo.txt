@@ -1,4 +1,0 @@
-Future additions:
-- Right now the network module is locked at two worker threads for handling a queue of requests, making these scale dynamically would be good
-- Heartbeat/watchdog
-- DBM is currently syncronous, makign it async would be a good upgrade

@@ -1,5 +1,7 @@
 package ucadmin.tools;
 
+import java.util.Objects;
+
 /**
  * Collection of simple list utilities for tooling and actions.
  * Additional list types will be added here as needed.
@@ -314,7 +316,7 @@ public final class Lists {
          * - Size starts at 0.
          */
         public ResizingArray() {
-            int capacity = Math.max(minCapacity, resizeStep);
+            int capacity = AMath.max(minCapacity, resizeStep);
             data = new Object[capacity];
             fillEmpty(0, data.length);
         }
@@ -541,6 +543,30 @@ public final class Lists {
             return removed == EMPTY ? null : (T) removed;
         }
 
+        /**
+         * Finds the index of the first element that equals the target value.
+         *
+         * Behavior:
+         * - Uses zero-based indexing.
+         * - Compares values using Object.equals (not reference equality).
+         * - Returns -1 when no match is found.
+         *
+         * @param value value to search for (may be null).
+         * @return the index of the first matching value, or -1 if not found.
+         */
+        public int find(T value) {
+            for (int i = 0; i < size; i++) {
+                Object current = data[i];
+                if (current == EMPTY) {
+                    continue;
+                }
+                if (Objects.equals(value, current)) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
         private void checkIndex(int index) {
             if (index < 0 || index >= size) {
                 throw new IndexOutOfBoundsException("index=" + index + ", size=" + size);
@@ -553,7 +579,7 @@ public final class Lists {
             }
             int newCapacity = data.length;
             while (newCapacity < requiredSize) {
-                newCapacity += Math.max(1, resizeStep);
+                newCapacity += AMath.max(1, resizeStep);
             }
             Object[] next = new Object[newCapacity];
             System.arraycopy(data, 0, next, 0, size);
@@ -568,8 +594,8 @@ public final class Lists {
             if (buffer <= shrinkBuffer) {
                 return;
             }
-            int target = data.length - Math.max(1, resizeStep);
-            int min = Math.max(minCapacity, resizeStep);
+            int target = data.length - AMath.max(1, resizeStep);
+            int min = AMath.max(minCapacity, resizeStep);
             if (target < min || target < size) {
                 return;
             }

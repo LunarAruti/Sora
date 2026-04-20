@@ -1,114 +1,73 @@
 package ucadmin.main;
 
-import org.json.JSONObject;
-import ucadmin.database.DatabaseManager;
+import ucadmin.tools.pixelgenerator.PixelArt;
+import ucadmin.tools.pixelgenerator.PixelGenerator;
+import ucadmin.tools.pixelgenerator.PixelImageQuantizer;
+import ucadmin.tools.qrgenerator.QrEncoder;
 import ucadmin.util.Logger;
 import ucadmin.util.ShutdownManager;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static ucadmin.tools.pixelgenerator.PixelImageQuantizer.quantize;
+
 public class TestingGrounds {
+
+    private static final Path TEST_OUTPUT_DIR = Paths.get(
+            "C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database"
+    );
 
     public static void TestingGrounds() {
 
-        Logger.log(Logger.TAG.SYSTEM, "=== DBM DELETE + COMPLEX JSON TEST ===");
+        Logger.log(Logger.TAG.SYSTEM, "=== QR GENERATOR TESTING GROUNDS ===");
 
         try {
-            String suffix = String.valueOf(System.currentTimeMillis());
-            String deleteFile = "database/user/delete_test_" + suffix + ".json";
-            String complexFile = "database/user/complex_test_" + suffix + ".json";
 
-            Logger.log(Logger.TAG.INFO, "delete file test: " + deleteFile);
-            Logger.log(Logger.TAG.INFO, "complex file test: " + complexFile);
-
-            // DELETE FILE TEST
-            DatabaseManager.createJSON(deleteFile);
-            Logger.log(Logger.TAG.INFO, "delete test: write seed ok=" +
-                    DatabaseManager.writeJSONPath(deleteFile, "seed", 1, true));
-            Logger.log(Logger.TAG.INFO, "delete test: exists after write=" +
-                    DatabaseManager.fileExists(deleteFile));
-            Logger.log(Logger.TAG.INFO, "delete test: delete ok=" +
-                    DatabaseManager.deleteFile(deleteFile));
-            Logger.log(Logger.TAG.INFO, "delete test: exists after delete=" +
-                    DatabaseManager.fileExists(deleteFile));
-
-            // COMPLEX JSON TEST
-            DatabaseManager.createJSON(complexFile);
-            Logger.log(Logger.TAG.INFO, "complex: write profile.id ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "profile.id", suffix, true));
-            Logger.log(Logger.TAG.INFO, "complex: write profile.name ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "profile.name", "lunar", true));
-            Logger.log(Logger.TAG.INFO, "complex: write profile.stats.level ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "profile.stats.level", 42, true));
-            Logger.log(Logger.TAG.INFO, "complex: write profile.stats.rank ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "profile.stats.rank", "gold", true));
-            Logger.log(Logger.TAG.INFO, "complex: write profile.flags.active ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "profile.flags.active", true, true));
-
-            Logger.log(Logger.TAG.INFO, "complex: append badge alpha ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "profile.badges", "alpha"));
-            Logger.log(Logger.TAG.INFO, "complex: append badge beta ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "profile.badges", "beta"));
-            Logger.log(Logger.TAG.INFO, "complex: append badge gamma ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "profile.badges", "gamma"));
-
-            JSONObject event1 = new JSONObject()
-                    .put("type", "login")
-                    .put("ts", 1)
-                    .put("ip", "127.0.0.1");
-            JSONObject event2 = new JSONObject()
-                    .put("type", "kick")
-                    .put("ts", 2)
-                    .put("reason", "spam");
-
-            Logger.log(Logger.TAG.INFO, "complex: append event1 ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "history.events", event1));
-            Logger.log(Logger.TAG.INFO, "complex: append event2 ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "history.events", event2));
-            Logger.log(Logger.TAG.INFO, "complex: append tag early ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "history.tags", "early"));
-            Logger.log(Logger.TAG.INFO, "complex: append tag beta ok=" +
-                    DatabaseManager.appendJSONArray(complexFile, "history.tags", "beta"));
-
-            Logger.log(Logger.TAG.INFO, "complex: update profile.stats.level ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "profile.stats.level", 43, true));
-            Logger.log(Logger.TAG.INFO, "complex: update event2.reason ok=" +
-                    DatabaseManager.writeJSONPath(complexFile, "history.events[1].reason", "rule-1", true));
-
-            Logger.log(Logger.TAG.INFO, "complex: read profile.name -> " +
-                    DatabaseManager.readJSONPath(complexFile, "profile.name"));
-            Logger.log(Logger.TAG.INFO, "complex: read profile.stats.level -> " +
-                    DatabaseManager.readJSONPath(complexFile, "profile.stats.level"));
-            Logger.log(Logger.TAG.INFO, "complex: read badges[2] -> " +
-                    DatabaseManager.readJSONPath(complexFile, "profile.badges[2]"));
-            Logger.log(Logger.TAG.INFO, "complex: read event2.reason -> " +
-                    DatabaseManager.readJSONPath(complexFile, "history.events[1].reason"));
-
-            Logger.log(Logger.TAG.INFO, "complex: remove profile.flags.active ok=" +
-                    DatabaseManager.removeJSONPath(complexFile, "profile.flags.active"));
-            Logger.log(Logger.TAG.INFO, "complex: contains profile.flags.active=" +
-                    DatabaseManager.containsJSONPath(complexFile, "profile.flags.active"));
-
-            Logger.log(
-                    Logger.TAG.ERROR,
-                    "[0010] TestingGrounds emitted synthetic error marker."
-            );
+            QrEncoder.encode("https://www.youtube.com/watch?v=oHg5SJYRHA0", QrEncoder.QrMode.BYTE, QrEncoder.ErrorCorrectionLevel.L, QrEncoder.TextEncoding.UTF_8,"C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\qr.png");
 
         } catch (Throwable t) {
             Logger.log(
                     Logger.TAG.ERROR,
-                    "[0011] DBM test crash: " + t
+                    "[0011] QR TestingGrounds crash: " + t
             );
-        }
-
-        try {
-            Thread.sleep(1*60000);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            Logger.log(
-                    Logger.TAG.WARN,
-                    "[0012] TestingGrounds sleep interrupted before shutdown."
-            );
+            logThrowableTrace("[0011] QR TestingGrounds stack trace", t);
         }
         ShutdownManager.shutdown(null);
 
+    }
+
+    /**
+     * Logs the full throwable, its cause chain, and its stack trace so test
+     * failures are diagnosable from the log output alone.
+     *
+     * @param heading top-level heading for the logged trace
+     * @param throwable thrown failure
+     */
+    private static void logThrowableTrace(String heading, Throwable throwable) {
+        if (throwable == null) {
+            Logger.log(Logger.TAG.ERROR, heading + ": <null throwable>");
+            return;
+        }
+
+        Throwable current = throwable;
+        int depth = 0;
+        while (current != null) {
+            Logger.log(
+                    Logger.TAG.ERROR,
+                    heading + " cause[" + depth + "]: " +
+                            current.getClass().getName() +
+                            " | message=" + current.getMessage()
+            );
+            current = current.getCause();
+            depth++;
+        }
+
+        StringWriter writer = new StringWriter();
+        throwable.printStackTrace(new PrintWriter(writer));
+        Logger.log(Logger.TAG.ERROR, heading + System.lineSeparator() + writer);
+        Logger.logDump(heading, throwable);
     }
 }

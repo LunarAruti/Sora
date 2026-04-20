@@ -28,7 +28,7 @@ public final class Logger {
 
     /** Tag categories for log entries. */
     public enum TAG {
-        WARN, DEBUG, ERROR, INFO, FLAG, REQUEST, SYSTEM, COMMAND, DUMP, NULL
+        WARN, DEBUG, ERROR, INFO, FLAG, REQUEST, SYSTEM, COMMAND, DUMP, OBJECT_REJECT, ACTION_REJECT, NULL
     }
     // DUMP - Used for corrupt data entries into DUMP.txt
 

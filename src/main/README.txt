@@ -7,13 +7,6 @@
        Signal-Oriented Runtime Agent
 
 
-========================
-Commit Info
-========================
-
-- DBM deleteFile clears queue cache to prevent rematerialized deletes.
-- RegistryEditor API documented with full method list.
-- TestingGrounds updated to validate DBM delete and complex JSON behavior.
 
 
 ========================

@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import ucadmin.discord.Discord;
 import ucadmin.util.Logger;
 import ucadmin.util.StartupManager;
 
@@ -20,6 +21,7 @@ public class Main {
                         .enableCache(CacheFlag.MEMBER_OVERRIDES);
 
                 var jda = builder.build();
+                Discord.bindJda(jda);
 
                 jda.addEventListener(new StartupManager());
                 jda.addEventListener(new ucadmin.commands.Ping());

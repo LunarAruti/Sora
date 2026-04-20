@@ -1,0 +1,721 @@
+PIXEL GENERATOR PALETTE
+
+Purpose
+- Canonical token reference for the fixed pixel-generator palette.
+- Tokens are case-insensitive after normalization.
+- Leading and trailing whitespace is ignored before lookup.
+- `.` and the transparent aliases below resolve to full transparency.
+- All color tokens below are fully opaque unless explicitly placed in the Transparent section.
+
+Transparent
+- `.`
+- `t`
+- `tr`
+- `transparent`
+- `clear`
+- `none`
+- `empty`
+- `blank`
+
+Grayscale
+- `b`, `bk`, `black`
+- `jet`
+- `richblack`
+- `offblack`, `nearblack`
+- `charcoal`
+- `darkcharcoal`
+- `graphite`
+- `carbon`
+- `onyx`
+- `coal`
+- `soot`
+- `inkblack`
+- `slatecharcoal`
+- `gunmetal`
+- `darkslategray`, `darkslategrey`, `dsg`
+- `dimgray`, `dimgrey`, `dmg`, `darkgray1`
+- `slategray`, `slategrey`
+- `lightslategray`, `lightslategrey`, `lsg`
+- `s`, `gy`, `gray`, `grey`
+- `coolgray`
+- `warmgray`
+- `bluegray`
+- `stonegray`
+- `ashgray`
+- `smokegray`
+- `cloudgray`
+- `darkgray`, `darkgrey`, `dgy`
+- `mediumgray`, `mediumgrey`, `mgy`
+- `silver`
+- `lightgray`, `lightgrey`, `lgrey`, `lgray`
+- `platinum`
+- `tin`
+- `pewter`
+- `gainsboro`
+- `whitesmoke`
+- `frostgray`
+- `porcelaingray`
+- `w`, `wh`, `white`
+
+Warm Whites And Paper Neutrals
+- `snow`
+- `ghostwhite`
+- `beige`
+- `oldlace`
+- `eggshell`
+- `linen`
+- `seashell`
+- `floralwhite`
+- `antiquewhite`
+- `cornsilk`
+- `papayawhip`
+- `blanchedalmond`
+- `bisque`
+- `navajowhite`
+- `peachpuff`
+- `moccasin`
+- `cream`
+- `ivory`
+- `vanilla`
+- `buttermilk`
+- `almond`
+- `parchment`
+- `oat`
+- `oatmeal`
+- `bone`
+- `chalk`
+- `sandstonewhite`
+- `buttercream`
+- `milkywhite`
+- `porcelain`
+- `shell`
+- `cotton`
+- `paperwhite`
+- `warmwhite`
+- `softwhite`
+- `offwhite`
+- `ivorycream`
+- `champagnewhite`
+- `vanillacreem`
+- `lightivory`
+
+Reds
+- `r`, `red`
+- `dr`, `darkred`
+- `firebrick`
+- `brickred`
+- `scarlet`
+- `cinnabar`
+- `vermilion`
+- `signalred`
+- `safetyred`
+- `stopred`
+- `indianred`
+- `lightcoral`, `lcoral`
+- `salmon`
+- `darksalmon`
+- `lightsalmon`
+- `crimson`
+- `bloodred`
+- `rubyred`
+- `currant`
+- `garnet`
+- `cardinal`
+- `cherryred`
+- `applered`
+- `rosewood`
+- `oxblood`
+- `burgundy`
+- `maroon`
+- `darkscarlet`
+- `deepred`
+- `softred`
+- `alizarin`
+- `darkalizarin`
+- `tomatered`
+- `redorange`
+- `wineberry`
+- `mulberryred`
+- `brick`
+- `clayred`
+
+Pinks And Rose Tones
+- `p`, `pink`
+- `lightpink`, `lp`
+- `hotpink`
+- `deeppink`, `dpink`
+- `rosepink`
+- `blush`
+- `blushpink`
+- `dustypink`
+- `babypink`
+- `pastelpink`
+- `bubblegumpink`
+- `cottoncandy`
+- `carnationpink`
+- `flamingopink`
+- `watermelonpink`
+- `strawberrypink`
+- `peony`
+- `mauverose`
+- `rose`
+- `mistyrose`
+- `softrose`
+- `rosedust`
+- `rosequartz`
+- `shellpink`
+- `powderpink`
+- `petalpink`
+- `warmpink`
+- `coolpink`
+- `pinkcoral`
+- `lightrose`
+
+Orange Amber And Yellow
+- `orangered`
+- `tomato`
+- `coral`
+- `darkorange`, `dorange`
+- `o`, `orange`
+- `lightorange`
+- `amber`
+- `burntorange`
+- `burntorange2`
+- `rust`
+- `carrot`
+- `pumpkin`
+- `marigold`
+- `apricot`
+- `tangerine`
+- `safetyorange`
+- `persimmon`
+- `mandarin`
+- `copperorange`
+- `autumnorange`
+- `sunsetorange`
+- `mango`
+- `papaya`
+- `cantaloupe`
+- `melon`
+- `orangepeel`
+- `honeyorange`
+- `gold`
+- `goldenrod`
+- `darkgoldenrod`
+- `palegoldenrod`
+- `lemonchiffon`
+- `lightcream`
+- `y`, `yellow`
+- `lightyellow`, `ly`
+- `lightgoldenrodyellow`
+- `khaki`
+- `darkkhaki`
+- `canary`
+- `lemon`
+- `banana`
+- `mustard`
+- `sand`
+- `sunflower`
+- `maize`
+- `butteryellow`
+- `schoolbusyellow`
+- `dandelion`
+- `saffron`
+- `honeyyellow`
+- `cornyellow`
+- `strawyellow`
+- `ambergold`
+- `brightgold`
+- `warmyellow`
+
+Browns And Tans
+- `n`, `br`, `brown`
+- `saddlebrown`
+- `sienna`
+- `chocolate`
+- `peru`
+- `sandybrown`
+- `rosybrown`
+- `tan`
+- `wheat`
+- `burlywood`
+- `camel`
+- `mocha`
+- `coffee`
+- `espresso`
+- `copperbrown`
+- `umber`
+- `rawumber`
+- `burntumber`
+- `sepia`
+- `mahogany`
+- `walnut`
+- `chestnut`
+- `acorn`
+- `pecan`
+- `hazelbrown`
+- `nutmeg`
+- `cinnamon`
+- `toast`
+- `toastbrown`
+- `maple`
+- `oak`
+- `woodbrown`
+- `earthbrown`
+- `dirtbrown`
+- `mud`
+- `clay`
+- `terracotta`
+- `reddishbrown`
+- `darktan`
+- `lighttan`
+- `toffee`
+- `caramel`
+- `butterscotch`
+- `sandybrown2`
+- `bronzebrown`
+- `leatherbrown`
+
+Skin Tones And Flesh Neutrals
+- `fairskin`
+- `palefair`
+- `porcelainskin`
+- `ivoryskin`
+- `lightskin`
+- `softbeige`
+- `warmbeige`
+- `neutralbeige`
+- `roseskin`
+- `peachskin`
+- `peachbeige`
+- `lightpeach`
+- `mediumskin`
+- `sunbeige`
+- `goldenbeige`
+- `tanbeige`
+- `warmtan`
+- `caramelskin`
+- `honeyskin`
+- `olivebeige`
+- `bronzeskin`
+- `deepbronze`
+- `richbrownskin`
+- `umbertan`
+- `mahoganyskin`
+- `coolbeige`
+- `dustbeige`
+- `almondskin`
+- `latte`
+- `cocoatan`
+
+Greens
+- `darkgreen`, `dg`
+- `green`
+- `g`, `lime`
+- `limegreen`
+- `forestgreen`
+- `seagreen`
+- `mediumseagreen`
+- `lightseagreen`
+- `mediumaquamarine`
+- `darkseagreen`
+- `lightgreen`, `lg`
+- `palegreen`
+- `mediumspringgreen`
+- `springgreen`
+- `lawngreen`
+- `chartreuse`
+- `greenyellow`
+- `yellowgreen`
+- `olivedrab`
+- `darkolivegreen`
+- `olive`
+- `fern`
+- `emerald`
+- `darkemerald`
+- `junglegreen`
+- `pistachio`
+- `inchworm`
+- `celadon`
+- `pinegreen`
+- `huntergreen`
+- `sage`
+- `kellygreen`
+- `jade`
+- `honeydew`
+- `mintcream`
+- `mint`
+- `deepmint`
+- `brightgreen`
+- `deepgreen`
+- `moss`
+- `mossgreen`
+- `grassgreen`
+- `leafgreen`
+- `clover`
+- `shamrock`
+- `basil`
+- `mintleaf`
+- `peargreen`
+- `applegreen`
+- `avocado`
+- `kiwi`
+- `cactus`
+- `swampgreen`
+- `boggreen`
+- `armygreen`
+- `camogreen`
+- `darkmoss`
+- `lightmoss`
+- `spruce`
+- `evergreen`
+- `firgreen`
+- `needlegreen`
+- `seafoam`
+- `seafoamgreen`
+- `foamgreen`
+- `mintgreen`
+- `pastelgreen`
+- `emeraldgreen`
+- `viridian`
+- `malachite`
+- `absinthe`
+- `neongreen`
+
+Cyans Teals And Turquoise
+- `teal`
+- `darkteal`
+- `lightteal`
+- `softteal`
+- `deepteal`
+- `c`, `aqua`, `cyan`
+- `lightcyan`
+- `paleturquoise`
+- `aquamarine`
+- `turquoise`
+- `mediumturquoise`
+- `darkturquoise`
+- `cadetblue`
+- `lagoon`
+- `maya`
+- `iceblue`
+- `robinsegg`
+- `robinseggblue`
+- `tiffany`
+- `tiffanyblue`
+- `seafoamcyan`
+- `glacier`
+- `glacierblue`
+- `lagoonblue`
+- `caribbeangreen`
+- `oceanfoam`
+- `mintcyan`
+- `coolcyan`
+- `deepcyan`
+- `brightcyan`
+- `arcticcyan`
+- `poolblue`
+- `waterblue`
+- `bluegreen`
+- `greenblue`
+
+Blues
+- `navy`
+- `midnightblue`
+- `darkblue`, `db`
+- `mediumblue`
+- `u`, `blue`
+- `royalblue`
+- `dodgerblue`
+- `cornflowerblue`
+- `steelblue`
+- `skyblue`
+- `lightskyblue`
+- `lb`, `lightblue`
+- `powderblue`
+- `lightsteelblue`
+- `lsb`
+- `deepskyblue`
+- `aliceblue`
+- `softblue`
+- `brightblue`
+- `deepblue`
+- `babyblue`
+- `airforceblue`
+- `glaucous`
+- `periwinkle`
+- `cobalt`
+- `denim`
+- `azureblue`
+- `azure`
+- `cerulean`
+- `ceruleanblue`
+- `ultramarine`
+- `lapis`
+- `lapisblue`
+- `electricblue`
+- `neonblue`
+- `oceanblue`
+- `marineblue`
+- `stormblue`
+- `rainblue`
+- `arcticblue`
+- `frostblue`
+- `dustblue`
+- `mutedblue`
+- `slatebluegray`
+- `inkblue`
+- `deepnavy`
+- `twilightblue`
+- `nightblue`
+- `moonblue`
+- `washedblue`
+- `softnavy`
+- `coolblue`
+- `bluebell`
+- `harborblue`
+- `portblue`
+- `winterblue`
+- `polarblue`
+
+Purples Violets And Magentas
+- `indigo`
+- `rebeccapurple`
+- `purple`
+- `blueviolet`
+- `darkviolet`
+- `darkorchid`
+- `mediumorchid`
+- `mediumpurple`
+- `mediumslateblue`
+- `slateblue`
+- `darkslateblue`
+- `darkmagenta`
+- `m`, `fuchsia`, `magenta`
+- `violet`
+- `plum`
+- `orchid`
+- `lavender`
+- `thistle`
+- `lavenderpurple`
+- `lilac`
+- `raspberry`
+- `cerise`
+- `bubblegummagenta`
+- `bubblegumpink`
+- `amethyst`
+- `darkamethyst`
+- `eggplant`
+- `wine`
+- `grape`
+- `mulberry`
+- `mulberrypurple`
+- `mauve`
+- `dustymauve`
+- `jam`
+- `boysenberry`
+- `blackberry`
+- `berrypurple`
+- `royalpurple`
+- `imperialpurple`
+- `heliotrope`
+- `iris`
+- `wisteria`
+- `periwinklepurple`
+- `softviolet`
+- `deepviolet`
+- `pastelpurple`
+- `coolviolet`
+- `warmviolet`
+- `orchidpink`
+- `plummagenta`
+
+Metallics And Minerals
+- `bronze`
+- `darkbronze`
+- `lightbronze`
+- `copper`
+- `agedcopper`
+- `steel`
+- `darksteel`
+- `lightsteel`
+- `iron`
+- `castiron`
+- `nickel`
+- `chrome`
+- `silvermetal`
+- `goldmetal`
+- `oldgold`
+- `brass`
+- `antiquebrass`
+- `rosegold`
+- `palegold`
+- `whitegold`
+- `platinumwhite`
+- `obsidian`
+- `granite`
+- `basalt`
+- `marble`
+- `sandstone`
+- `limestone`
+- `shale`
+- `quartz`
+- `jadeStone`
+- `amethyststone`
+- `rubystone`
+- `sapphire`
+- `emeraldstone`
+
+Pastels And Soft Accents
+- `pastelblue`
+- `pastelgreen`
+- `pastelpink`
+- `pastelorange`
+- `pastelcyan`
+- `pastelpurple`
+- `pastelyellow`
+- `pastelred`
+- `pastellime`
+- `pastelteal`
+- `pastelmint`
+- `pastellavender`
+- `pastelrose`
+- `pastelpeach`
+- `pastelcream`
+- `pastelbeige`
+- `palepeach`
+- `paleblue`
+- `palemint`
+- `palelilac`
+- `softpeach`
+- `softlavender`
+- `softyellow`
+- `softcyan`
+- `softgreen`
+- `softorange`
+- `softmagenta`
+- `softviolet`
+- `softbrown`
+- `softgray`
+
+Game Art And Utility Accents
+- `cloud`
+- `concrete`
+- `asphaltgray`
+- `wetasphalt`
+- `midnight`
+- `slatecharcoal`
+- `uiwhite`
+- `uiblack`
+- `uigray`
+- `uiblue`
+- `uigreen`
+- `uiyellow`
+- `uired`
+- `warningyellow`
+- `warningorange`
+- `alertred`
+- `successgreen`
+- `infoblue`
+- `selectionblue`
+- `highlightyellow`
+- `accentcyan`
+- `accentpink`
+- `accentpurple`
+- `accentgreen`
+- `shadowgray`
+- `deepshadow`
+- `panelgray`
+- `screenblue`
+- `terminalgreen`
+- `matrixgreen`
+- `radarpink`
+- `hudgreen`
+- `hudcyan`
+- `hudorange`
+- `hudred`
+- `neonpink`
+- `neonpurple`
+- `neoncyan`
+- `neonyellow`
+- `neonorange`
+- `arcaneblue`
+- `mana`
+- `manablue`
+- `poisongreen`
+- `acidgreen`
+- `toxicgreen`
+- `lava`
+- `lavaorange`
+- `ember`
+- `emberred`
+- `ash`
+- `dust`
+- `fog`
+- `mist`
+
+Nature Sky Water And Atmosphere
+- `sky`
+- `daylight`
+- `dawn`
+- `sunrise`
+- `sunset`
+- `twilight`
+- `stormcloud`
+- `raincloud`
+- `overcast`
+- `mistblue`
+- `fogblue`
+- `frost`
+- `ice`
+- `glacierwhite`
+- `deepwater`
+- `shallowwater`
+- `riverblue`
+- `lakeblue`
+- `oceanmist`
+- `seablue`
+- `seadeep`
+- `foamwhite`
+- `shoreSand`
+- `dunebrown`
+- `drygrass`
+- `freshgrass`
+- `meadowgreen`
+- `pinebrown`
+- `treebark`
+- `leafshadow`
+- `sunlitleaf`
+- `nightsky`
+- `moonlight`
+- `starlight`
+
+Additional Extended Neutrals
+- `taupe`
+- `greige`
+- `stone`
+- `putty`
+- `dustbeige`
+- `smoke`
+- `smokewhite`
+- `coolbeige`
+- `warmbeige2`
+- `drab`
+- `fawn`
+- `mushroom`
+- `truffle`
+- `ashbrown`
+- `dryclay`
+- `paleclay`
+- `mutedtan`
+- `mutedbrown`
+- `mutedolive`
+- `mutedgold`
+- `mutedrose`
+- `mutedviolet`
+- `mutedcyan`
+- `mutedteal`
+- `mutedgreen`
+- `mutedred`
+- `mutedorange`
+- `mutedyellow`

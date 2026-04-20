@@ -1,0 +1,115 @@
+PNG / PIXEL GENERATOR SPEC
+
+Purpose
+- Generate PNG output from a 2D token grid.
+- Primary use case is pixel art / cell art.
+- Transparency must be literal PNG transparency.
+
+Core Design
+- Input grid type is String[][].
+- Each grid cell stores one color token.
+- Tokens may be multi-character.
+- Examples:
+  - b = black
+  - r = red
+  - lb = light blue
+  - carrot = carrot orange
+  - emerald = emerald green
+  - . = transparent
+- Token lookup is case-insensitive after normalization.
+- Null and blank cell values are also treated as transparent.
+
+Public API
+- PixelArt
+  - Holds the source grid, preferred width, preferred height, exact output path, border size, and border color.
+- PixelGenerator.render(PixelArt art)
+  - Validates input.
+  - Resolves final divisible output dimensions.
+  - Applies an optional pixel border outside the content area.
+  - Renders in memory.
+  - Performs one final buffered PNG write.
+  - Returns the resolved absolute output path.
+- PixelImageQuantizer.quantize(String inputPath, int outputWidth, int outputHeight)
+  - Reads an image from disk.
+  - Compresses the full source image into the requested token-grid size.
+  - Averages visible colors within each output region.
+  - Ignores transparent source pixels during averaging.
+  - Returns a String[][] token grid using the fixed renderer palette.
+
+Normalization Rules
+- null -> transparent
+- trim surrounding whitespace
+- lowercase token
+- blank after trim -> transparent
+
+Palette Rules
+- Palette is hard-coded.
+- Unknown non-blank tokens throw.
+- Full palette reference lives in `palette.txt` next to this file.
+- The palette includes:
+  - transparent aliases like ., transparent, clear, none, blank
+  - core single-letter tokens like b, r, g, u, y, c, m, o, p, s, w
+  - short aliases like lb for light blue
+  - many full descriptive color names like carrot, emerald, lavender, goldenrod, tomato, orchid, ruby, sapphire
+  - grayscale, reds, pinks, oranges, yellows, browns, greens, cyans, blues, purples, and utility accent colors
+- The token table is intentionally large so art can stay readable without exposing extra renderer API.
+
+Render Request Rules
+- Grid must not be null.
+- Grid must contain at least 1 row.
+- Every row must exist.
+- Every row must contain at least 1 column.
+- All rows must have the same number of columns.
+- Preferred width must be > 0.
+- Preferred height must be > 0.
+- Output path must not be null or blank.
+- Output path must include a .png file name.
+- Parent directory of the output path must already exist.
+- Border size must be >= 0.
+- Border color is required when border size is greater than zero.
+
+Sizing Rules
+- Preferred width and preferred height are handled separately.
+- Preferred width and preferred height describe the rendered content area.
+- The final width must be evenly divisible by the column count.
+- The final height must be evenly divisible by the row count.
+- If a preferred size is not evenly divisible, round to the nearest divisible size.
+- If rounding is exactly tied, round up.
+- Cell width = resolved content width / columns.
+- Cell height = resolved content height / rows.
+- Cell width and cell height do not need to match.
+- Every cell in the render shares the same cell width.
+- Every cell in the render shares the same cell height.
+- If a border is enabled, final output width = resolved content width + (2 * border size).
+- If a border is enabled, final output height = resolved content height + (2 * border size).
+- The border is measured in pixels, not cells.
+
+Rendering Model
+- Rendering is fully in memory.
+- One BufferedImage is created.
+- No temporary files.
+- No staged disk writes.
+- One final buffered PNG write directly to the target file.
+- The renderer does not mutate the PixelArt object or its grid.
+
+Transparency Rules
+- The token "." is fully transparent.
+- Null cells are fully transparent.
+- Blank cells are fully transparent.
+- Transparent cells produce literal transparent pixels in the PNG.
+- Border color uses the same token palette and normalization rules as grid cells.
+- In image quantization, fully transparent source pixels are ignored when averaging a region.
+- If a quantized region has no visible source pixels, its token is ".".
+
+Current Scope
+- Focus only on direct grid-to-PNG rendering.
+- Include image-to-grid quantization into renderer-compatible tokens.
+- No render-time border or margin support yet.
+- No builder/editor helpers in this package.
+- No QR-specific helper in this package yet.
+- No semi-transparent palette entries yet.
+
+Coordinate Convention
+- origin = top-left
+- x increases to the right
+- y increases downward

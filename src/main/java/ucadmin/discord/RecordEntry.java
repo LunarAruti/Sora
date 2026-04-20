@@ -1,4 +1,4 @@
-package ucadmin.main;
+package ucadmin.discord;
 
 public class RecordEntry {
 

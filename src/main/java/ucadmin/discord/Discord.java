@@ -1,18 +1,18 @@
-package ucadmin.actions;
+package ucadmin.discord;
 
 import net.dv8tion.jda.api.JDA;
 
 /**
- * Shared JDA binding for actions.
+ * Shared JDA binding for Discord actions/objects.
  */
-public final class Actions {
+public final class Discord {
 
     private static volatile JDA jda;
 
-    private Actions() {}
+    private Discord() {}
 
     /**
-     * Binds a JDA instance for all actions to use.
+     * Binds a JDA instance for Discord actions to use.
      */
     public static void bindJda(JDA instance) {
         jda = instance;

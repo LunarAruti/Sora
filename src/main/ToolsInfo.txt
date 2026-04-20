@@ -1,0 +1,614 @@
+UC_Admin Tools Library Reference
+
+This file documents the public API surface in `ucadmin.tools`, including the
+`pixelgenerator` and `qrgenerator` packages.
+
+General notes:
+- Methods listed here are public and callable from outside their package.
+- Some QR classes are low-level building blocks even though they are public.
+- The pixel generator and QR generator are intended to be the main image tools.
+
+
+========================================
+AMath
+Package: `ucadmin.tools`
+========================================
+
+Purpose:
+- Small math helpers and reusable constants.
+
+Public constants:
+- `PI`
+- `TAU`
+- `E`
+- `DEG_TO_RAD`
+- `RAD_TO_DEG`
+- `EPSILON`
+- `GOLDEN_RATIO`
+
+Public methods:
+- `clamp(T value, T min, T max)`
+  - Clamps a comparable value into the inclusive `[min, max]` range.
+  - If `min > max`, the bounds are swapped.
+
+- `between(T value, T min, T max, boolean inclusive)`
+  - Checks whether a comparable value falls within a range.
+  - If `inclusive` is `true`, endpoints count as in-range.
+  - If `min > max`, the bounds are swapped.
+
+- `min(T a, T b)`
+  - Returns the smaller comparable value.
+
+- `max(T a, T b)`
+  - Returns the larger comparable value.
+
+- `pow(double base, double exp)`
+  - Delegates to `Math.pow`.
+
+- `sqrt(double value)`
+  - Delegates to `Math.sqrt`.
+
+- `cbrt(double value)`
+  - Delegates to `Math.cbrt`.
+
+- `nthRoot(double value, double n)`
+  - Returns the `n`th root using exponent math.
+  - Returns `NaN` when `n == 0`.
+
+- `absInt(int value)`
+- `absLong(long value)`
+- `absDouble(double value)`
+  - Absolute value helpers.
+
+- `sign(double value)`
+  - Returns `-1`, `0`, or `1`.
+  - Returns `0` for `NaN`.
+
+- `safeDivide(double numerator, double denominator, double fallback)`
+  - Divides unless the denominator is `0` or `NaN`, in which case it returns `fallback`.
+
+- `lerp(double a, double b, double t)`
+  - Linear interpolation.
+
+- `mapRange(double value, double inMin, double inMax, double outMin, double outMax)`
+  - Maps a value from one range into another.
+  - If `inMin == inMax`, returns `outMin`.
+
+Usage example:
+- `double pct = AMath.mapRange(score, 0, 100, 0, 1);`
+
+
+========================================
+AString
+Package: `ucadmin.tools`
+========================================
+
+Purpose:
+- Regex helpers and general string normalization helpers.
+
+Public methods:
+- `matches(String input, String pattern)`
+  - Full regex match against the entire input.
+  - Returns `false` if `input` or `pattern` is `null`.
+
+- `containsMatch(String input, String pattern)`
+  - Regex search for any matching substring.
+  - Returns `false` if `input` or `pattern` is `null`.
+
+- `firstMatch(String input, String pattern)`
+  - Returns the first full regex match or `null`.
+
+- `findAll(String input, String pattern)`
+  - Returns all regex matches as `Lists.ResizingArray<String>`.
+
+- `removeWhitespace(String input)`
+  - Removes all whitespace characters.
+
+- `normalizeWhitespace(String input)`
+  - Collapses repeated whitespace to single spaces and trims the ends.
+
+- `toLower(String input)`
+- `toUpper(String input)`
+- `trim(String input)`
+  - Basic string normalization helpers.
+
+- `stripNonPrintable(String input)`
+  - Removes ASCII control characters.
+
+- `safeSubstring(String input, int start, int end)`
+  - Clamps substring bounds safely.
+  - Returns `""` when the clamped range is empty.
+
+- `truncate(String input, int max, String suffix)`
+  - Truncates to `max` length and appends `suffix` if needed.
+
+- `contains(String input, String target, boolean ignoreCase)`
+  - Standard substring containment check with optional case-insensitive match.
+
+Usage example:
+- `String normalized = AString.normalizeWhitespace(userInput);`
+
+
+========================================
+Colors
+Package: `ucadmin.tools`
+========================================
+
+Purpose:
+- Simple color object that keeps HEX and RGB representations synchronized.
+
+Public types:
+- `Colors.Color`
+- `Colors.Preset`
+
+`Colors.Color` constructors:
+- `new Colors.Color(String hex)`
+  - Accepts `RRGGBB` or `#RRGGBB`.
+
+- `new Colors.Color(int r, int g, int b)`
+  - RGB components must be in the range `0..255`.
+
+- `new Colors.Color(Colors.Preset preset)`
+  - Initializes from a preset.
+
+`Colors.Color` public methods:
+- `getHex()`
+- `getR()`
+- `getG()`
+- `getB()`
+  - Read the current color state.
+
+- `setHex(String hex)`
+  - Updates the color from a hex string and returns `this`.
+
+- `setRgb(int r, int g, int b)`
+  - Updates the color from RGB values and returns `this`.
+
+- `invert()`
+  - Inverts the color in place and returns `this`.
+
+- `random()`
+  - Static factory for a random color.
+
+`Colors.Preset` public enum values:
+- `BLACK`
+- `WHITE`
+- `GRAY`
+- `SILVER`
+- `RED`
+- `MAROON`
+- `ORANGE`
+- `YELLOW`
+- `OLIVE`
+- `GREEN`
+- `LIME`
+- `TEAL`
+- `CYAN`
+- `BLUE`
+- `NAVY`
+- `PURPLE`
+- `MAGENTA`
+- `PINK`
+- `BROWN`
+- `GOLD`
+
+Usage example:
+- `Colors.Color accent = new Colors.Color(Colors.Preset.GOLD).invert();`
+
+
+========================================
+Lists
+Package: `ucadmin.tools`
+========================================
+
+Purpose:
+- Small custom collection types.
+
+Public types:
+- `Lists.LinkedList`
+- `Lists.LinkedList.Node`
+- `Lists.ResizingArray<T>`
+
+`Lists.LinkedList` constructors:
+- `new Lists.LinkedList()`
+
+`Lists.LinkedList` public methods:
+- `size()`
+- `isEmpty()`
+- `getHead()`
+- `getTail()`
+- `getNode(int index)`
+- `get(int index)`
+- `add(Object value)`
+  - Inserts at the head.
+- `add(int index, Object value)`
+  - Inserts at a specific index.
+- `remove(int index)`
+  - Removes the node at an index and returns its value.
+
+`Lists.LinkedList.Node` public methods:
+- `getValue()`
+- `getPrev()`
+- `getNext()`
+
+Usage example:
+- `Lists.LinkedList list = new Lists.LinkedList();`
+- `list.add(0, "first");`
+- `Object value = list.get(0);`
+
+`Lists.ResizingArray<T>` constructors:
+- `new Lists.ResizingArray<>()`
+
+`Lists.ResizingArray<T>` public methods:
+- `size()`
+- `isEmpty()`
+- `getResizeStep()`
+- `setResizeStep(int resizeStep)`
+- `getShrinkBuffer()`
+- `setShrinkBuffer(int shrinkBuffer)`
+- `getMinCapacity()`
+- `setMinCapacity(int minCapacity)`
+- `get(int index)`
+- `add(T value)`
+  - Inserts at the head.
+- `add(int index, T value)`
+  - Inserts at a specific index.
+- `remove(int index)`
+- `find(T value)`
+
+Usage example:
+- `Lists.ResizingArray<String> items = new Lists.ResizingArray<>();`
+- `items.add(items.size(), "tail");`
+
+
+========================================
+Time
+Package: `ucadmin.tools`
+========================================
+
+Purpose:
+- Epoch-second formatting, parsing, and timing helpers.
+
+Public constants:
+- `DEFAULT_PATTERN`
+- `DEFAULT_ZONE`
+- `UTC`
+
+Public methods:
+- `nowSeconds()`
+  - Returns current Unix epoch seconds.
+
+- `formatSeconds(long epochSeconds)`
+- `formatSeconds(long epochSeconds, String pattern, ZoneId zone)`
+  - Formats epoch seconds into a readable string.
+
+- `parseSeconds(String text)`
+- `parseSeconds(String text, String pattern, ZoneId zone)`
+  - Parses readable timestamps back into epoch seconds.
+
+- `toMillis(long epochSeconds)`
+- `toSeconds(long epochMillis)`
+  - Convert between seconds and milliseconds.
+
+- `isWithinRangeSeconds(long valueSeconds, long startSeconds, long endSeconds, boolean inclusive)`
+  - Range check helper for epoch-second values.
+
+- `clampSeconds(long valueSeconds, long minSeconds, long maxSeconds)`
+  - Clamps epoch-second values into a range.
+
+- `formatDurationSeconds(long durationSeconds)`
+  - Formats durations like `1d 2h 3m 4s`.
+
+Public nested type:
+- `Time.Timer`
+
+`Time.Timer` constructors:
+- `new Time.Timer()`
+
+`Time.Timer` public methods:
+- `start()`
+- `end()`
+- `read()`
+
+Usage example:
+- `Time.Timer timer = new Time.Timer().start();`
+- `long elapsedSeconds = timer.end().read();`
+
+
+========================================
+Pixel Generator
+Package: `ucadmin.tools.pixelgenerator`
+========================================
+
+Purpose:
+- Render token-based pixel art directly to PNG.
+
+Primary public flow:
+1. Create a `PixelArt`.
+2. Pass it to `PixelGenerator.render(...)`.
+3. Receive the final resolved output `Path`.
+
+Public types:
+- `PixelArt`
+- `PixelGenerator`
+- `PixelImageQuantizer`
+- `PixelGeneratorException`
+
+`PixelArt` constructors:
+- `new PixelArt(String[][] grid, int preferredWidth, int preferredHeight, String outputPath)`
+  - Basic render request without a border.
+
+- `new PixelArt(String[][] grid, int preferredWidth, int preferredHeight, String outputPath, int borderSize, String borderColor)`
+  - Render request with a fixed border around the content.
+
+`PixelArt` arguments:
+- `grid`
+  - Required `String[][]` token grid.
+  - Must contain at least one row.
+  - Rows must later validate as rectangular during render.
+- `preferredWidth`
+  - Preferred content width in pixels.
+- `preferredHeight`
+  - Preferred content height in pixels.
+- `outputPath`
+  - Exact final `.png` file path.
+- `borderSize`
+  - Border thickness in pixels on each side.
+- `borderColor`
+  - Palette token for the border color.
+
+`PixelArt` public getters:
+- `getGrid()`
+- `getPreferredWidth()`
+- `getPreferredHeight()`
+- `getOutputPath()`
+- `getBorderSize()`
+- `getBorderColor()`
+
+`PixelGenerator` public methods:
+- `render(PixelArt art)`
+  - Validates the request.
+  - Resolves width and height to the nearest values evenly divisible by the grid.
+  - Treats `null`, blank tokens, and `.` as transparent.
+  - Writes one buffered PNG directly to the final path.
+  - Returns the resolved absolute `Path`.
+
+`PixelImageQuantizer` public methods:
+- `quantize(String inputPath, int outputWidth, int outputHeight)`
+  - Reads an image from disk.
+  - Compresses the full source image into the requested token-grid size.
+  - Averages source colors within each destination region.
+  - Ignores fully transparent source pixels while averaging.
+  - Returns a `String[][]` token grid using the shared fixed palette.
+
+`PixelImageQuantizer` arguments:
+- `inputPath`
+  - Filesystem path to the source image.
+- `outputWidth`
+  - Width of the returned token grid.
+- `outputHeight`
+  - Height of the returned token grid.
+
+`PixelImageQuantizer` behavior:
+- The entire source image is fit into the requested output grid.
+- It does not crop to the first `outputWidth` by `outputHeight` source pixels.
+- Each output cell represents one region of the full source image.
+- Region color is computed from the average visible RGB values in that region.
+- Palette matching uses plain RGB nearest-color matching.
+- If a region is fully transparent after ignoring transparent source pixels, the output token is `.`.
+
+Usage example:
+- `String[][] grid = PixelImageQuantizer.quantize("C:\\in\\dog.png", 32, 32);`
+- `PixelArt art = new PixelArt(grid, 512, 512, "C:\\out\\dog-pixel.png");`
+- `Path path = PixelGenerator.render(art);`
+
+Palette behavior:
+- Tokens are case-insensitive after normalization.
+- Whitespace is trimmed before lookup.
+- `.` is transparent.
+- `null` and empty/blank strings are transparent.
+- Unknown tokens throw `PixelGeneratorException`.
+- Full token reference lives in `src/main/java/ucadmin/tools/pixelgenerator/palette.txt`.
+
+Border behavior:
+- Border is outside the content area.
+- Border size is in pixels.
+- Border color uses the same token palette as normal cells.
+
+Usage example:
+- `String[][] grid = {{"b", "w"}, {"w", "b"}};`
+- `PixelArt art = new PixelArt(grid, 128, 128, "C:\\out\\checker.png", 16, "w");`
+- `Path path = PixelGenerator.render(art);`
+
+`PixelGeneratorException`
+- Runtime exception thrown for validation and render failures.
+- Used for bad paths, invalid grids, unknown tokens, and write failures.
+
+
+========================================
+QR Generator
+Package: `ucadmin.tools.qrgenerator`
+========================================
+
+Purpose:
+- Generate QR matrices and render QR images through the pixel generator.
+
+Main public entrypoint:
+- `QrEncoder`
+
+Low-level public support classes:
+- `QrCodewords`
+- `QrMatrix`
+- `QrSpec`
+
+----------------------------------------
+QrEncoder
+----------------------------------------
+
+Purpose:
+- High-level QR API that validates text, chooses a version, builds the QR,
+  converts the modules to black/white pixel tokens, and renders the final PNG.
+
+Public enums:
+- `QrEncoder.QrMode`
+  - `NUMERIC`
+  - `ALPHANUMERIC`
+  - `BYTE`
+
+- `QrEncoder.ErrorCorrectionLevel`
+  - `L`
+  - `M`
+  - `Q`
+  - `H`
+
+- `QrEncoder.TextEncoding`
+  - `ISO_8859_1`
+  - `UTF_8`
+
+Public methods:
+- `encode(String rawText, QrMode mode, ErrorCorrectionLevel ecLevel, TextEncoding encoding, String outputPath)`
+  - Generates the QR and writes the PNG to `outputPath`.
+  - Returns the final resolved `Path`.
+
+- `encodeDebug(String rawText, QrMode mode, ErrorCorrectionLevel ecLevel, TextEncoding encoding, String outputPath)`
+  - Same generation flow as `encode(...)`.
+  - Also returns debug details about the QR build.
+
+Arguments:
+- `rawText`
+  - Source text to encode.
+- `mode`
+  - QR payload mode.
+- `ecLevel`
+  - Error correction level.
+- `encoding`
+  - Text encoding used for byte mode.
+- `outputPath`
+  - Exact final `.png` path.
+
+Render behavior:
+- Uses black modules and white background.
+- Quiet zone is handled through the pixel generator border.
+- Module size and quiet zone are currently determined internally.
+
+`QrEncoder.DebugResult`
+- Record returned by `encodeDebug(...)`.
+- Components:
+  - `String[][] matrix`
+    - Black/white token matrix handed to the pixel generator.
+  - `Path outputPath`
+    - Final rendered PNG path.
+  - `int version`
+    - Chosen QR version.
+  - `int chosenMask`
+    - Mask pattern chosen after scoring.
+  - `int[] maskPenalties`
+    - Penalty values for all mask candidates.
+  - `QrCodewords.DebugData codewords`
+    - Deeper payload/codeword debug data.
+
+Usage example:
+- `Path qrPath = QrEncoder.encode("https://google.com", QrEncoder.QrMode.BYTE, QrEncoder.ErrorCorrectionLevel.M, QrEncoder.TextEncoding.UTF_8, "C:\\out\\google.png");`
+
+----------------------------------------
+QrCodewords
+----------------------------------------
+
+Purpose:
+- Low-level QR payload/codeword builder.
+
+Public methods:
+- `countRequiredDataBits(String rawText, QrEncoder.QrMode mode, QrEncoder.TextEncoding encoding, int version)`
+  - Returns the number of data bits required before pad bytes and EC bytes are added.
+  - Used for capacity/version selection.
+
+- `buildFinalSequence(String rawText, QrEncoder.QrMode mode, QrEncoder.ErrorCorrectionLevel ecLevel, QrEncoder.TextEncoding encoding, int version)`
+  - Builds the final interleaved codeword sequence and final bit stream.
+
+`QrCodewords.Result`
+- Record returned by `buildFinalSequence(...)`.
+- Components:
+  - `byte[] finalCodewords`
+  - `boolean[] finalBits`
+  - `int version`
+  - `int masklessBitLength`
+  - `QrCodewords.DebugData debug`
+
+`QrCodewords.DebugData`
+- Record containing intermediate payload/codeword snapshots.
+- Components:
+  - `byte[] dataCodewords`
+  - `byte[][] dataBlocks`
+  - `byte[][] ecBlocks`
+  - `int expectedDataCodewords`
+  - `int finalCodewordCount`
+  - `int remainderBits`
+
+Typical use:
+- Most callers should not call `QrCodewords` directly.
+- Use it when you need low-level QR payload debugging or version-capacity analysis.
+
+----------------------------------------
+QrMatrix
+----------------------------------------
+
+Purpose:
+- Low-level QR matrix builder and mask scorer.
+
+Public methods:
+- `buildMatrix(QrCodewords.Result result, QrEncoder.ErrorCorrectionLevel ecLevel)`
+  - Builds the final masked QR module matrix as `boolean[][]`.
+  - `true` means dark module.
+  - `false` means light module.
+
+Typical use:
+- Most callers should not call `QrMatrix` directly.
+- Use it if you want the final masked QR module grid without rendering a PNG.
+
+----------------------------------------
+QrSpec
+----------------------------------------
+
+Purpose:
+- QR specification lookup tables and deterministic helper calculations.
+
+Public constants:
+- `MAX_SUPPORTED_VERSION`
+
+Public methods:
+- `getMatrixSize(int version)`
+- `getCharacterCountBits(int version, QrEncoder.QrMode mode)`
+- `getDataCodewordCapacity(int version, QrEncoder.ErrorCorrectionLevel ecLevel)`
+- `getRawDataModuleCount(int version)`
+- `getRawCodewordCount(int version)`
+- `getBlockSpec(int version, QrEncoder.ErrorCorrectionLevel ecLevel)`
+- `getAlignmentCenters(int version)`
+- `getRemainderBitCount(int version)`
+- `getFormatBits(QrEncoder.ErrorCorrectionLevel ecLevel, int mask)`
+- `getVersionBits(int version)`
+- `getModeIndicator(QrEncoder.QrMode mode)`
+- `getAlphanumericValue(char ch)`
+- `getEciAssignment(QrEncoder.TextEncoding encoding)`
+
+`QrSpec.BlockGroup`
+- Record describing one repeated QR block group.
+- Components:
+  - `int blockCount`
+  - `int dataCodewordsPerBlock`
+
+`QrSpec.BlockSpec`
+- Record describing the full block layout for one version/error-correction combination.
+- Components:
+  - `int ecCodewordsPerBlock`
+  - `QrSpec.BlockGroup group1`
+  - `QrSpec.BlockGroup group2`
+
+`QrSpec.BlockSpec` public methods:
+- `totalBlockCount()`
+- `totalDataCodewords()`
+- `dataBlockLengths()`
+- `toString()`
+
+Typical use:
+- `QrSpec` is useful for QR diagnostics, capacity checks, and version tables.
+- Most application-level QR generation should still go through `QrEncoder`.

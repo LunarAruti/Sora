@@ -35,6 +35,6 @@ public class BotConfig {
     public static volatile boolean CONSOLE_ONLY = true;
 
     // Used to enable running of testing code
-    public static boolean TESTING = false;
+    public static boolean TESTING = true;
 
 }
