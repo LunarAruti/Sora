@@ -2,12 +2,15 @@ PNG / PIXEL GENERATOR SPEC
 
 Purpose
 - Generate PNG output from a 2D token grid.
+- Generate PNG output from a 2D direct-color grid.
 - Primary use case is pixel art / cell art.
 - Transparency must be literal PNG transparency.
 
 Core Design
 - Input grid type is String[][].
+- Parallel input grid type is Colors.Color[][].
 - Each grid cell stores one color token.
+- Direct-color cells store exact RGB values through the shared tools Colors.Color object.
 - Tokens may be multi-character.
 - Examples:
   - b = black
@@ -22,6 +25,17 @@ Core Design
 Public API
 - PixelArt
   - Holds the source grid, preferred width, preferred height, exact output path, border size, and border color.
+- PixelColorArt
+  - Holds the source Colors.Color[][] grid, preferred width, preferred height, exact output path,
+    border size, and exact Colors.Color border color.
+  - Null grid cells render as fully transparent.
+  - Non-null grid cells render as exact opaque RGB values.
+- PixelGridBuilder
+  - Mutable helper layered over the PixelArt render contract.
+  - Owns a transparent-by-default token grid plus the same render metadata as PixelArt.
+  - Can produce a PixelArt snapshot or render directly through PixelGenerator.
+  - Supports direct cell editing, background fill, flood fill, point-to-point line drawing,
+    rectangle outline/fill, manual grid borders, region copy/paste, and whole-grid shifting.
 - PixelGenerator.render(PixelArt art)
   - Validates input.
   - Resolves final divisible output dimensions.
@@ -29,6 +43,16 @@ Public API
   - Renders in memory.
   - Performs one final buffered PNG write.
   - Returns the resolved absolute output path.
+- PixelGenerator.render(PixelColorArt art)
+  - Validates the direct-color grid shape.
+  - Resolves final divisible output dimensions.
+  - Applies an optional direct-color pixel border outside the content area.
+  - Renders exact RGB values in memory.
+  - Performs one final buffered PNG write.
+  - Returns the resolved absolute output path.
+- PixelGenerator.render(PixelGridBuilder builder)
+  - Converts the builder into a PixelArt snapshot.
+  - Renders through the normal PixelArt pipeline.
 - PixelImageQuantizer.quantize(String inputPath, int outputWidth, int outputHeight)
   - Reads an image from disk.
   - Compresses the full source image into the requested token-grid size.
@@ -60,6 +84,8 @@ Render Request Rules
 - Every row must exist.
 - Every row must contain at least 1 column.
 - All rows must have the same number of columns.
+- Direct-color grids follow the same rectangular rules.
+- Direct-color grid cells may be null and will render as transparent.
 - Preferred width must be > 0.
 - Preferred height must be > 0.
 - Output path must not be null or blank.
@@ -98,14 +124,17 @@ Transparency Rules
 - Blank cells are fully transparent.
 - Transparent cells produce literal transparent pixels in the PNG.
 - Border color uses the same token palette and normalization rules as grid cells.
+- In direct-color mode, a null Colors.Color cell is fully transparent.
+- In direct-color mode, non-null Colors.Color cells are always written as opaque 0xFFRRGGBB.
 - In image quantization, fully transparent source pixels are ignored when averaging a region.
 - If a quantized region has no visible source pixels, its token is ".".
 
 Current Scope
-- Focus only on direct grid-to-PNG rendering.
+- Focus on direct grid-to-PNG rendering for both token-based and direct-color inputs.
 - Include image-to-grid quantization into renderer-compatible tokens.
-- No render-time border or margin support yet.
-- No builder/editor helpers in this package.
+- Include a first-pass mutable grid builder object.
+- The builder currently includes the core editing and shape methods needed for manual art creation.
+- Token-based and direct-color requests both support a render-time pixel border.
 - No QR-specific helper in this package yet.
 - No semi-transparent palette entries yet.
 

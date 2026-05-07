@@ -330,6 +330,7 @@ Primary public flow:
 
 Public types:
 - `PixelArt`
+- `PixelGridBuilder`
 - `PixelGenerator`
 - `PixelImageQuantizer`
 - `PixelGeneratorException`
@@ -365,13 +366,96 @@ Public types:
 - `getBorderSize()`
 - `getBorderColor()`
 
+`PixelArt` public setters:
+- `setPreferredWidth(int preferredWidth)`
+- `setPreferredHeight(int preferredHeight)`
+- `setPreferredSize(int preferredWidth, int preferredHeight)`
+- `setOutputPath(String outputPath)`
+- `setBorderSize(int borderSize)`
+- `setBorderColor(String borderColor)`
+- `setBorder(int borderSize, String borderColor)`
+  - Lets callers fix render metadata without rebuilding the whole object.
+
 `PixelGenerator` public methods:
+- `render(PixelGridBuilder builder)`
+  - Builds a `PixelArt` snapshot from the builder and renders it through the normal pipeline.
+
 - `render(PixelArt art)`
   - Validates the request.
   - Resolves width and height to the nearest values evenly divisible by the grid.
   - Treats `null`, blank tokens, and `.` as transparent.
   - Writes one buffered PNG directly to the final path.
   - Returns the resolved absolute `Path`.
+
+`PixelGridBuilder` constructor:
+- `new PixelGridBuilder(int gridWidth, int gridHeight, int preferredWidth, int preferredHeight, String outputPath, int borderSize, String borderColor)`
+  - Creates a transparent-by-default mutable grid plus the metadata needed to render it.
+
+`PixelGridBuilder` arguments:
+- `gridWidth`
+  - Builder grid width in cells.
+- `gridHeight`
+  - Builder grid height in cells.
+- `preferredWidth`
+  - Preferred render width in pixels.
+- `preferredHeight`
+  - Preferred render height in pixels.
+- `outputPath`
+  - Exact final `.png` output path.
+- `borderSize`
+  - Optional border thickness in pixels.
+- `borderColor`
+  - Border token when `borderSize > 0`.
+
+`PixelGridBuilder` public methods:
+- `getGridWidth()`
+- `getGridHeight()`
+- `getPreferredWidth()`
+- `getPreferredHeight()`
+- `getOutputPath()`
+- `getBorderSize()`
+- `getBorderColor()`
+- `setPreferredWidth(int preferredWidth)`
+- `setPreferredHeight(int preferredHeight)`
+- `setPreferredSize(int preferredWidth, int preferredHeight)`
+- `setOutputPath(String outputPath)`
+- `setBorderSize(int borderSize)`
+- `setBorderColor(String borderColor)`
+- `setBorder(int borderSize, String borderColor)`
+  - Updates the render metadata without rebuilding the grid.
+- `getCell(int x, int y)`
+- `setCell(int x, int y, String token)`
+  - Stores one normalized, immediately validated token.
+- `clearCell(int x, int y)`
+  - Clears one cell back to transparent.
+- `clear()`
+  - Clears the entire grid back to transparency.
+- `fillBackground(String token)`
+  - Fills the entire builder grid with one token.
+- `fill(int startX, int startY, String token)`
+  - Flood-fills the connected region starting from one cell.
+- `replace(String fromToken, String toToken)`
+  - Replaces all matching cells in the grid.
+- `drawLine(int x1, int y1, int x2, int y2, String token)`
+  - Draws the closest straight line possible between two points.
+- `drawRect(int x1, int y1, int x2, int y2, String token)`
+  - Draws a rectangle outline between two corner points.
+- `fillRect(int x1, int y1, int x2, int y2, String token)`
+  - Fills a rectangle between two corner points.
+- `drawBorder(String token, int thickness)`
+  - Draws a border directly into the grid.
+- `copyRegion(int x, int y, int width, int height)`
+  - Returns a copied `String[][]` region snapshot.
+- `pasteRegion(int destX, int destY, String[][] region)`
+  - Pastes a copied region into the grid.
+- `shift(int deltaX, int deltaY)`
+  - Shifts the whole grid; exposed cells become transparent.
+- `copyGrid()`
+  - Returns a defensive copy of the current token grid.
+- `toPixelArt()`
+  - Returns a fresh `PixelArt` snapshot of the builder state.
+- `render()`
+  - Convenience method that renders through `PixelGenerator`.
 
 `PixelImageQuantizer` public methods:
 - `quantize(String inputPath, int outputWidth, int outputHeight)`

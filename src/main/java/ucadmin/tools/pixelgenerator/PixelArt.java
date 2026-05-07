@@ -37,11 +37,11 @@ package ucadmin.tools.pixelgenerator;
 public final class PixelArt {
 
     private final String[][] grid;
-    private final int preferredWidth;
-    private final int preferredHeight;
-    private final String outputPath;
-    private final int borderSize;
-    private final String borderColor;
+    private int preferredWidth;
+    private int preferredHeight;
+    private String outputPath;
+    private int borderSize;
+    private String borderColor;
 
     /**
      * Creates a new pixel-art render request.
@@ -101,28 +101,12 @@ public final class PixelArt {
         if (grid.length == 0) {
             throw new IllegalArgumentException("PixelArt: grid must contain at least one row.");
         }
-        if (preferredWidth <= 0) {
-            throw new IllegalArgumentException("PixelArt: preferredWidth must be > 0.");
-        }
-        if (preferredHeight <= 0) {
-            throw new IllegalArgumentException("PixelArt: preferredHeight must be > 0.");
-        }
-        if (outputPath == null || outputPath.isBlank()) {
-            throw new IllegalArgumentException("PixelArt: outputPath cannot be null or blank.");
-        }
-        if (borderSize < 0) {
-            throw new IllegalArgumentException("PixelArt: borderSize must be >= 0.");
-        }
-        if (borderSize > 0 && (borderColor == null || borderColor.isBlank())) {
-            throw new IllegalArgumentException("PixelArt: borderColor is required when borderSize > 0.");
-        }
 
         this.grid = grid;
-        this.preferredWidth = preferredWidth;
-        this.preferredHeight = preferredHeight;
-        this.outputPath = outputPath;
-        this.borderSize = borderSize;
-        this.borderColor = borderColor;
+        setPreferredWidth(preferredWidth);
+        setPreferredHeight(preferredHeight);
+        setOutputPath(outputPath);
+        setBorder(borderSize, borderColor);
     }
 
     /**
@@ -150,6 +134,21 @@ public final class PixelArt {
     }
 
     /**
+     * Updates the preferred content width in pixels.
+     *
+     * <p>This value describes the intended rendered content width before the
+     * renderer adjusts it to the nearest size evenly divisible by the grid
+     * column count.</p>
+     *
+     * @param preferredWidth preferred content width in pixels; must be greater than zero
+     * @throws IllegalArgumentException if preferredWidth is not positive
+     */
+    public void setPreferredWidth(int preferredWidth) {
+        validatePreferredWidth(preferredWidth);
+        this.preferredWidth = preferredWidth;
+    }
+
+    /**
      * Returns the preferred output height in pixels before divisible-size
      * resolution is applied by the renderer.
      *
@@ -157,6 +156,21 @@ public final class PixelArt {
      */
     public int getPreferredHeight() {
         return preferredHeight;
+    }
+
+    /**
+     * Updates the preferred content height in pixels.
+     *
+     * <p>This value describes the intended rendered content height before the
+     * renderer adjusts it to the nearest size evenly divisible by the grid row
+     * count.</p>
+     *
+     * @param preferredHeight preferred content height in pixels; must be greater than zero
+     * @throws IllegalArgumentException if preferredHeight is not positive
+     */
+    public void setPreferredHeight(int preferredHeight) {
+        validatePreferredHeight(preferredHeight);
+        this.preferredHeight = preferredHeight;
     }
 
     /**
@@ -172,6 +186,20 @@ public final class PixelArt {
     }
 
     /**
+     * Updates the exact target PNG output path.
+     *
+     * <p>The path is stored exactly as supplied here. Final path resolution and
+     * filesystem validation still happen at render time.</p>
+     *
+     * @param outputPath exact target file path; must not be null or blank
+     * @throws IllegalArgumentException if outputPath is null or blank
+     */
+    public void setOutputPath(String outputPath) {
+        validateOutputPath(outputPath);
+        this.outputPath = outputPath;
+    }
+
+    /**
      * Returns the fixed border thickness in pixels applied to each edge of
      * the final output image.
      *
@@ -181,6 +209,22 @@ public final class PixelArt {
      */
     public int getBorderSize() {
         return borderSize;
+    }
+
+    /**
+     * Updates the render-time border thickness in pixels.
+     *
+     * <p>If the new size is greater than zero, a non-blank border color token
+     * must already be configured on this object.</p>
+     *
+     * @param borderSize border thickness in pixels; must be zero or greater
+     * @throws IllegalArgumentException if borderSize is negative or if a
+     *                                  positive size is requested without a
+     *                                  configured border color token
+     */
+    public void setBorderSize(int borderSize) {
+        validateBorderState(borderSize, borderColor);
+        this.borderSize = borderSize;
     }
 
     /**
@@ -194,5 +238,90 @@ public final class PixelArt {
      */
     public String getBorderColor() {
         return borderColor;
+    }
+
+    /**
+     * Updates the render-time border color token.
+     *
+     * <p>The token is not resolved here; it is only validated for required
+     * presence when a positive border size is configured. Actual palette
+     * resolution still occurs at render time.</p>
+     *
+     * @param borderColor border token, or null when no border is needed
+     * @throws IllegalArgumentException if a positive border size is already set
+     *                                  and borderColor is null or blank
+     */
+    public void setBorderColor(String borderColor) {
+        validateBorderState(borderSize, borderColor);
+        this.borderColor = borderColor;
+    }
+
+    /**
+     * Updates both border fields together.
+     *
+     * <p>This is the safest way to change border configuration because the
+     * size/color pair is validated as one unit before either field is updated.</p>
+     *
+     * @param borderSize border thickness in pixels; must be zero or greater
+     * @param borderColor border token when borderSize is greater than zero
+     * @throws IllegalArgumentException if the requested border configuration is invalid
+     */
+    public void setBorder(int borderSize, String borderColor) {
+        validateBorderState(borderSize, borderColor);
+        this.borderSize = borderSize;
+        this.borderColor = borderColor;
+    }
+
+    /**
+     * Updates both preferred render dimensions together.
+     *
+     * @param preferredWidth preferred content width in pixels; must be greater than zero
+     * @param preferredHeight preferred content height in pixels; must be greater than zero
+     * @throws IllegalArgumentException if either dimension is invalid
+     */
+    public void setPreferredSize(int preferredWidth, int preferredHeight) {
+        validatePreferredWidth(preferredWidth);
+        validatePreferredHeight(preferredHeight);
+        this.preferredWidth = preferredWidth;
+        this.preferredHeight = preferredHeight;
+    }
+
+    /**
+     * Validates preferred width.
+     */
+    private static void validatePreferredWidth(int preferredWidth) {
+        if (preferredWidth <= 0) {
+            throw new IllegalArgumentException("PixelArt: preferredWidth must be > 0.");
+        }
+    }
+
+    /**
+     * Validates preferred height.
+     */
+    private static void validatePreferredHeight(int preferredHeight) {
+        if (preferredHeight <= 0) {
+            throw new IllegalArgumentException("PixelArt: preferredHeight must be > 0.");
+        }
+    }
+
+    /**
+     * Validates output path presence.
+     */
+    private static void validateOutputPath(String outputPath) {
+        if (outputPath == null || outputPath.isBlank()) {
+            throw new IllegalArgumentException("PixelArt: outputPath cannot be null or blank.");
+        }
+    }
+
+    /**
+     * Validates border size/color consistency.
+     */
+    private static void validateBorderState(int borderSize, String borderColor) {
+        if (borderSize < 0) {
+            throw new IllegalArgumentException("PixelArt: borderSize must be >= 0.");
+        }
+        if (borderSize > 0 && (borderColor == null || borderColor.isBlank())) {
+            throw new IllegalArgumentException("PixelArt: borderColor is required when borderSize > 0.");
+        }
     }
 }

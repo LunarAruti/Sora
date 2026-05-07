@@ -1,7 +1,11 @@
 package ucadmin.main;
 
+import ucadmin.tools.dpcode.DPCode;
+import ucadmin.tools.dpcode.DPCodeReader;
+import ucadmin.tools.dpcode.DPDensityMode;
 import ucadmin.tools.pixelgenerator.PixelArt;
 import ucadmin.tools.pixelgenerator.PixelGenerator;
+import ucadmin.tools.pixelgenerator.PixelGridBuilder;
 import ucadmin.tools.pixelgenerator.PixelImageQuantizer;
 import ucadmin.tools.qrgenerator.QrEncoder;
 import ucadmin.util.Logger;
@@ -9,6 +13,7 @@ import ucadmin.util.ShutdownManager;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -22,18 +27,37 @@ public class TestingGrounds {
 
     public static void TestingGrounds() {
 
-        Logger.log(Logger.TAG.SYSTEM, "=== QR GENERATOR TESTING GROUNDS ===");
+        Logger.log(Logger.TAG.SYSTEM, "=== TESTING GROUNDS ===");
 
         try {
 
-            QrEncoder.encode("https://www.youtube.com/watch?v=oHg5SJYRHA0", QrEncoder.QrMode.BYTE, QrEncoder.ErrorCorrectionLevel.L, QrEncoder.TextEncoding.UTF_8,"C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\qr.png");
+            DPCode code = new DPCode("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\codeString.txt",true);
+            code.setBootstrapProfile(DPCode.BootstrapProfile.STANDARD_V1);
+            code.setOutputPath("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\code.png");
+            code.setImageSizePx(1200);
+            code.setPayloadMode(DPCode.PayloadMode.RAW_BYTES);
+            code.setDensityMode(DPDensityMode.D256);
+            code.setPreprocessMode(DPCode.PreprocessMode.NONE);
+            code.setEccProfile(DPCode.EccProfile.MEDIUM);
+            code.setPayloadCharset(StandardCharsets.UTF_8);
+            code.encode();
+
+            DPCodeReader.ReadResult result = DPCodeReader.read("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\code.png");
+            String textAfter = result.getPayloadAsString(StandardCharsets.UTF_8);
+            int errors = result.getErrors();
+            boolean valid = result.isPayloadVerified();
+            int size = result.getPayloadLength();
+            int grid = result.getLogicalSize();
+
+            System.out.println("logical " + grid);
+            System.out.println("size " + size);
+            System.out.println("valid " + valid);
+            System.out.println("errors " + errors);
+            System.out.println(textAfter);
 
         } catch (Throwable t) {
-            Logger.log(
-                    Logger.TAG.ERROR,
-                    "[0011] QR TestingGrounds crash: " + t
-            );
-            logThrowableTrace("[0011] QR TestingGrounds stack trace", t);
+            Logger.log(Logger.TAG.ERROR, "[0011] TestingGrounds crash: " + t);
+            logThrowableTrace("[0011] TestingGrounds stack trace", t);
         }
         ShutdownManager.shutdown(null);
 

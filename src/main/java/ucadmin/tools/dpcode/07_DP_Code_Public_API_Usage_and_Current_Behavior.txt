@@ -1,0 +1,525 @@
+DP CODE
+Public API Usage and Current Behavior
+
+Purpose
+This file explains how to use the current public DP Code API in the tools library.
+It documents:
+- the public encode object
+- the public image reader
+- the current workflow
+- automatic sizing behavior
+- current implementation limits
+
+This file is about the public-facing API, not the lower-level internal encoder classes.
+
+1. Public entry points
+
+The current public API is:
+- DPCode
+- DPCodeReader
+
+Intended split:
+- DPCode = build/reuse an encode request and write a PNG
+- DPCodeReader = read a DP PNG back and expose payload/header-derived information
+
+2. DPCode overview
+
+DPCode is a reusable request object.
+
+Design goal:
+- create it once
+- set payload and options
+- call encode repeatedly
+- reuse the same object when payload or settings change
+
+Current payload source options:
+- raw bytes
+- text
+- file path
+
+Current public constructors/factories:
+- new DPCode(byte[] payloadBytes)
+- new DPCode(String payloadText)
+- new DPCode(String payloadTextOrPath, boolean treatAsPath)
+- new DPCode(Path payloadFilePath)
+- DPCode.fromBytes(byte[] payloadBytes)
+- DPCode.fromText(String payloadText)
+- DPCode.fromFilePath(String payloadFilePath)
+- DPCode.fromFilePath(Path payloadFilePath)
+
+3. Basic encode examples
+
+Text payload example:
+
+```java
+DPCode code = new DPCode("Hello world");
+code.setOutputPath("C:\\output\\hello.png");
+code.encode();
+```
+
+Equivalent factory style:
+
+```java
+DPCode code = DPCode.fromText("Hello world");
+code.setOutputPath("C:\\output\\hello.png");
+DPCode.EncodeResult result = code.encode();
+```
+
+Raw bytes example:
+
+```java
+byte[] payload = new byte[]{1, 2, 3, 4, 5};
+DPCode code = DPCode.fromBytes(payload);
+code.setOutputPath("C:\\output\\bytes.png");
+code.encode();
+```
+
+File payload example:
+
+```java
+DPCode code = new DPCode("C:\\data\\payload.bin", true);
+code.setOutputPath("C:\\output\\file.png");
+code.encode();
+```
+
+Equivalent path-object constructor:
+
+```java
+DPCode code = new DPCode(Path.of("C:\\data\\payload.bin"));
+code.setOutputPath("C:\\output\\file.png");
+code.encode();
+```
+
+Equivalent factory style:
+
+```java
+DPCode code = DPCode.fromFilePath("C:\\data\\payload.bin");
+code.setOutputPath("C:\\output\\file.png");
+code.encode();
+```
+
+One-step output-path encode:
+
+```java
+DPCode code = DPCode.fromText("Hello world");
+code.encodeTo("C:\\output\\hello.png");
+```
+
+4. Important encode settings
+
+The main public settings on DPCode are:
+- payload source
+- payload charset
+- payload mode
+- preprocess mode
+- header profile
+- density mode
+- ECC profile
+- bootstrap profile
+- image size in pixels
+- output path
+
+Important note:
+- several of these are enum-backed now so the public API does not drift into random ints/flags
+- some of those enums are placeholders for future expansion and currently only have one real supported value
+
+Current enums:
+- DPCode.PayloadMode
+- DPCode.PreprocessMode
+- DPCode.EccProfile
+- DPCode.BootstrapProfile
+- DPDensityMode
+
+5. Automatic logical size selection
+
+The public API does NOT require callers to choose a logical grid size.
+
+Current behavior:
+- DPCode automatically finds the smallest legal logical size that can carry the current payload
+- the chosen size depends on:
+  - payload length
+  - density mode
+  - ECC profile
+
+This is intended to behave more like a QR encoder:
+- caller supplies content
+- encoder picks the smallest symbol that fits
+
+Legal logical sizes:
+- start at 10
+- grow in steps of 4
+
+The chosen logical size is visible after encode in:
+- DPCode.EncodeResult.getResolvedLogicalSize()
+- DPCode.EncodeResult.compileResult().logicalSize()
+
+5A. Floater placement behavior
+
+Current floater-count rule:
+- if logical size is below 30, there are no floater nodes
+- otherwise:
+  - floaterSide = 1 + floor((logicalSize - 30) / 16)
+  - total floater count = floaterSide * floaterSide
+
+Examples:
+- N = 30..42 -> 1 floater
+- N = 46..58 -> 4 floaters arranged as 2x2
+- N = 62..74 -> 9 floaters arranged as 3x3
+
+Current official placement algorithm:
+1. Build all hard-reserved structures first:
+   - corner markers
+   - timing patterns
+   - control/bootstrap box
+   - header block
+2. Treat a candidate floater center as legal only if its full 3x3 cross footprint would land only on payload cells.
+   Floater cell colors are fixed:
+   - top arm = black
+   - left arm = black
+   - center = white
+   - right arm = black
+   - bottom arm = black
+3. From that legal-center map, find the largest axis-aligned rectangle consisting entirely of legal floater centers.
+4. Treat that rectangle as the usable floater interior.
+5. Divide the rectangle's x range into `floaterSide` equal subdivisions and place one floater center at the center of each subdivision.
+6. Divide the rectangle's y range into `floaterSide` equal subdivisions and place one floater center at the center of each subdivision.
+7. Use the Cartesian product of those x and y coordinates as the final centered square floater lattice.
+
+Important placement clarification:
+- floater centers are placed at subdivision centers, not on the usable rectangle boundaries
+- for a 2x2 lattice, the floater centers should appear near the quarter points of the usable interior
+- for a 3x3 lattice, the floater centers should appear near the one-sixth, three-sixths, and five-sixths points
+- this keeps the floater group visually centered instead of pushing it toward the usable interior corners
+
+Deterministic tie-break rule for the usable floater interior:
+- prefer larger legal-center rectangle area
+- if tied, prefer the rectangle whose center is closest to the center of the grid
+- if still tied, prefer the wider rectangle
+- if still tied, prefer the taller rectangle
+- if still tied, prefer the upper-left-most rectangle
+
+Practical interpretation:
+- floater nodes are always arranged as a centered square lattice
+- they stay away from fixed structures automatically because only legal centers are considered
+- spacing increases naturally as the logical grid size grows
+- spacing decreases naturally on smaller legal interiors
+- each floater cross is four black outer cells around one white center cell
+- encode and decode must derive floater positions from this exact same algorithm
+
+6. Image size behavior
+
+The public size field is:
+- imageSizePx
+
+Meaning:
+- requested square pixel size for the logical symbol content only
+- this does NOT include the quiet zone
+
+Actual render behavior:
+1. DPCode chooses the logical size automatically
+2. the requested imageSizePx is rounded to the nearest size evenly divisible by that logical size
+3. cellSizePx is derived from that resolved size
+4. the fixed quiet zone is added outside the content area
+
+Important rule:
+- encode throws if the final resolved cell size would be smaller than 5x5 pixels per cell
+
+Reason:
+- very tiny cells are not useful for practical decode reliability
+
+7. Quiet zone behavior
+
+The current public encoder always renders:
+- a fixed 2-cell white quiet zone on all sides
+
+This quiet zone:
+- is part of the exported PNG
+- is not part of the logical DP payload grid
+
+The public API currently does not expose a setter for quiet zone width.
+It is fixed by the format and by the current implementation.
+
+8. Current implemented options vs placeholder options
+
+Implemented in practice right now:
+- PayloadMode.RAW_BYTES
+- PreprocessMode.NONE
+- all current DPDensityMode values
+- all current DPCode.EccProfile values
+- all current DPCode.BootstrapProfile values
+
+Important note:
+- payload mode and preprocess mode exist as public enums now
+- some are currently placeholders so the API shape is stable before those features expand
+
+Current behavior if unsupported future options were ever added:
+- the public object should validate and throw before encode if an option is not yet implemented
+
+9. Encode result
+
+DPCode.encode() returns:
+- DPCode.EncodeResult
+
+This gives:
+- outputPath
+- compileResult
+- payloadMode
+- preprocessMode
+- eccProfile
+- bootstrapProfile
+- contentSizePx
+- cellSizePx
+- quietZoneSizePx
+
+Useful fields:
+- result.outputPath()
+- result.getResolvedLogicalSize()
+- result.cellSizePx()
+- result.compileResult().payloadLength()
+- result.compileResult().densityMode()
+
+Summary helper:
+- result.summary()
+
+9A. Current ECC placement behavior
+
+The current DP implementation does NOT place ECC as one contiguous tail region anymore.
+
+Current shared ECC slot algorithm:
+1. Build the full payload traversal list from the reservation mask.
+2. Compute:
+   - `dataCellCount`
+   - `eccCellCount`
+3. Treat the full payload traversal length as the available placement span.
+4. Divide that full traversal span into `eccCellCount` equal subdivisions.
+5. Place one ECC slot at the center of each subdivision.
+6. Treat all non-ECC traversal cells as payload-data candidates.
+7. Write payload data into the earliest non-ECC traversal cells in forward order.
+8. Write ECC cells into the ECC slots in reverse slot order.
+
+Practical interpretation:
+- ECC is scattered from top to bottom across the full payload traversal
+- payload data still begins near the front of traversal
+- ECC is no longer concentrated into one bright tail block at the bottom
+- for `1` ECC cell, the slot lands near the midpoint of the payload traversal
+- for `2` ECC cells, the slots land near the quarter points
+- for `4` ECC cells, the slots land near the eighth, three-eighths, five-eighths, and seven-eighths points
+
+Current decode-side ECC behavior:
+- the decoder regenerates the same interleaved slot plan from:
+  - payload traversal length
+  - dataCellCount
+  - eccCellCount
+- payload bytes are read from the forward data-slot list
+- ECC bytes are read from the reverse-written ECC-slot list
+- encode and decode now use the same deterministic slotting rule
+
+9B. Current mask behavior
+
+Masks are now implemented for the current v1 profile.
+
+Current mask rules:
+- exactly 8 reversible masks exist
+- the encoder chooses the mask automatically
+- mask scope is payload/ECC cells only
+- header, bootstrap, timing, markers, control cells, floater nodes, and unused payload padding are not masked
+- the chosen `maskId` is written into the header
+- current masked exports write minor version `1`
+- legacy minor version `0` with `maskId = 0` is treated as unmasked for decode compatibility
+- decode reads that `maskId` from the header and removes the mask before reconstructing payload/ECC bytes
+
+Current selection behavior:
+- the encoder scores candidate masks against the occupied payload/ECC cells
+- lower score is better
+- scoring penalizes obvious visual structure such as repeated adjacent symbols, long runs, 2x2 same-symbol blocks, and strong per-channel histogram imbalance
+- the encoder may stop early if one candidate reaches a good-enough threshold instead of scoring all 8 every time
+
+Current application behavior:
+- masks are reversible symbol-space XOR masks
+- they operate on the packed cell value before RGB quantization
+- for the current v1 profile, this means most mask-eligible cells change under any selected non-trivial mask while still decoding exactly by applying the same mask again
+
+10. Reader overview
+
+The public decode facade is:
+- DPCodeReader
+
+Current public entry points:
+- DPCodeReader.read(String imagePath)
+- DPCodeReader.read(Path imagePath)
+
+Basic example:
+
+```java
+DPCodeReader.ReadResult result = DPCodeReader.read("C:\\output\\hello.png");
+String text = result.getPayloadAsUtf8String();
+```
+
+11. What the reader returns
+
+DPCodeReader.read(...) returns:
+- DPCodeReader.ReadResult
+
+This object exposes:
+- decoded payload bytes
+- decoded payload as UTF-8 text
+- decoded payload as text using any caller-supplied charset
+- logical size
+- payload mode
+- preprocess mode
+- bootstrap/header profile
+- density mode
+- ECC profile
+- payload length
+- payload CRC
+- payload-side decode error count
+- payload verification flag
+- bootstrap echo
+- debug dumps for structure/traversal
+
+Useful examples:
+
+Get bytes:
+
+```java
+byte[] bytes = result.copyPayloadBytes();
+```
+
+Get UTF-8 text:
+
+```java
+String text = result.getPayloadAsUtf8String();
+```
+
+Get text in another charset:
+
+```java
+String text = result.getPayloadAsString(StandardCharsets.ISO_8859_1);
+```
+
+Read header-derived metadata:
+
+```java
+int logicalSize = result.getLogicalSize();
+DPDensityMode density = result.getDensityMode();
+DPCode.EccProfile ecc = result.getEccProfile();
+int payloadLength = result.getPayloadLength();
+int payloadCrc = result.getPayloadCrc();
+int errors = result.getErrors();
+boolean payloadVerified = result.isPayloadVerified();
+int bootstrapEcho = result.getBootstrapEcho();
+```
+
+Current payload-read rule:
+- if bootstrap and header decode succeed, the reader returns the best payload bytes it can recover
+- `result.getErrors() == 0` means the payload path validated cleanly
+- `result.isPayloadVerified()` is the trust flag for whether the returned payload bytes should be treated as trustworthy
+- `result.getErrors() > 0` means the payload needed repair, failed a repair attempt, or still failed payload CRC after best-effort decode
+
+Summary helper:
+- result.summary()
+
+12. Decode workflow
+
+Current public decode flow:
+1. read the PNG from disk
+2. derive a coarse square symbol region from projected image activity instead of trusting the full screenshot rectangle directly
+3. refine candidate symbol bounds from the top-left and bottom-right corner markers
+4. infer candidate cell geometries from those marker-anchored bounds
+5. score candidate geometries against the fixed structural lattice:
+   - corner markers
+   - timing patterns
+   - control box
+   - floater nodes derived from the official floater algorithm, with black arms and a white center
+6. sample logical cells from the strongest candidate grids
+7. pass the sampled logical grid into the internal logical decoder
+8. regenerate the same reservation mask from the decoded logical size, including floater nodes
+9. use that mask to validate fixed structures and to exclude floater cells from payload traversal
+10. regenerate the interleaved ECC slot plan
+11. remove the payload/ECC mask indicated by the decoded header `maskId`
+12. attempt bootstrap, header, CRC, and ECC validation
+13. if bootstrap/header succeeded, return the decoded result even when payload-side ECC or CRC reported issues
+
+Current intent:
+- decode the original exported image
+- not arbitrary screenshots, photos, or perspective-distorted captures
+
+13. Current implementation scope
+
+Implemented:
+- reusable public encode object
+- public read-from-path decode facade
+- automatic smallest-fit logical size selection
+- fixed quiet-zone rendering
+- density-based payload packing
+- header encode/decode
+- bootstrap encode/decode
+- payload CRC
+- header CRC
+- chunked multi-block ECC generation
+- chunked multi-block ECC validation/correction path
+- image sampling from exported PNGs
+
+Not yet expanded much:
+- multiple payload modes
+- preprocessing transforms
+- alternate header profiles
+- broader image recovery heuristics
+
+14. Current practical limits
+
+Current important limits:
+- square PNG decode path only
+- sampler currently assumes clean exported images
+- ECC is currently a deterministic chunked Reed-Solomon model
+- very large payloads still depend on the current practical logical-size ceiling and image sizing choices
+
+If that changes later, this file should be updated.
+
+15. Reuse model
+
+DPCode is meant to be reused.
+
+Example:
+
+```java
+DPCode code = DPCode.fromText("first");
+code.setOutputPath("C:\\output\\first.png");
+code.encode();
+
+code.setPayloadText("second");
+code.encodeTo("C:\\output\\second.png");
+```
+
+This is the intended style:
+- one request object
+- update fields
+- encode again
+
+16. Practical guidance
+
+Recommended use right now:
+- use UTF-8 text or direct bytes
+- leave payload mode / preprocess mode / bootstrap profile at defaults
+- choose density and ECC deliberately
+- keep imageSizePx high enough that cellSizePx stays comfortably above the 5px minimum
+- decode from the original exported PNG when possible
+
+Future note:
+- expand public text-payload guidance for alternate encodings such as UTF-16 and ISO-8859-1 if those become common use cases
+
+17. Public classes to look at
+
+For actual usage, the main public files are:
+- DPCode.java
+- DPCodeReader.java
+
+Lower-level internal implementation lives in:
+- DPEncoder.java
+- DPDensityMode.java
+- DPHeader.java
+- DPHeaderCodec.java
+- DPReservedMask.java
+- DPImageSampler.java
+
+Those lower-level classes exist to support the public API and may stay more implementation-focused.

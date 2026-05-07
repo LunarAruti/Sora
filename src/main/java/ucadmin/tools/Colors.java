@@ -105,6 +105,30 @@ public final class Colors {
         }
 
         /**
+         * Returns the packed 24-bit RGB integer for this color.
+         *
+         * <p>The returned value uses the layout {@code 0xRRGGBB} and does not
+         * include an alpha channel.</p>
+         *
+         * @return packed RGB integer
+         */
+        public int toRgbInt() {
+            return (r << 16) | (g << 8) | b;
+        }
+
+        /**
+         * Returns the packed 32-bit ARGB integer for this color.
+         *
+         * <p>The alpha channel is always fully opaque, so the returned value
+         * uses the layout {@code 0xFFRRGGBB}.</p>
+         *
+         * @return packed ARGB integer
+         */
+        public int toArgbInt() {
+            return 0xFF000000 | toRgbInt();
+        }
+
+        /**
          * Updates the color using a HEX string.
          *
          * Behavior:

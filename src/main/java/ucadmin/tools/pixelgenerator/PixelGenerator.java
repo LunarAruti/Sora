@@ -1,5 +1,6 @@
 package ucadmin.tools.pixelgenerator;
 
+import ucadmin.tools.Colors;
 import ucadmin.util.Logger;
 
 import javax.imageio.ImageIO;
@@ -14,26 +15,40 @@ import java.nio.file.StandardOpenOption;
 import java.util.Locale;
 
 /**
- * PNG renderer for token-based pixel art.
+ * PNG renderer for both token-based and direct-color pixel art.
  *
- * <p>The public API is intentionally small:
- * a caller builds a {@link PixelArt} request object and passes it to
- * {@link #render(PixelArt)}. The renderer validates the request, resolves
- * final divisible output dimensions, renders fully in memory, and performs
- * one final buffered PNG write to the requested output file.</p>
- *
- * <p>Design goals for this first pass:</p>
+ * <p>The public API intentionally exposes two parallel render paths:</p>
  * <ul>
- *     <li>String-token grid input ({@code String[][]})</li>
- *     <li>Case-insensitive palette lookup through normalization</li>
- *     <li>Fully transparent cells for {@code "."}, null, and blank strings</li>
- *     <li>No temp files and no staged disk writes</li>
- *     <li>No mutation of the supplied {@link PixelArt} object or its grid</li>
+ *     <li>{@link PixelArt} for token-grid rendering through the fixed palette</li>
+ *     <li>{@link PixelColorArt} for direct rendering of exact
+ *     {@link Colors.Color} cell values</li>
  * </ul>
+ *
+ * <p>Both paths share the same output-size resolution, optional border
+ * handling, in-memory rendering model, and single final PNG write.</p>
  */
 public final class PixelGenerator {
 
     private PixelGenerator() {}
+
+    /**
+     * Renders a pixel-grid builder by first materializing its current state
+     * into a {@link PixelArt} snapshot.
+     *
+     * <p>This keeps the builder-friendly workflow lightweight for callers
+     * while still routing all rendering through the same underlying
+     * {@link PixelArt}-based validation and PNG write path.</p>
+     *
+     * @param builder mutable pixel-grid builder
+     * @return normalized absolute path of the written PNG file
+     * @throws PixelGeneratorException if validation fails or the PNG write cannot complete
+     */
+    public static Path render(PixelGridBuilder builder) {
+        if (builder == null) {
+            throw new PixelGeneratorException("PixelGenerator.render: builder cannot be null.");
+        }
+        return render(builder.toPixelArt());
+    }
 
     /**
      * Renders a pixel-art request to the exact PNG output path stored on the
@@ -101,6 +116,63 @@ public final class PixelGenerator {
     }
 
     /**
+     * Renders a direct-color pixel-art request to the exact PNG output path
+     * stored on the supplied {@link PixelColorArt} object.
+     *
+     * <p>This is the parallel render path to {@link #render(PixelArt)}. It
+     * keeps the same sizing, border, and file-write behavior, but uses exact
+     * {@link Colors.Color} cell values instead of palette tokens.</p>
+     *
+     * @param art direct-color pixel-art request object
+     * @return normalized absolute path of the written PNG file
+     * @throws PixelGeneratorException if validation fails or the PNG write cannot complete
+     */
+    public static Path render(PixelColorArt art) {
+        long t0 = System.nanoTime();
+        Logger.log(Logger.TAG.SYSTEM, "PixelGenerator.render(begin-rgb)");
+
+        if (art == null) {
+            throw new PixelGeneratorException("PixelGenerator.render: color art cannot be null.");
+        }
+
+        Colors.Color[][] grid = art.getGrid();
+        GridSpec spec = validateGrid(grid);
+        Path outputPath = resolveOutputPath(art.getOutputPath());
+        BorderSpec border = resolveBorder(art);
+
+        int contentWidth = resolveNearestDivisibleSize(art.getPreferredWidth(), spec.columns);
+        int contentHeight = resolveNearestDivisibleSize(art.getPreferredHeight(), spec.rows);
+        int cellWidth = contentWidth / spec.columns;
+        int cellHeight = contentHeight / spec.rows;
+        int finalWidth = contentWidth + (border.sizePx * 2);
+        int finalHeight = contentHeight + (border.sizePx * 2);
+
+        Logger.log(Logger.TAG.DEBUG,
+                "PixelGenerator.render(rgb): rows=" + spec.rows +
+                        " cols=" + spec.columns +
+                        " preferredWidth=" + art.getPreferredWidth() +
+                        " preferredHeight=" + art.getPreferredHeight() +
+                        " contentWidth=" + contentWidth +
+                        " contentHeight=" + contentHeight +
+                        " finalWidth=" + finalWidth +
+                        " finalHeight=" + finalHeight +
+                        " borderSize=" + border.sizePx +
+                        " cellWidth=" + cellWidth +
+                        " cellHeight=" + cellHeight);
+
+        BufferedImage image = new BufferedImage(finalWidth, finalHeight, BufferedImage.TYPE_INT_ARGB);
+        paintBorder(image, finalWidth, finalHeight, border);
+        paintGrid(image, grid, spec.rows, spec.columns, cellWidth, cellHeight, border.sizePx);
+        writePng(image, outputPath);
+
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
+        Logger.log(Logger.TAG.INFO,
+                "PixelGenerator.render(rgb): wrote PNG to " + outputPath + " (elapsedMs=" + elapsedMs + ")");
+        Logger.log(Logger.TAG.SYSTEM, "PixelGenerator.render(end-rgb)");
+        return outputPath;
+    }
+
+    /**
      * Validates the structural rules for the token grid.
      *
      * <p>The grid must be a proper rectangular 2D array with at least one
@@ -140,6 +212,51 @@ public final class PixelGenerator {
 
         if (columns <= 0) {
             throw new PixelGeneratorException("PixelGenerator.validateGrid: grid must contain at least one column.");
+        }
+
+        return new GridSpec(grid.length, columns);
+    }
+
+    /**
+     * Validates the structural rules for a direct-color grid.
+     *
+     * <p>The grid must be a proper rectangular 2D array with at least one row
+     * and one column. Individual cells may be null and will render as
+     * transparent.</p>
+     *
+     * @param grid source direct-color grid
+     * @return resolved grid dimensions
+     * @throws PixelGeneratorException if the grid shape is invalid
+     */
+    private static GridSpec validateGrid(Colors.Color[][] grid) {
+        if (grid == null) {
+            throw new PixelGeneratorException("PixelGenerator.validateGrid: color grid cannot be null.");
+        }
+        if (grid.length == 0) {
+            throw new PixelGeneratorException("PixelGenerator.validateGrid: color grid must contain at least one row.");
+        }
+
+        int columns = -1;
+        for (int y = 0; y < grid.length; y++) {
+            Colors.Color[] row = grid[y];
+            if (row == null) {
+                throw new PixelGeneratorException("PixelGenerator.validateGrid: color row " + y + " is null.");
+            }
+            if (row.length == 0) {
+                throw new PixelGeneratorException("PixelGenerator.validateGrid: color row " + y + " has zero columns.");
+            }
+            if (columns == -1) {
+                columns = row.length;
+            } else if (row.length != columns) {
+                throw new PixelGeneratorException(
+                        "PixelGenerator.validateGrid: color row " + y + " length " + row.length +
+                                " does not match expected column count " + columns + "."
+                );
+            }
+        }
+
+        if (columns <= 0) {
+            throw new PixelGeneratorException("PixelGenerator.validateGrid: color grid must contain at least one column.");
         }
 
         return new GridSpec(grid.length, columns);
@@ -240,6 +357,32 @@ public final class PixelGenerator {
     }
 
     /**
+     * Resolves border settings from a direct-color request object.
+     *
+     * @param art direct-color pixel-art request
+     * @return immutable resolved border settings
+     * @throws PixelGeneratorException if the border configuration is invalid
+     */
+    private static BorderSpec resolveBorder(PixelColorArt art) {
+        int borderSize = art.getBorderSize();
+        if (borderSize < 0) {
+            throw new PixelGeneratorException("PixelGenerator.resolveBorder: borderSize must be >= 0.");
+        }
+        if (borderSize == 0) {
+            return new BorderSpec(0, 0x00000000, false);
+        }
+
+        Colors.Color borderColor = art.getBorderColor();
+        if (borderColor == null) {
+            throw new PixelGeneratorException(
+                    "PixelGenerator.resolveBorder: borderColor is required when borderSize > 0."
+            );
+        }
+
+        return new BorderSpec(borderSize, borderColor.toArgbInt(), true);
+    }
+
+    /**
      * Rounds a preferred size to the nearest positive size evenly divisible
      * by the supplied divisor.
      *
@@ -307,6 +450,45 @@ public final class PixelGenerator {
             String[] row = grid[y];
             for (int x = 0; x < columns; x++) {
                 int argb = PixelTokenSupport.resolveColor(row[x], x, y);
+                int startX = borderOffsetPx + (x * cellWidth);
+                int startY = borderOffsetPx + (y * cellHeight);
+
+                for (int py = 0; py < cellHeight; py++) {
+                    for (int px = 0; px < cellWidth; px++) {
+                        image.setRGB(startX + px, startY + py, argb);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Paints the direct-color grid into the in-memory image.
+     *
+     * <p>Null cells are treated as fully transparent. Non-null cells are
+     * written using the exact RGB values from the supplied
+     * {@link Colors.Color} objects.</p>
+     *
+     * @param image target image buffer
+     * @param grid source direct-color grid
+     * @param rows total row count
+     * @param columns total column count
+     * @param cellWidth width of each rendered cell in pixels
+     * @param cellHeight height of each rendered cell in pixels
+     * @param borderOffsetPx inset offset created by the optional border
+     */
+    private static void paintGrid(BufferedImage image,
+                                  Colors.Color[][] grid,
+                                  int rows,
+                                  int columns,
+                                  int cellWidth,
+                                  int cellHeight,
+                                  int borderOffsetPx) {
+        for (int y = 0; y < rows; y++) {
+            Colors.Color[] row = grid[y];
+            for (int x = 0; x < columns; x++) {
+                Colors.Color color = row[x];
+                int argb = (color == null) ? 0x00000000 : color.toArgbInt();
                 int startX = borderOffsetPx + (x * cellWidth);
                 int startY = borderOffsetPx + (y * cellHeight);
 
