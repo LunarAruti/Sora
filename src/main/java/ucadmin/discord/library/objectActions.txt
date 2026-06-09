@@ -1,0 +1,11 @@
+two types:
+child commands: inside the object
+parent commands: outside the object
+
+ex
+object.set or get
+verses
+action(object)
+
+child commands:
+channel:

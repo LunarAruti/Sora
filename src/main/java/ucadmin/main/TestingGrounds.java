@@ -30,30 +30,26 @@ public class TestingGrounds {
         Logger.log(Logger.TAG.SYSTEM, "=== TESTING GROUNDS ===");
 
         try {
+            Logger.log(Logger.TAG.SYSTEM, "TestingGrounds: starting maze simulation functionality test.");
 
-            DPCode code = new DPCode("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\codeString.txt",true);
-            code.setBootstrapProfile(DPCode.BootstrapProfile.STANDARD_V1);
-            code.setOutputPath("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\code.png");
-            code.setImageSizePx(1200);
-            code.setPayloadMode(DPCode.PayloadMode.RAW_BYTES);
-            code.setDensityMode(DPDensityMode.D256);
-            code.setPreprocessMode(DPCode.PreprocessMode.NONE);
-            code.setEccProfile(DPCode.EccProfile.MEDIUM);
-            code.setPayloadCharset(StandardCharsets.UTF_8);
-            code.encode();
+            ucadmin.simulation.SimulationConfig config = new ucadmin.simulation.SimulationConfig(
+                    "UC Maze Simulation Test",
+                    1000,
+                    1000,
+                    60,
+                    new java.awt.Color(55, 55, 55),
+                    50L,
+                    false
+            );
 
-            DPCodeReader.ReadResult result = DPCodeReader.read("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\code.png");
-            String textAfter = result.getPayloadAsString(StandardCharsets.UTF_8);
-            int errors = result.getErrors();
-            boolean valid = result.isPayloadVerified();
-            int size = result.getPayloadLength();
-            int grid = result.getLogicalSize();
+            ucadmin.simulation.SimulationEngine engine = new ucadmin.simulation.SimulationEngine(
+                    config,
+                    new ucadmin.simulation.MazeSimulationGame()
+            );
 
-            System.out.println("logical " + grid);
-            System.out.println("size " + size);
-            System.out.println("valid " + valid);
-            System.out.println("errors " + errors);
-            System.out.println(textAfter);
+            Logger.log(Logger.TAG.INFO, "TestingGrounds: launching simulation via blocking run().");
+            engine.run();
+            Logger.log(Logger.TAG.INFO, "TestingGrounds: simulation ended; continuing to shutdown.");
 
         } catch (Throwable t) {
             Logger.log(Logger.TAG.ERROR, "[0011] TestingGrounds crash: " + t);
