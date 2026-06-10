@@ -45,15 +45,16 @@ public final class DungeonArtifactCatalogLoader {
     private static DungeonArtifactTemplate readTemplate(String fallbackId, JSONObject artifact) {
         String id = artifact.optString("id", fallbackId);
         String name = artifact.optString("name", id);
-        int spawnProbability = readSpawnProbability(artifact);
+        int category = artifact.optInt("category", 1);
 
         return new DungeonArtifactTemplate(
                 id,
                 name,
-                spawnProbability,
+                category,
                 readWalls(artifact.optJSONArray("walls")),
                 readOpenings(artifact.optJSONArray("openings")),
-                readOccupiedAreas(artifact.optJSONArray("occupied_areas"))
+                readOccupiedAreas(artifact.optJSONArray("occupied_areas")),
+                readItems(artifact.optJSONArray("items"))
         );
     }
 
@@ -122,24 +123,28 @@ public final class DungeonArtifactCatalogLoader {
         return new DungeonOccupiedArea(polygon);
     }
 
+    private static List<DungeonItem> readItems(JSONArray items) {
+        List<DungeonItem> result = new ArrayList<>();
+        if (items == null) {
+            return result;
+        }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) continue;
+            result.add(new DungeonItem(
+                    item.optString("id", "unknown"),
+                    readPoint(item.optJSONObject("position")),
+                    readDirection(item.optString("direction", "NORTH"))
+            ));
+        }
+        return result;
+    }
+
     private static DungeonPoint readPoint(JSONObject point) {
         if (point == null) {
             return new DungeonPoint(0, 0);
         }
         return new DungeonPoint(point.optInt("x", 0), point.optInt("y", 0));
-    }
-
-    private static int readSpawnProbability(JSONObject artifact) {
-        if (artifact.has("spawn_probability")) {
-            return artifact.optInt("spawn_probability", 1);
-        }
-        if (artifact.has("spawnProbability")) {
-            return artifact.optInt("spawnProbability", 1);
-        }
-        if (artifact.has("probability")) {
-            return artifact.optInt("probability", 1);
-        }
-        return 1;
     }
 
     private static DungeonDirection readDirection(String raw) {

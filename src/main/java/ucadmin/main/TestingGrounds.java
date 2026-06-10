@@ -9,7 +9,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 
 public class TestingGrounds {
-    private static final int TEST_MODE = 2;
+    private static final int TEST_MODE = 1;
 
     public static void TestingGrounds() {
 
@@ -20,7 +20,7 @@ public class TestingGrounds {
                 case 1 -> {
                     Logger.log(Logger.TAG.SYSTEM, "TestingGrounds: starting maze simulation functionality test.");
 
-                    MazeSimulationGame game = new MazeSimulationGame();
+                    MazeSimulationGame game = new MazeSimulationGame(false);
 
                     Logger.log(Logger.TAG.INFO, "TestingGrounds: launching maze simulation seed=" + game.getSeed());
                     boolean started = game.run();

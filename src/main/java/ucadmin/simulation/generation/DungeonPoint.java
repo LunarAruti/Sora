@@ -12,6 +12,10 @@ public record DungeonPoint(int x, int y) {
         };
     }
 
+    public DungeonPoint mirrorVertically() {
+        return new DungeonPoint(-x, y);
+    }
+
     public DungeonPoint translate(DungeonPoint offset) {
         return new DungeonPoint(x + offset.x, y + offset.y);
     }

@@ -11,6 +11,7 @@ public final class DungeonPlacedArtifact {
     private final DungeonArtifactTemplate template;
     private final DungeonPoint center;
     private final int rotationDegrees;
+    private final boolean mirroredVertically;
     private final Set<Integer> connectedOpeningIndexes = new HashSet<>();
 
     DungeonPlacedArtifact(
@@ -19,21 +20,33 @@ public final class DungeonPlacedArtifact {
             DungeonPoint center,
             int rotationDegrees
     ) {
+        this(placementIndex, template, center, rotationDegrees, false);
+    }
+
+    DungeonPlacedArtifact(
+            int placementIndex,
+            DungeonArtifactTemplate template,
+            DungeonPoint center,
+            int rotationDegrees,
+            boolean mirroredVertically
+    ) {
         this.placementIndex = placementIndex;
         this.template = Objects.requireNonNull(template, "template");
         this.center = Objects.requireNonNull(center, "center");
         this.rotationDegrees = Math.floorMod(rotationDegrees, 360);
+        this.mirroredVertically = mirroredVertically;
     }
 
     public int getPlacementIndex() { return placementIndex; }
     public DungeonArtifactTemplate getTemplate() { return template; }
     public DungeonPoint getCenter() { return center; }
     public int getRotationDegrees() { return rotationDegrees; }
+    public boolean isMirroredVertically() { return mirroredVertically; }
 
     public List<DungeonLine> getWorldWalls() {
         List<DungeonLine> lines = new ArrayList<>();
         for (DungeonLine wall : template.getWalls()) {
-            lines.add(wall.rotateClockwise(rotationDegrees).translate(center));
+            lines.add(transform(wall).translate(center));
         }
         return List.copyOf(lines);
     }
@@ -59,16 +72,21 @@ public final class DungeonPlacedArtifact {
     public List<DungeonOccupiedArea> getWorldOccupiedAreas() {
         List<DungeonOccupiedArea> areas = new ArrayList<>();
         for (DungeonOccupiedArea area : template.getOccupiedAreas()) {
-            areas.add(area.rotateClockwise(rotationDegrees).translate(center));
+            areas.add(transform(area).translate(center));
         }
         return List.copyOf(areas);
     }
 
+    public List<DungeonItem> getWorldItems() {
+        List<DungeonItem> items = new ArrayList<>();
+        for (DungeonItem item : template.getItems()) {
+            items.add(transform(item).translate(center));
+        }
+        return List.copyOf(items);
+    }
+
     public DungeonOpening getWorldOpening(int openingIndex) {
-        return template.getOpenings()
-                .get(openingIndex)
-                .rotateClockwise(rotationDegrees)
-                .translate(center);
+        return transform(template.getOpenings().get(openingIndex)).translate(center);
     }
 
     public boolean isOpeningConnected(int openingIndex) {
@@ -86,5 +104,25 @@ public final class DungeonPlacedArtifact {
             }
         }
         return false;
+    }
+
+    private DungeonLine transform(DungeonLine line) {
+        DungeonLine transformed = mirroredVertically ? line.mirrorVertically() : line;
+        return transformed.rotateClockwise(rotationDegrees);
+    }
+
+    private DungeonOpening transform(DungeonOpening opening) {
+        DungeonOpening transformed = mirroredVertically ? opening.mirrorVertically() : opening;
+        return transformed.rotateClockwise(rotationDegrees);
+    }
+
+    private DungeonOccupiedArea transform(DungeonOccupiedArea area) {
+        DungeonOccupiedArea transformed = mirroredVertically ? area.mirrorVertically() : area;
+        return transformed.rotateClockwise(rotationDegrees);
+    }
+
+    private DungeonItem transform(DungeonItem item) {
+        DungeonItem transformed = mirroredVertically ? item.mirrorVertically() : item;
+        return transformed.rotateClockwise(rotationDegrees);
     }
 }

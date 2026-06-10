@@ -12,6 +12,7 @@ Current Runtime Contract
 - run() starts the simulation.
 - exit() stops the simulation.
 - Shutdown is owned by the simulation itself.
+- The dungeon game object can be created in admin mode for faster no-clip movement and full-map visibility.
 - The framework crash manager is not responsible for simulation crashes.
 - If either simulation thread crashes, SimulationEngine logs the crash, calls the game crash hook, and shuts itself down.
 - The engine owns exactly two simulation-managed threads:
@@ -48,6 +49,9 @@ Game Design
 - The game is a 2D dungeon exploration game.
 - Dungeon generation is seed-based.
 - The same seed should generate the same dungeon.
+- Non-admin players can only see geometry inside line of sight; walls and sealed openings block visibility.
+- Non-admin visibility should stay clear near the player and darken with distance.
+- Wall light items can reveal nearby line-of-sight areas when the player is close enough to notice the light.
 - The dungeon is assembled from handcrafted artifact templates.
 - The generator chooses which artifacts to place, how they connect, and how they rotate.
 - Artifact geometry is manually defined; generation does not invent raw room geometry.
@@ -56,10 +60,11 @@ Artifacts
 - Artifact templates are master definitions.
 - Templates never move, rotate, or change.
 - Artifact instances are placed copies of templates.
-- Instances store world position and rotation while referencing their template.
+- Instances store world position, rotation, and vertical mirror state while referencing their template.
 - All template coordinates are relative to artifact center (0,0).
 - Only four rotations are supported: 0, 90, 180, and 270 degrees.
 - Rotation is handled by instances using coordinate swapping/sign changes.
+- Generation may mirror artifact instances across the artifact's vertical centerline to reuse one-sided connector geometry.
 
 Artifact Data
 - Walls are line segments.
@@ -80,10 +85,13 @@ Generation Process
 - Select an existing artifact.
 - Select an unused opening.
 - Choose a compatible artifact.
-- Rotate the new artifact appropriately.
+- Rotate and optionally mirror the new artifact appropriately.
 - Align the new artifact opening with the existing opening.
 - Check rotated and translated occupied areas for overlap.
 - Place the artifact if valid.
+- If no continuing artifact can be placed from an opening, a one-opening artifact may be placed as a dead-end cap.
+- Nearby unconnected openings may be reconnected with a bounded connector search before final open walls are sealed.
+- Reconnection should primarily use connector artifacts and hallway artifacts, including straight, offset, and L-shaped hall pieces.
 - Continue indefinitely to support an infinite dungeon.
 
 Future Editor
@@ -106,7 +114,13 @@ Future Editor
 - Editor controls should include scroll-wheel zoom, right-click drag pan, and left-click drawing.
 - The editor should show a small controls strip along the bottom.
 - Pressing R rotates the preview by 90 degrees without changing saved template geometry.
-- Tools should include center, wall, opening, occupied area, and eraser.
+- When preview rotation is active, editor input should map clicks back into template coordinates so drawing and erasing line up with the rotated display.
+- Pressing X toggles between eraser and the previously selected non-eraser tool.
+- Tools should include select, center, wall, opening, occupied area, item placement, and eraser.
+- The select tool should select every editable element inside or intersecting the selected rectangle.
+- Ctrl+C copies the current selection into an editor-session clipboard.
+- Ctrl+V pastes the clipboard near the current cursor position.
+- The editor-session clipboard should persist across loading or creating artifacts, but clear when the editor exits.
 - Wall drawing uses first point then second point, with a preview while the mouse moves.
 - Occupied area drawing supports two modes.
 - Dragging with the occupied tool creates a rectangular occupied polygon.
@@ -120,10 +134,21 @@ Future Editor
 - The editor should reject saving artifacts named default because that name is reserved for the generator bootstrap artifact.
 - Undo and redo should exist from the first editor pass.
 - Ctrl+Z and Ctrl+Y should trigger undo and redo.
-- Artifact templates should include a spawn probability from 0 to 10.
-- Spawn probability 0 is reserved for forced/non-random artifacts and should never spawn through normal generation.
-- Spawn probability 1 is common/highest priority for generation.
-- Higher spawn probability values should be progressively rarer, with 10 being rare.
+- The eraser should remove walls by touching any part of the wall segment, occupied areas by clicking inside the area, center/opening dots by proximity, and placed items by cell.
+- Editor action buttons should live at the bottom of the side panel so more tools can be added above them.
+- Items are placed on cells/blocks, not grid intersections.
+- Item templates are selected from a small static item library by id.
+- The first item is wall_light.
+- Wall lights can only be placed on a cell touching a wall.
+- Wall light direction is assigned automatically from the touched wall and saved with the item.
+- Runtime wall light positions are cell coordinates; draw and ray origins should use the cell center, not the grid intersection.
+- The visible wall light box should sit inside its cell while touching the cell edge opposite its facing direction, which is the wall side.
+- Artifact JSON stores items as id, position, and direction.
+- Runtime artifact loading should preserve item id, position, and direction and transform them with the placed artifact.
+- Artifact templates should include a numeric category.
+- Category 0 is reserved for forced/non-random artifacts and should never spawn through normal generation.
+- Categories describe artifact roles such as basic hallways, exotic hallways, rooms, chambers, junctions, dead ends, connectors, and setpieces.
+- Generation profiles use artifact categories together with derived geometry/opening metadata to decide what can spawn next.
 - Artifact loading should be backward-compatible with older artifact JSON versions.
 - When a new save uses a name that already exists, the editor should ask before overwriting.
 - When a loaded artifact is renamed and saved, the old name lookup should be removed.

@@ -29,6 +29,8 @@ import java.awt.GridBagLayout;
 import java.awt.KeyboardFocusManager;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
@@ -41,7 +43,7 @@ final class ArtifactEditorWindow {
     private final ArtifactEditorCanvas canvas;
     private final JFrame frame;
     private final JTextField nameField = new JTextField("untitled");
-    private final JTextField probabilityField = new JTextField("1");
+    private final JTextField categoryField = new JTextField("1");
 
     ArtifactEditorWindow(
             ArtifactEditorConfig config,
@@ -77,7 +79,7 @@ final class ArtifactEditorWindow {
         canvas.addMouseMotionListener(mouseAdapter);
         canvas.addMouseWheelListener(mouseAdapter);
         canvas.addKeyListener(inputController.createKeyAdapter());
-        installEditorKeyBindings();
+        installEditorKeyBindings(inputController);
     }
 
     void showWindow() {
@@ -104,13 +106,14 @@ final class ArtifactEditorWindow {
         panel.setBackground(new Color(36, 38, 43));
 
         configureCompactField(nameField, 120);
-        configureCompactField(probabilityField, 42);
+        configureCompactField(categoryField, 42);
         panel.add(buildMetadataPanel());
         panel.add(Box.createVerticalStrut(8));
 
         panel.add(label("Tools"));
         ButtonGroup tools = new ButtonGroup();
         JPanel toolPanel = compactPanel();
+        addToolButton(toolPanel, tools, "Select", ArtifactEditorTool.SELECT);
         addToolButton(toolPanel, tools, "Center", ArtifactEditorTool.CENTER);
         addToolButton(toolPanel, tools, "Wall", ArtifactEditorTool.WALL);
         addToolButton(toolPanel, tools, "Opening", ArtifactEditorTool.OPENING);
@@ -118,6 +121,23 @@ final class ArtifactEditorWindow {
         addToolButton(toolPanel, tools, "Eraser", ArtifactEditorTool.ERASER);
         panel.add(toolPanel);
         panel.add(Box.createVerticalStrut(8));
+
+        panel.add(label("Items"));
+        JPanel itemPanel = compactPanel();
+        JButton wallLightButton = smallButton("Wall Light");
+        wallLightButton.addActionListener(e -> {
+            state.setSelectedItemId(ArtifactItemLibrary.WALL_LIGHT);
+            state.setActiveTool(ArtifactEditorTool.ITEM);
+            canvas.clearPreview();
+            canvas.clearPolygonPreview();
+            canvas.repaint();
+            canvas.requestFocusInWindow();
+        });
+        itemPanel.add(wallLightButton);
+        panel.add(itemPanel);
+        panel.add(Box.createVerticalStrut(8));
+
+        panel.add(Box.createVerticalGlue());
 
         JPanel actionPanel = compactPanel();
         JButton undoButton = smallButton("Undo");
@@ -144,7 +164,6 @@ final class ArtifactEditorWindow {
         deleteButton.addActionListener(e -> deleteArtifact());
         actionPanel.add(deleteButton);
         panel.add(actionPanel);
-        panel.add(Box.createVerticalGlue());
 
         return panel;
     }
@@ -171,19 +190,19 @@ final class ArtifactEditorWindow {
         gbc.gridx = 0;
         gbc.gridy = 1;
         gbc.weightx = 0;
-        panel.add(label("Prob"), gbc);
+        panel.add(label("Cat"), gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 1;
         gbc.fill = GridBagConstraints.NONE;
-        panel.add(probabilityField, gbc);
+        panel.add(categoryField, gbc);
 
         return panel;
     }
 
     private JLabel buildControlsStrip() {
         JLabel label = new JLabel(
-                "LMB draw/place   LMB drag occupied rect   RMB pan   Wheel zoom   R rotate   Ctrl+Z/Y undo/redo"
+                "LMB draw/place/select   RMB pan   Wheel zoom   R rotate   X eraser   Ctrl+C/V copy/paste   Ctrl+Z/Y undo/redo"
         );
         label.setForeground(new Color(190, 194, 202));
         label.setBackground(new Color(28, 30, 34));
@@ -215,9 +234,19 @@ final class ArtifactEditorWindow {
         field.setPreferredSize(size);
         field.setMinimumSize(size);
         field.setMaximumSize(size);
+        field.addActionListener(e -> {
+            commitMetadataFields();
+            canvas.requestFocusInWindow();
+        });
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent event) {
+                commitMetadataFields();
+            }
+        });
     }
 
-    private void installEditorKeyBindings() {
+    private void installEditorKeyBindings(ArtifactEditorInputController inputController) {
         frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
                 KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK),
                 "artifactEditorUndo"
@@ -245,11 +274,72 @@ final class ArtifactEditorWindow {
                 performRedo();
             }
         });
+
+        frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK),
+                "artifactEditorCopy"
+        );
+        frame.getRootPane().getActionMap().put("artifactEditorCopy", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (canvasHasFocus() || textFieldHasFocus()) {
+                    return;
+                }
+                inputController.enqueueKeyPress(KeyEvent.VK_C, true);
+            }
+        });
+
+        frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK),
+                "artifactEditorPaste"
+        );
+        frame.getRootPane().getActionMap().put("artifactEditorPaste", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (canvasHasFocus() || textFieldHasFocus()) {
+                    return;
+                }
+                inputController.enqueueKeyPress(KeyEvent.VK_V, true);
+            }
+        });
+
+        frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_R, 0),
+                "artifactEditorRotate"
+        );
+        frame.getRootPane().getActionMap().put("artifactEditorRotate", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (canvasHasFocus() || textFieldHasFocus()) {
+                    return;
+                }
+                inputController.enqueueKeyPress(KeyEvent.VK_R, false);
+            }
+        });
+
+        frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_X, 0),
+                "artifactEditorToggleEraser"
+        );
+        frame.getRootPane().getActionMap().put("artifactEditorToggleEraser", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (canvasHasFocus() || textFieldHasFocus()) {
+                    return;
+                }
+                inputController.enqueueKeyPress(KeyEvent.VK_X, false);
+            }
+        });
     }
 
     private boolean canvasHasFocus() {
         Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
         return focusOwner == canvas;
+    }
+
+    private boolean textFieldHasFocus() {
+        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        return focusOwner instanceof JTextField;
     }
 
     private void performUndo() {
@@ -283,14 +373,14 @@ final class ArtifactEditorWindow {
             canvas.clearPreview();
             canvas.clearPolygonPreview();
             canvas.repaint();
+            canvas.requestFocusInWindow();
         });
         group.add(button);
         panel.add(button);
     }
 
     private void saveArtifact() {
-        state.setName(nameField.getText());
-        state.setSpawnProbability(readProbability());
+        commitMetadataFields();
         List<String> blockingIssues = state.getDraft().validateBlockingSaveIssues();
         if (!blockingIssues.isEmpty()) {
             JOptionPane.showMessageDialog(
@@ -382,12 +472,12 @@ final class ArtifactEditorWindow {
         }
     }
 
-    private int readProbability() {
+    private int readCategory() {
         try {
-            return Integer.parseInt(probabilityField.getText().trim());
+            return Integer.parseInt(categoryField.getText().trim());
         } catch (NumberFormatException e) {
-            Logger.log(Logger.TAG.WARN, "[A0027] ArtifactEditorWindow: invalid probability, defaulting to 1.");
-            probabilityField.setText("1");
+            Logger.log(Logger.TAG.WARN, "[A0027] ArtifactEditorWindow: invalid category, defaulting to 1.");
+            categoryField.setText("1");
             return 1;
         }
     }
@@ -472,6 +562,11 @@ final class ArtifactEditorWindow {
 
     private void refreshFieldsFromDraft() {
         nameField.setText(state.getDraft().getName());
-        probabilityField.setText(String.valueOf(state.getDraft().getSpawnProbability()));
+        categoryField.setText(String.valueOf(state.getDraft().getCategory()));
+    }
+
+    private void commitMetadataFields() {
+        state.setName(nameField.getText());
+        state.setCategory(readCategory());
     }
 }

@@ -28,4 +28,13 @@ public enum DungeonDirection {
         }
         return direction;
     }
+
+    public DungeonDirection mirrorVertically() {
+        return switch (this) {
+            case NORTH -> NORTH;
+            case EAST -> WEST;
+            case SOUTH -> SOUTH;
+            case WEST -> EAST;
+        };
+    }
 }

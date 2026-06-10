@@ -33,7 +33,7 @@ How To Read
 - `A0024` Save the artifact first or load it by an existing id/name.
 - `A0025` Inspect DatabaseManager failure while loading an artifact.
 - `A0026` Inspect DatabaseManager failure while checking artifact overwrite state.
-- `A0027` Enter a numeric spawn probability from 0 to 10.
+- `A0027` Enter a numeric artifact category.
 - `A0028` Attempted to delete an artifact without a valid draft/id.
 - `A0029` Inspect DatabaseManager failure while deleting an artifact.
 - `A0030` Inspect artifact database shape before loading the dungeon catalog.

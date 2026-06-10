@@ -41,6 +41,18 @@ final class ArtifactEditorCanvas extends JPanel {
         return new ArtifactPoint(x, y);
     }
 
+    ArtifactPoint screenToArtifactPoint(int screenX, int screenY) {
+        return templatePointFromDisplayPoint(screenToGrid(screenX, screenY));
+    }
+
+    ArtifactPoint screenToArtifactCell(int screenX, int screenY) {
+        int x = (int) Math.floor((screenX - panX) / cellSize);
+        int y = (int) Math.floor((screenY - panY) / cellSize);
+        x = Math.max(0, Math.min(config.getCanvasCellsWide() - 1, x));
+        y = Math.max(0, Math.min(config.getCanvasCellsHigh() - 1, y));
+        return templatePointFromDisplayPoint(new ArtifactPoint(x, y));
+    }
+
     void panBy(int dx, int dy) {
         panX += dx;
         panY += dy;
@@ -88,7 +100,9 @@ final class ArtifactEditorCanvas extends JPanel {
         drawOccupied(g, tool == ArtifactEditorTool.OCCUPIED);
         drawWalls(g, tool == ArtifactEditorTool.WALL);
         drawOpenings(g, tool == ArtifactEditorTool.OPENING);
+        drawItems(g, tool == ArtifactEditorTool.ITEM);
         drawCenter(g, tool == ArtifactEditorTool.CENTER);
+        drawSelection(g);
         drawPreview(g);
         drawPolygonPreview(g);
     }
@@ -153,6 +167,70 @@ final class ArtifactEditorCanvas extends JPanel {
         resetAlpha(g);
     }
 
+    private void drawItems(Graphics2D g, boolean active) {
+        setLayerAlpha(g, active);
+        for (ArtifactItem item : state.getDraft().getItems()) {
+            drawItem(g, item, new Color(255, 230, 120), new Color(120, 95, 35));
+        }
+        resetAlpha(g);
+    }
+
+    private void drawItem(Graphics2D g, ArtifactItem item, Color fill, Color outline) {
+        ArtifactPoint position = displayPoint(item.position());
+        int x = gridToScreenX(position.x());
+        int y = gridToScreenY(position.y());
+        int size = Math.max(4, (int) Math.round(cellSize));
+        int inset = Math.max(1, size / 5);
+        int w = Math.max(3, size - inset * 2);
+        int h = Math.max(3, size - inset * 2);
+
+        g.setColor(fill);
+        g.fillRect(x + inset, y + inset, w, h);
+        g.setColor(outline);
+        g.setStroke(new BasicStroke(2f));
+        g.drawRect(x + inset, y + inset, w, h);
+
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        drawDirectionArrow(g, cx, cy, rotateDirection(item.direction()));
+    }
+
+    private void drawSelection(Graphics2D g) {
+        ArtifactSelection selection = state.getSelection();
+        if (selection == null || selection.isEmpty()) {
+            return;
+        }
+
+        g.setComposite(AlphaComposite.SrcOver.derive(0.85f));
+        g.setColor(new Color(255, 230, 90));
+        g.setStroke(new BasicStroke(2f));
+
+        if (selection.getCenter() != null) {
+            ArtifactPoint center = displayPoint(selection.getCenter());
+            int x = gridToScreenX(center.x());
+            int y = gridToScreenY(center.y());
+            g.drawOval(x - 10, y - 10, 20, 20);
+        }
+        for (ArtifactWall wall : selection.getWalls()) {
+            ArtifactPoint start = displayPoint(wall.start());
+            ArtifactPoint end = displayPoint(wall.end());
+            g.drawLine(gridToScreenX(start.x()), gridToScreenY(start.y()), gridToScreenX(end.x()), gridToScreenY(end.y()));
+        }
+        for (ArtifactOpening opening : selection.getOpenings()) {
+            ArtifactPoint position = displayPoint(opening.position());
+            int x = gridToScreenX(position.x());
+            int y = gridToScreenY(position.y());
+            g.drawOval(x - POINT_RADIUS - 2, y - POINT_RADIUS - 2, POINT_RADIUS * 2 + 4, POINT_RADIUS * 2 + 4);
+        }
+        for (ArtifactOccupiedArea area : selection.getOccupiedAreas()) {
+            drawPolygon(g, displayPoints(area.points()), false);
+        }
+        for (ArtifactItem item : selection.getItems()) {
+            drawItem(g, item, new Color(255, 245, 150), new Color(255, 230, 90));
+        }
+        resetAlpha(g);
+    }
+
     private void drawPolygonPreview(Graphics2D g) {
         if (polygonPreviewPoints.isEmpty()) return;
 
@@ -160,13 +238,14 @@ final class ArtifactEditorCanvas extends JPanel {
         if (polygonPreviewCursor != null) {
             points.add(polygonPreviewCursor);
         }
+        List<ArtifactPoint> shownPoints = displayPoints(points);
 
         g.setComposite(AlphaComposite.SrcOver.derive(0.6f));
         g.setColor(new Color(86, 210, 125));
         g.setStroke(new BasicStroke(2f));
-        drawPolyline(g, points);
+        drawPolyline(g, shownPoints);
 
-        ArtifactPoint first = polygonPreviewPoints.get(0);
+        ArtifactPoint first = displayPoint(polygonPreviewPoints.get(0));
         int x = gridToScreenX(first.x());
         int y = gridToScreenY(first.y());
         g.fillOval(x - POINT_RADIUS, y - POINT_RADIUS, POINT_RADIUS * 2, POINT_RADIUS * 2);
@@ -190,28 +269,33 @@ final class ArtifactEditorCanvas extends JPanel {
     private void drawPreview(Graphics2D g) {
         if (previewStart == null || previewEnd == null) return;
         ArtifactEditorTool tool = state.getActiveTool();
-        if (tool != ArtifactEditorTool.WALL &&
+        if (tool != ArtifactEditorTool.SELECT &&
+                tool != ArtifactEditorTool.WALL &&
                 tool != ArtifactEditorTool.OCCUPIED &&
                 tool != ArtifactEditorTool.OPENING) return;
 
         g.setComposite(AlphaComposite.SrcOver.derive(0.55f));
         g.setColor(tool == ArtifactEditorTool.WALL ? Color.WHITE : new Color(86, 210, 125));
         g.setStroke(new BasicStroke(2f));
-        if (tool == ArtifactEditorTool.WALL) {
+        ArtifactPoint start = displayPoint(previewStart);
+        ArtifactPoint end = displayPoint(previewEnd);
+        if (tool == ArtifactEditorTool.SELECT) {
+            drawPolygon(g, displayPoints(rectanglePoints(previewStart, previewEnd)), false);
+        } else if (tool == ArtifactEditorTool.WALL) {
             g.drawLine(
-                    gridToScreenX(previewStart.x()),
-                    gridToScreenY(previewStart.y()),
-                    gridToScreenX(previewEnd.x()),
-                    gridToScreenY(previewEnd.y())
+                    gridToScreenX(start.x()),
+                    gridToScreenY(start.y()),
+                    gridToScreenX(end.x()),
+                    gridToScreenY(end.y())
             );
         } else if (tool == ArtifactEditorTool.OCCUPIED) {
-            drawRect(g, previewStart, previewEnd, false);
+            drawPolygon(g, displayPoints(rectanglePoints(previewStart, previewEnd)), false);
         } else {
-            int x = gridToScreenX(previewStart.x());
-            int y = gridToScreenY(previewStart.y());
-            int tx = gridToScreenX(previewEnd.x());
-            int ty = gridToScreenY(previewEnd.y());
-            ArtifactDirection direction = previewDirection(previewStart, previewEnd);
+            int x = gridToScreenX(start.x());
+            int y = gridToScreenY(start.y());
+            int tx = gridToScreenX(end.x());
+            int ty = gridToScreenY(end.y());
+            ArtifactDirection direction = rotateDirection(previewDirection(previewStart, previewEnd));
             g.fillOval(x - POINT_RADIUS, y - POINT_RADIUS, POINT_RADIUS * 2, POINT_RADIUS * 2);
             drawDirectionArrow(g, x, y, direction);
             g.drawLine(x, y, tx, ty);
@@ -240,18 +324,17 @@ final class ArtifactEditorCanvas extends JPanel {
         g.drawLine(x, y, x + dx, y + dy);
     }
 
-    private void drawRect(Graphics2D g, ArtifactPoint a, ArtifactPoint b, boolean fill) {
-        int x1 = gridToScreenX(Math.min(a.x(), b.x()));
-        int y1 = gridToScreenY(Math.min(a.y(), b.y()));
-        int x2 = gridToScreenX(Math.max(a.x(), b.x()));
-        int y2 = gridToScreenY(Math.max(a.y(), b.y()));
-        int w = Math.max(1, x2 - x1);
-        int h = Math.max(1, y2 - y1);
-        if (fill) {
-            g.fillRect(x1, y1, w, h);
-        } else {
-            g.drawRect(x1, y1, w, h);
-        }
+    private List<ArtifactPoint> rectanglePoints(ArtifactPoint a, ArtifactPoint b) {
+        int minX = Math.min(a.x(), b.x());
+        int minY = Math.min(a.y(), b.y());
+        int maxX = Math.max(a.x(), b.x());
+        int maxY = Math.max(a.y(), b.y());
+        return List.of(
+                new ArtifactPoint(minX, minY),
+                new ArtifactPoint(maxX, minY),
+                new ArtifactPoint(maxX, maxY),
+                new ArtifactPoint(minX, maxY)
+        );
     }
 
     private void drawPolygon(Graphics2D g, List<ArtifactPoint> points, boolean fill) {
@@ -312,6 +395,23 @@ final class ArtifactEditorCanvas extends JPanel {
             case 1 -> new ArtifactPoint(center.x() - dy, center.y() + dx);
             case 2 -> new ArtifactPoint(center.x() - dx, center.y() - dy);
             case 3 -> new ArtifactPoint(center.x() + dy, center.y() - dx);
+            default -> point;
+        };
+    }
+
+    private ArtifactPoint templatePointFromDisplayPoint(ArtifactPoint point) {
+        ArtifactPoint center = state.getDraft().getCenter();
+        int turns = state.getRotationPreviewTurns();
+        if (point == null || center == null || turns == 0) {
+            return point;
+        }
+
+        int dx = point.x() - center.x();
+        int dy = point.y() - center.y();
+        return switch (turns) {
+            case 1 -> new ArtifactPoint(center.x() + dy, center.y() - dx);
+            case 2 -> new ArtifactPoint(center.x() - dx, center.y() - dy);
+            case 3 -> new ArtifactPoint(center.x() - dy, center.y() + dx);
             default -> point;
         };
     }

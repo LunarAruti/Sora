@@ -38,6 +38,14 @@ public final class DungeonOccupiedArea {
         return new DungeonOccupiedArea(rotated);
     }
 
+    public DungeonOccupiedArea mirrorVertically() {
+        List<DungeonPoint> mirrored = new ArrayList<>();
+        for (DungeonPoint point : points) {
+            mirrored.add(point.mirrorVertically());
+        }
+        return new DungeonOccupiedArea(mirrored);
+    }
+
     public DungeonOccupiedArea translate(DungeonPoint offset) {
         List<DungeonPoint> translated = new ArrayList<>();
         for (DungeonPoint point : points) {

@@ -23,6 +23,14 @@ public record DungeonOpening(DungeonPoint position, DungeonDirection direction, 
         );
     }
 
+    public DungeonOpening mirrorVertically() {
+        return new DungeonOpening(
+                position.mirrorVertically(),
+                direction.mirrorVertically(),
+                width
+        );
+    }
+
     public DungeonOpening translate(DungeonPoint offset) {
         return new DungeonOpening(position.translate(offset), direction, width);
     }

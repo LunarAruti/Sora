@@ -8,30 +8,56 @@ final class ArtifactEditorState {
 
     private ArtifactTemplateDraft draft = new ArtifactTemplateDraft();
     private ArtifactEditorTool activeTool = ArtifactEditorTool.WALL;
+    private ArtifactEditorTool previousNonEraserTool = ArtifactEditorTool.WALL;
+    private String selectedItemId = ArtifactItemLibrary.WALL_LIGHT;
+    private ArtifactSelection selection;
+    private ArtifactSelection clipboard;
     private int rotationPreviewTurns;
     private final Deque<ArtifactTemplateDraft> undo = new ArrayDeque<>();
     private final Deque<ArtifactTemplateDraft> redo = new ArrayDeque<>();
 
     ArtifactTemplateDraft getDraft() { return draft; }
     ArtifactEditorTool getActiveTool() { return activeTool; }
+    ArtifactSelection getSelection() { return selection; }
+    String getSelectedItemId() { return selectedItemId; }
     int getRotationPreviewTurns() { return rotationPreviewTurns; }
 
     void setActiveTool(ArtifactEditorTool activeTool) {
-        this.activeTool = activeTool == null ? ArtifactEditorTool.WALL : activeTool;
+        ArtifactEditorTool nextTool = activeTool == null ? ArtifactEditorTool.WALL : activeTool;
+        if (nextTool != ArtifactEditorTool.ERASER) {
+            previousNonEraserTool = nextTool;
+        }
+        this.activeTool = nextTool;
+    }
+
+    void toggleEraser() {
+        if (activeTool == ArtifactEditorTool.ERASER) {
+            activeTool = previousNonEraserTool == null ? ArtifactEditorTool.WALL : previousNonEraserTool;
+            return;
+        }
+        previousNonEraserTool = activeTool;
+        activeTool = ArtifactEditorTool.ERASER;
     }
 
     void setName(String name) {
         draft.setName(name);
     }
 
-    void setSpawnProbability(int probability) {
-        draft.setSpawnProbability(probability);
+    void setCategory(int category) {
+        draft.setCategory(category);
+    }
+
+    void setSelectedItemId(String selectedItemId) {
+        if (selectedItemId != null && !selectedItemId.isBlank()) {
+            this.selectedItemId = selectedItemId.trim();
+        }
     }
 
     void loadDraft(ArtifactTemplateDraft draft) {
         if (draft == null) return;
         this.draft = draft;
         rotationPreviewTurns = 0;
+        selection = null;
         undo.clear();
         redo.clear();
     }
@@ -60,9 +86,40 @@ final class ArtifactEditorState {
         draft = redo.pop();
     }
 
+    void select(ArtifactSelectionBounds bounds) {
+        selection = draft.selectWithin(bounds);
+        if (selection != null && selection.isEmpty()) {
+            selection = null;
+        }
+    }
+
+    void clearSelection() {
+        selection = null;
+    }
+
+    void copySelection() {
+        if (selection != null && !selection.isEmpty()) {
+            clipboard = selection;
+        }
+    }
+
+    void pasteClipboardAt(ArtifactPoint target) {
+        if (clipboard == null || clipboard.isEmpty() || target == null) {
+            return;
+        }
+        snapshotForUndo();
+        ArtifactSelection pasted = clipboard.translateNear(target);
+        draft.addSelection(pasted);
+        selection = pasted;
+    }
+
     void clearForShutdown() {
         draft = new ArtifactTemplateDraft();
         activeTool = ArtifactEditorTool.WALL;
+        previousNonEraserTool = ArtifactEditorTool.WALL;
+        selectedItemId = ArtifactItemLibrary.WALL_LIGHT;
+        selection = null;
+        clipboard = null;
         rotationPreviewTurns = 0;
         undo.clear();
         redo.clear();

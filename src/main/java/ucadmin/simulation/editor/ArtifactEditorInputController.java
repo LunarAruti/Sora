@@ -27,6 +27,7 @@ final class ArtifactEditorInputController implements Runnable {
     private final List<ArtifactPoint> polygonPoints = new ArrayList<>();
     private boolean occupiedDragActive;
     private boolean occupiedDragged;
+    private ArtifactPoint lastCursorPoint;
     private int lastPanX;
     private int lastPanY;
 
@@ -46,6 +47,7 @@ final class ArtifactEditorInputController implements Runnable {
         return new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent event) {
+                canvas.requestFocusInWindow();
                 if (event.getButton() == MouseEvent.BUTTON1) {
                     enqueue(ArtifactEditorInputEvent.leftPressed(event.getX(), event.getY()));
                 } else if (event.getButton() == MouseEvent.BUTTON3) {
@@ -89,9 +91,13 @@ final class ArtifactEditorInputController implements Runnable {
         return new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent event) {
-                enqueue(ArtifactEditorInputEvent.keyPressed(event.getKeyCode(), event.isControlDown()));
+                enqueueKeyPress(event.getKeyCode(), event.isControlDown());
             }
         };
+    }
+
+    void enqueueKeyPress(int keyCode, boolean controlDown) {
+        enqueue(ArtifactEditorInputEvent.keyPressed(keyCode, controlDown));
     }
 
     private void enqueue(ArtifactEditorInputEvent event) {
@@ -164,23 +170,47 @@ final class ArtifactEditorInputController implements Runnable {
             resetPendingInput();
             return;
         }
+        if (controlDown && keyCode == KeyEvent.VK_C) {
+            state.copySelection();
+            return;
+        }
+        if (controlDown && keyCode == KeyEvent.VK_V) {
+            ArtifactPoint target = lastCursorPoint == null ? state.getDraft().getCenter() : lastCursorPoint;
+            state.pasteClipboardAt(target);
+            resetPendingInput();
+            return;
+        }
         if (!controlDown && keyCode == KeyEvent.VK_R) {
             state.rotatePreviewClockwise();
-            resetPendingInput();
             Logger.log(Logger.TAG.DEBUG, "ArtifactEditorInputController: rotated preview to "
                     + (state.getRotationPreviewTurns() * 90) + " degrees.");
+            return;
+        }
+        if (!controlDown && keyCode == KeyEvent.VK_X) {
+            state.toggleEraser();
+            resetPendingInput();
+            Logger.log(Logger.TAG.DEBUG, "ArtifactEditorInputController: toggled tool to "
+                    + state.getActiveTool() + ".");
         }
     }
 
     private void handleLeftPress(int screenX, int screenY) {
-        ArtifactPoint point = canvas.screenToGrid(screenX, screenY);
+        ArtifactPoint point = canvas.screenToArtifactPoint(screenX, screenY);
+        ArtifactPoint cell = canvas.screenToArtifactCell(screenX, screenY);
+        lastCursorPoint = point;
         ArtifactEditorTool tool = state.getActiveTool();
         clearPendingIfToolChanged(tool);
 
         switch (tool) {
+            case SELECT -> {
+                pendingStart = point;
+                pendingTool = ArtifactEditorTool.SELECT;
+                canvas.setPreview(point, point);
+            }
             case CENTER -> {
                 state.snapshotForUndo();
                 state.getDraft().setCenter(point);
+                state.clearSelection();
                 pendingStart = null;
                 pendingTool = null;
                 canvas.clearPreview();
@@ -188,9 +218,25 @@ final class ArtifactEditorInputController implements Runnable {
             case WALL -> handleTwoPointWall(point);
             case OCCUPIED -> handleOccupiedPress(point);
             case OPENING -> handleTwoPointOpening(point);
+            case ITEM -> {
+                state.snapshotForUndo();
+                boolean placed = state.getDraft().addWallMountedItem(state.getSelectedItemId(), cell);
+                if (!placed) {
+                    state.undo();
+                    Logger.log(Logger.TAG.DEBUG, "ArtifactEditorInputController: item placement rejected; no touching wall.");
+                } else {
+                    state.clearSelection();
+                }
+                resetPendingInput();
+            }
             case ERASER -> {
                 state.snapshotForUndo();
-                state.getDraft().eraseNear(point);
+                boolean erased = state.getDraft().eraseAt(point, cell);
+                if (!erased) {
+                    state.undo();
+                } else {
+                    state.clearSelection();
+                }
                 resetPendingInput();
             }
         }
@@ -198,24 +244,37 @@ final class ArtifactEditorInputController implements Runnable {
 
     private void handleLeftDragged(int screenX, int screenY) {
         ArtifactEditorTool tool = state.getActiveTool();
+        lastCursorPoint = canvas.screenToArtifactPoint(screenX, screenY);
+        if (tool == ArtifactEditorTool.SELECT && pendingTool == ArtifactEditorTool.SELECT && pendingStart != null) {
+            canvas.setPreview(pendingStart, lastCursorPoint);
+            return;
+        }
         if (tool != ArtifactEditorTool.OCCUPIED || !occupiedDragActive || pendingStart == null) {
             handleMouseMoved(screenX, screenY);
             return;
         }
         occupiedDragged = true;
-        canvas.setPreview(pendingStart, canvas.screenToGrid(screenX, screenY));
+        canvas.setPreview(pendingStart, canvas.screenToArtifactPoint(screenX, screenY));
     }
 
     private void handleLeftReleased(int screenX, int screenY) {
         ArtifactEditorTool tool = state.getActiveTool();
+        if (tool == ArtifactEditorTool.SELECT && pendingTool == ArtifactEditorTool.SELECT && pendingStart != null) {
+            ArtifactPoint releasePoint = canvas.screenToArtifactPoint(screenX, screenY);
+            lastCursorPoint = releasePoint;
+            state.select(ArtifactSelectionBounds.fromPoints(pendingStart, releasePoint));
+            resetPendingInput();
+            return;
+        }
         if (tool != ArtifactEditorTool.OCCUPIED || !occupiedDragActive || pendingStart == null) {
             return;
         }
 
-        ArtifactPoint releasePoint = canvas.screenToGrid(screenX, screenY);
+        ArtifactPoint releasePoint = canvas.screenToArtifactPoint(screenX, screenY);
         if (occupiedDragged && ArtifactEditorGeometry.distanceSquared(pendingStart, releasePoint) > 0) {
             state.snapshotForUndo();
             state.getDraft().addOccupiedArea(ArtifactOccupiedArea.rectangle(pendingStart, releasePoint));
+            state.clearSelection();
             resetPendingInput();
             return;
         }
@@ -236,6 +295,7 @@ final class ArtifactEditorInputController implements Runnable {
         }
         state.snapshotForUndo();
         state.getDraft().addWall(new ArtifactWall(pendingStart, point));
+        state.clearSelection();
         resetPendingInput();
     }
 
@@ -252,6 +312,7 @@ final class ArtifactEditorInputController implements Runnable {
                 directionFromDelta(pendingStart, point),
                 1
         ));
+        state.clearSelection();
         resetPendingInput();
     }
 
@@ -269,6 +330,7 @@ final class ArtifactEditorInputController implements Runnable {
                 ArtifactEditorGeometry.distanceSquared(polygonPoints.get(0), point) <= 4) {
             state.snapshotForUndo();
             state.getDraft().addOccupiedArea(new ArtifactOccupiedArea(polygonPoints));
+            state.clearSelection();
             polygonPoints.clear();
             canvas.clearPolygonPreview();
             canvas.clearPreview();
@@ -281,15 +343,17 @@ final class ArtifactEditorInputController implements Runnable {
 
     private void handleMouseMoved(int screenX, int screenY) {
         ArtifactEditorTool tool = state.getActiveTool();
+        lastCursorPoint = canvas.screenToArtifactPoint(screenX, screenY);
         clearPendingIfToolChanged(tool);
         if (tool == ArtifactEditorTool.OCCUPIED && !polygonPoints.isEmpty()) {
-            canvas.setPolygonPreview(polygonPoints, canvas.screenToGrid(screenX, screenY));
+            canvas.setPolygonPreview(polygonPoints, lastCursorPoint);
             return;
         }
         if (pendingStart == null) return;
-        if (tool != ArtifactEditorTool.WALL &&
+        if (tool != ArtifactEditorTool.SELECT &&
+                tool != ArtifactEditorTool.WALL &&
                 tool != ArtifactEditorTool.OPENING) return;
-        canvas.setPreview(pendingStart, canvas.screenToGrid(screenX, screenY));
+        canvas.setPreview(pendingStart, lastCursorPoint);
     }
 
     private void clearPendingIfToolChanged(ArtifactEditorTool activeTool) {
