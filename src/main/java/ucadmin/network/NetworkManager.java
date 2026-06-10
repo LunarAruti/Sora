@@ -126,7 +126,7 @@ public final class NetworkManager {
      * @param workerCount number of worker threads to start
      * @return true if the subsystem started, false if it was already running
      */
-    public static boolean start(int workerCount) {
+    public static synchronized boolean start(int workerCount) {
         if (workerCount < 1) {
             Logger.log(Logger.TAG.ERROR, "[07001] [NetworkManager] Invalid workerCount=" + workerCount);
             throw new IllegalArgumentException("workerCount must be >= 1 (was " + workerCount + ")");
@@ -137,6 +137,8 @@ public final class NetworkManager {
         }
 
         SHUTTING_DOWN.set(false);
+        WORKERS.clear();
+        WORKER_THREADS.clear();
         Logger.log(Logger.TAG.SYSTEM,
                 "[NetworkManager] Starting network workers: count=" + workerCount);
 
@@ -189,7 +191,7 @@ public final class NetworkManager {
      * @param waitForJoin if true, waits briefly for workers to exit
      * @return true if shutdown was initiated, false if it was already stopped/shutting down
      */
-    public static boolean shutdown(boolean waitForJoin) {
+    public static synchronized boolean shutdown(boolean waitForJoin) {
         if (!STARTED.get()) {
             Logger.log(Logger.TAG.WARN, "[07003] [NetworkManager] shutdown() ignored -> not started.");
             return false;
@@ -233,6 +235,12 @@ public final class NetworkManager {
                     "[NetworkManager] Fast shutdown: join skipped; workers may still be exiting.");
         }
 
+        WORKERS.clear();
+        WORKER_THREADS.clear();
+        QUEUE.clear();
+        INFLIGHT_DEDUPE.clear();
+        STARTED.set(false);
+        SHUTTING_DOWN.set(false);
         Logger.log(Logger.TAG.SYSTEM, "[NetworkManager] Network workers shut down.");
         return true;
     }

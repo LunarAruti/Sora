@@ -1,55 +1,58 @@
 package ucadmin.main;
 
-import ucadmin.tools.dpcode.DPCode;
-import ucadmin.tools.dpcode.DPCodeReader;
-import ucadmin.tools.dpcode.DPDensityMode;
-import ucadmin.tools.pixelgenerator.PixelArt;
-import ucadmin.tools.pixelgenerator.PixelGenerator;
-import ucadmin.tools.pixelgenerator.PixelGridBuilder;
-import ucadmin.tools.pixelgenerator.PixelImageQuantizer;
-import ucadmin.tools.qrgenerator.QrEncoder;
+import ucadmin.simulation.MazeSimulationGame;
+import ucadmin.simulation.editor.ArtifactEditorEngine;
 import ucadmin.util.Logger;
 import ucadmin.util.ShutdownManager;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
-import static ucadmin.tools.pixelgenerator.PixelImageQuantizer.quantize;
 
 public class TestingGrounds {
-
-    private static final Path TEST_OUTPUT_DIR = Paths.get(
-            "C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database"
-    );
+    private static final int TEST_MODE = 2;
 
     public static void TestingGrounds() {
 
         Logger.log(Logger.TAG.SYSTEM, "=== TESTING GROUNDS ===");
 
         try {
-            Logger.log(Logger.TAG.SYSTEM, "TestingGrounds: starting maze simulation functionality test.");
+            switch (TEST_MODE) {
+                case 1 -> {
+                    Logger.log(Logger.TAG.SYSTEM, "TestingGrounds: starting maze simulation functionality test.");
 
-            ucadmin.simulation.SimulationConfig config = new ucadmin.simulation.SimulationConfig(
-                    "UC Maze Simulation Test",
-                    1000,
-                    1000,
-                    60,
-                    new java.awt.Color(55, 55, 55),
-                    50L,
-                    false
-            );
+                    MazeSimulationGame game = new MazeSimulationGame();
 
-            ucadmin.simulation.SimulationEngine engine = new ucadmin.simulation.SimulationEngine(
-                    config,
-                    new ucadmin.simulation.MazeSimulationGame()
-            );
+                    Logger.log(Logger.TAG.INFO, "TestingGrounds: launching maze simulation seed=" + game.getSeed());
+                    boolean started = game.run();
+                    if (!started) {
+                        throw new IllegalStateException("TestingGrounds: maze simulation failed to start.");
+                    }
 
-            Logger.log(Logger.TAG.INFO, "TestingGrounds: launching simulation via blocking run().");
-            engine.run();
-            Logger.log(Logger.TAG.INFO, "TestingGrounds: simulation ended; continuing to shutdown.");
+                    while (game.isRunning()) {
+                        Thread.sleep(250L);
+                    }
+
+                    Logger.log(Logger.TAG.INFO, "TestingGrounds: maze simulation ended; continuing to shutdown.");
+                }
+                case 2 -> {
+                    Logger.log(Logger.TAG.SYSTEM, "TestingGrounds: starting artifact editor functionality test.");
+
+                    ArtifactEditorEngine editor = new ArtifactEditorEngine();
+
+                    Logger.log(Logger.TAG.INFO, "TestingGrounds: launching artifact editor.");
+                    boolean started = editor.run();
+                    if (!started) {
+                        throw new IllegalStateException("TestingGrounds: artifact editor failed to start.");
+                    }
+
+                    while (editor.isRunning()) {
+                        Thread.sleep(250L);
+                    }
+
+                    Logger.log(Logger.TAG.INFO, "TestingGrounds: artifact editor ended; continuing to shutdown.");
+                }
+                default -> throw new IllegalArgumentException("TestingGrounds: unsupported TEST_MODE=" + TEST_MODE);
+            }
 
         } catch (Throwable t) {
             Logger.log(Logger.TAG.ERROR, "[0011] TestingGrounds crash: " + t);

@@ -1,0 +1,42 @@
+Simulation Log Code Reference
+=============================
+
+How To Read
+- Simulation codes are separate from the framework bot code registry.
+- Codes begin with A0.
+- The final three digits identify the exact issue.
+
+[A0] Simulation Runtime
+- `A0001` Inspect why the input thread was interrupted before shutdown.
+- `A0002` Inspect the input event and game input hook that failed.
+- `A0003` Avoid starting the same simulation instance twice.
+- `A0004` Inspect the crashed simulation thread and dump log.
+- `A0005` Inspect why the render thread was interrupted before shutdown.
+- `A0006` Fix the game crash hook before relying on crash cleanup.
+- `A0007` Fix the game stop hook before relying on clean shutdown.
+- `A0008` Inspect GUI/window teardown state.
+- `A0009` Inspect the simulation thread for blocked work or unresponsive shutdown.
+- `A0010` Avoid interrupting shutdown while waiting for simulation threads.
+- `A0011` Attempted to save a null artifact draft.
+- `A0012` Inspect why the artifact editor input thread was interrupted before shutdown.
+- `A0013` Inspect the artifact editor input event that failed.
+- `A0014` Inspect DatabaseManager failure while saving an artifact.
+- `A0015` Avoid starting the same artifact editor instance twice.
+- `A0016` Inspect the crashed artifact editor thread and dump log.
+- `A0017` Inspect why the artifact editor render thread was interrupted before shutdown.
+- `A0018` Inspect the artifact editor crash that triggered shutdown.
+- `A0019` Inspect artifact editor GUI/window teardown state.
+- `A0020` Inspect the artifact editor thread for blocked work or unresponsive shutdown.
+- `A0021` Avoid interrupting shutdown while waiting for artifact editor threads.
+- `A0022` Pass a non-empty artifact id or name before loading.
+- `A0023` Inspect artifact JSON shape before loading it into the editor.
+- `A0024` Save the artifact first or load it by an existing id/name.
+- `A0025` Inspect DatabaseManager failure while loading an artifact.
+- `A0026` Inspect DatabaseManager failure while checking artifact overwrite state.
+- `A0027` Enter a numeric spawn probability from 0 to 10.
+- `A0028` Attempted to delete an artifact without a valid draft/id.
+- `A0029` Inspect DatabaseManager failure while deleting an artifact.
+- `A0030` Inspect artifact database shape before loading the dungeon catalog.
+- `A0031` Inspect artifact database entry that is not an artifact object.
+- `A0032` Add or fix the required default artifact before generating a dungeon.
+- `A0033` Rename the artifact because the requested name is reserved.
