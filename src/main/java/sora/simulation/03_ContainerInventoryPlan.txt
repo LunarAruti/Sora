@@ -1,0 +1,179 @@
+Sora Container and Inventory Interaction Plan
+================================================
+
+Scope
+- This note tracks the container, inventory transfer, and drop pipeline for the simulation package.
+- Pass 1 added structural data hooks: item seed, loot weights, container grid sizes, and container persistent-state storage.
+- Pass 2 opens searchable containers, creates first-open container state, and generates deterministic contents.
+- Pass 3 renders the read-only container menu beside the player inventory.
+- Pass 4 adds mouse drag movement within inventory/container grids and between them.
+- Pass 5 adds item context menus with move/drop/equip/use entries.
+- Pass 6 adds hover + R/context-menu dropping into nearby valid world cells.
+
+Implementation Pipeline
+-----------------------
+- Pass 1: data model foundation.
+  - Add itemSeed to MazeSimulationGame.
+  - Add loot_weight to interactable item definitions.
+  - Set key loot_weight values to 0 until key placement rules exist.
+  - Add final container grid dimensions to map item definitions.
+  - Add a container persistent-state map beside item persistent state.
+- Pass 2: container opening and state creation.
+  - Container interactions display Search.
+  - Track which container is open.
+  - Game keeps running while menu is open.
+  - Tab or Escape closes the container menu.
+  - Moving beyond normal interaction range closes the container menu.
+  - First open generates contents from itemSeed plus container key.
+  - Reopen loads saved container persistent contents.
+- Pass 3: read-only container UI rendering.
+  - Draw both grids cleanly.
+  - Draw temporary item text and stack count.
+  - Hovering an item immediately displays the item name at the cursor.
+- Pass 4: shared grid item movement.
+  - Shared placement, overlap, and drag logic for inventory and containers.
+  - Drag within one grid first, then between grids.
+  - Container contents are updated in container persistent state after movement.
+- Pass 5: item context menu.
+  - Left-click opens a small options box.
+  - Options: Move to inventory, Move to container, Drop, Equip, Use.
+  - Equip and Use are placeholders for now.
+  - Drop delegates to the shared drop behavior.
+- Pass 6: dropping items.
+  - Pressing R while hovering a grid item drops it directly.
+  - Use 3 by 3 local drop search around player or container.
+  - Reject invalid, blocked, occupied, or wall-separated cells.
+  - Dropped items exist only while their chunk/loaded area exists.
+- Pass 7: persistence cleanup.
+  - Keep opened/changed containers authoritative in container persistent state.
+  - Later moved containers save coordinates, properties, and contents when unloaded.
+
+Container Types
+---------------
+
+chest
+- Grid: 10 wide by 5 high.
+- Open action: Search when it is the assigned interaction.
+- Persistent state begins only after the container is opened or changed.
+
+barrel
+- Grid: 10 wide by 10 high.
+- Open action: Search when it is the assigned interaction.
+- Persistent state begins only after the container is opened or changed.
+
+crate
+- Grid: 10 wide by 15 high.
+- Open action: Search when it is the assigned interaction.
+- Persistent state begins only after the container is opened or changed.
+
+table
+- Grid: 5 wide by 5 high.
+- Search behavior should expose its contents in the same container UI pattern.
+- Persistent state begins only after the table is opened or changed.
+
+Menu Layout
+-----------
+- Opening a content-bearing object displays a centered menu similar to the inventory overlay.
+- Player inventory appears on the left.
+- The opened container appears on the right.
+- Both grids should fit on screen at the current 1000 by 1000 simulation size.
+- Tab or Escape closes the container menu.
+- The game keeps updating in the background.
+- Player movement and running remain active while the menu is open.
+- Moving farther than the normal interaction range from the open container closes the menu.
+
+Item Seed
+---------
+- Maze generation seed and item/content seed should be separate.
+- MazeSimulationGame should support a configurable item seed.
+- If no item seed is specified, it is random like the map seed.
+- The item seed determines container contents.
+- Container contents are not generated until the player opens that container for the first time.
+- Once opened, the generated contents become that container's persistent contents.
+
+Generated Contents
+------------------
+- Empty containers are valid and should happen sometimes.
+- Lower item counts should be more common than high item counts.
+- Suggested starting count ranges:
+  - table: 0 to 2 items, weighted toward 0 or 1.
+  - chest: 0 to 3 items, weighted toward 0 or 1.
+  - barrel: 0 to 4 items, weighted toward lower counts.
+  - crate: 0 to 5 items, weighted toward lower counts.
+- Items are selected from interactable inventory items, not map-only objects.
+- Item definitions use numeric loot_weight.
+- Keys have loot_weight 0 until key/lock placement rules are deliberate.
+- Common survival items should be weighted higher.
+- Tools and stronger utility items should be rarer.
+- Initial rough weighting should favor food, bandages, and basic consumables over crowbars, bombs, and weapons.
+- Lantern oil is uncommon, but not rare.
+
+Container Persistent State
+--------------------------
+- Add a container persistent list next to the existing item persistent state.
+- Container state key should include the container id, cell coordinate, and direction, matching the current item state identity.
+- Container state should store:
+  - current container coordinate.
+  - current properties if changed.
+  - current contents as inventory-style entries.
+  - whether the contents have already been generated.
+- Container state is the authoritative current map of what is inside an opened/changed container.
+- Every add/remove/move operation updates the container state's contents.
+- Contents should use the same structure as inventory items:
+  - item_id
+  - x
+  - y
+  - quantity
+  - properties
+- Container state should only be created when needed:
+  - first open/content generation.
+  - contents changed by transfer/drop.
+  - container moved.
+  - container properties changed.
+- Later, when movable containers unload, their position/properties/contents should be saved here.
+
+Inventory and Container Grid Behavior
+-------------------------------------
+- Inventory and container grids should share a common interaction model.
+- Left-click and drag moves an item within its current grid or between grids.
+- Drop target must have enough free cells for the item footprint.
+- Drag placement is based on the dragged item's center against the target grid cell centers.
+- Dropping one item onto another matching item stacks them when the item supports stacking and the stack limit allows it.
+- If a matching item cannot stack, show a notification instead of silently failing.
+- Items are not rotatable yet.
+- A normal click opens a small context menu.
+- Context menus keep the item name and actions in the left column and show item information in a right-side panel.
+- Item information should be property-driven where possible, such as fuel, hunger restored, healing amount, stamina cap, stamina recovery, damage, reach, or block amount.
+- Context options may include:
+  - Move to inventory, when the item is in a container.
+  - Move to container, when the item is in player inventory and a container is open.
+  - Drop.
+  - Equip, only when the item supports equipping.
+  - Use, shown with item-specific public verbs such as Eat, Fill, Read, or Study.
+- Pressing R while hovering a grid item drops the item directly.
+- Pressing E while hovering an item runs that item's primary use when it has one.
+- Stack quantity is drawn in the bottom-left as X3, X15, etc. when quantity is greater than 1.
+- No stack text is drawn when quantity is 1.
+- Hovering an item immediately displays its full item name at the cursor.
+
+Dropping Items
+--------------
+- Dropping from player inventory uses the player's current cell as the center.
+- Dropping from a container uses the container's current cell as the center.
+- Drop placement checks a 3 by 3 cell square around that center.
+- The game randomly chooses an available valid cell in that 3 by 3 area.
+- A valid drop cell must:
+  - not already contain another item.
+  - be inside occupied/valid dungeon space.
+  - be reachable without crossing a wall.
+- If all nine cells are blocked, show a notification telling the player they cannot drop the item here.
+- The same rule applies when dropping from a container.
+
+Settled Decisions
+-----------------
+- Container menus do not pause gameplay.
+- Container menus close when the player leaves interaction range.
+- Default item seed is random unless specified.
+- Keys are excluded from random loot for now with loot_weight 0.
+- Lantern oil is uncommon, not rare.
+- Content-bearing container interaction text should say Search.

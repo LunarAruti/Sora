@@ -1,0 +1,587 @@
+SORA TOOLS MODULE REFERENCE
+
+Scope
+- This document covers the public-facing tools under `sora.tools`.
+- The `simulation` package is intentionally excluded.
+- The focus here is the callable surface: public classes, enums, records, constants, and methods.
+- Internal helper classes with no public API are mentioned only when useful for orientation.
+
+Package Layout
+- Base utilities
+  - `AMath`
+  - `AString`
+  - `Colors`
+  - `Lists`
+  - `Time`
+- `pixelgenerator`
+- `dpcode`
+- `qrgenerator`
+
+==================================================
+BASE UTILITIES
+==================================================
+
+AMath
+- Purpose
+  - Small math helper class that wraps common numeric operations used across the project.
+- Public constants
+  - `PI`: `java.lang.Math.PI`
+  - `TAU`: `2 * PI`
+  - `E`: Euler's number
+  - `DEG_TO_RAD`: degrees-to-radians multiplier
+  - `RAD_TO_DEG`: radians-to-degrees multiplier
+  - `EPSILON`: small floating-point tolerance constant
+  - `GOLDEN_RATIO`: `(1 + sqrt(5)) / 2`
+- Public methods
+  - `clamp(T value, T min, T max)`: clamp a comparable value into a closed range.
+  - `between(T value, T min, T max, boolean inclusive)`: test whether a comparable value falls between two bounds.
+  - `min(T a, T b)`: smaller of two comparable values.
+  - `max(T a, T b)`: larger of two comparable values.
+  - `pow(double base, double exp)`: exponentiation wrapper.
+  - `sqrt(double value)`: square root wrapper.
+  - `cbrt(double value)`: cube root wrapper.
+  - `nthRoot(double value, double n)`: generic root using `pow(value, 1.0 / n)`.
+  - `absInt(int value)`: absolute value for `int`.
+  - `absLong(long value)`: absolute value for `long`.
+  - `absDouble(double value)`: absolute value for `double`.
+  - `sign(double value)`: returns `-1`, `0`, or `1` for negative, zero, or positive values.
+  - `safeDivide(double numerator, double denominator, double fallback)`: divide with fallback when the denominator is zero or NaN.
+  - `lerp(double a, double b, double t)`: linear interpolation from `a` to `b`.
+  - `mapRange(double value, double inMin, double inMax, double outMin, double outMax)`: remap a value from one numeric interval to another.
+
+AString
+- Purpose
+  - String and regex helpers used for simple pattern checks and string cleanup.
+- Public methods
+  - `matches(String input, String pattern)`: full regex match against the whole input.
+  - `containsMatch(String input, String pattern)`: regex search for any matching region.
+  - `firstMatch(String input, String pattern)`: first regex match substring, or null if none.
+  - `findAll(String input, String pattern)`: all full regex matches, returned as `Lists.ResizingArray<String>`.
+  - `removeWhitespace(String input)`: remove all whitespace characters.
+  - `normalizeWhitespace(String input)`: collapse runs of whitespace to single spaces and trim ends.
+  - `toLower(String input)`: lowercase helper, null-safe.
+  - `toUpper(String input)`: uppercase helper, null-safe.
+  - `trim(String input)`: trim helper, null-safe.
+  - `stripNonPrintable(String input)`: remove ASCII control characters.
+  - `safeSubstring(String input, int start, int end)`: substring with indices clamped into a safe range.
+  - `truncate(String input, int max, String suffix)`: shorten a string to a max length with an optional suffix.
+  - `contains(String input, String target, boolean ignoreCase)`: substring check with optional case-insensitive comparison.
+
+Colors
+- Purpose
+  - Basic RGB/HEX color helper used outside the token-palette pixel generator flow.
+- `Colors.Color`
+  - Purpose
+    - Mutable color object that keeps HEX and RGB fields in sync.
+  - Constructors
+    - `Color(String hex)`: create from `"RRGGBB"` or `"#RRGGBB"`.
+    - `Color(int r, int g, int b)`: create from numeric RGB channels.
+    - `Color(Preset preset)`: create from one of the built-in presets.
+  - Public methods
+    - `getHex()`: current color as `#RRGGBB`.
+    - `getR()`: red channel.
+    - `getG()`: green channel.
+    - `getB()`: blue channel.
+    - `toRgbInt()`: packed `0xRRGGBB`.
+    - `toArgbInt()`: packed opaque `0xFFRRGGBB`.
+    - `setHex(String hex)`: update from hex and return `this`.
+    - `setRgb(int r, int g, int b)`: update from RGB and return `this`.
+    - `invert()`: invert the current RGB channels in place and return `this`.
+    - `random()`: create a random color.
+- `Colors.Preset`
+  - Purpose
+    - Quick named presets for common colors.
+  - Available presets
+    - `BLACK`, `WHITE`, `GRAY`, `SILVER`, `RED`, `MAROON`, `ORANGE`, `YELLOW`, `OLIVE`, `GREEN`, `LIME`, `TEAL`, `CYAN`, `BLUE`, `NAVY`, `PURPLE`, `MAGENTA`, `PINK`, `BROWN`, `GOLD`
+
+Lists
+- Purpose
+  - Custom lightweight list implementations used by the project.
+
+- `Lists.LinkedList`
+  - Purpose
+    - Doubly linked list for object values.
+  - Constructor
+    - `LinkedList()`: create an empty list.
+  - Public methods
+    - `size()`: current number of nodes.
+    - `isEmpty()`: whether the list is empty.
+    - `getHead()`: first node or null.
+    - `getTail()`: last node or null.
+    - `getNode(int index)`: node at an index.
+    - `get(int index)`: node value at an index.
+    - `add(Object value)`: insert at the head. This is actual current behavior, not append.
+    - `add(int index, Object value)`: insert at an index, including append at `size`.
+    - `remove(int index)`: unlink and return the value at an index.
+  - `Lists.LinkedList.Node`
+    - Purpose
+      - Public node handle for navigation.
+    - Public methods
+      - `getValue()`: node payload.
+      - `getPrev()`: previous node.
+      - `getNext()`: next node.
+
+- `Lists.ResizingArray<T>`
+  - Purpose
+    - Resizable array-backed list with configurable growth and shrink behavior.
+  - Constructor
+    - `ResizingArray()`: create an empty array with default capacity rules.
+  - Configuration methods
+    - `getResizeStep()`: current growth step.
+    - `setResizeStep(int resizeStep)`: set growth step.
+    - `getShrinkBuffer()`: current shrink buffer.
+    - `setShrinkBuffer(int shrinkBuffer)`: set shrink buffer and re-check capacity.
+    - `getMinCapacity()`: minimum backing-array capacity.
+    - `setMinCapacity(int minCapacity)`: set the minimum capacity.
+  - State methods
+    - `size()`: current number of stored elements.
+    - `isEmpty()`: whether the array has no stored elements.
+    - `get(int index)`: value at an index.
+    - `add(T value)`: insert at the head. This is actual current behavior, because it delegates to `add(0, value)`.
+    - `add(int index, T value)`: insert at a specific position.
+    - `remove(int index)`: remove and return a value.
+    - `find(T value)`: first index equal to a value, or `-1`.
+
+Time
+- Purpose
+  - Epoch-second, formatting, parsing, duration, and simple timer helpers.
+- Public constants
+  - `DEFAULT_PATTERN`: default timestamp pattern, currently `yyyy-MM-dd HH:mm:ss`.
+  - `DEFAULT_ZONE`: default zone, currently `America/New_York`.
+  - `UTC`: named as a UTC convenience constant, but currently also points to `America/New_York` in code.
+- Public methods
+  - `nowSeconds()`: current Unix epoch seconds.
+  - `formatSeconds(long epochSeconds)`: format using default pattern and zone.
+  - `formatSeconds(long epochSeconds, String pattern, ZoneId zone)`: format with custom pattern and zone.
+  - `parseSeconds(String text)`: parse using default pattern and zone.
+  - `parseSeconds(String text, String pattern, ZoneId zone)`: parse with custom pattern and zone.
+  - `toMillis(long epochSeconds)`: convert seconds to milliseconds.
+  - `toSeconds(long epochMillis)`: convert milliseconds to seconds.
+  - `isWithinRangeSeconds(long valueSeconds, long startSeconds, long endSeconds, boolean inclusive)`: range check for epoch seconds.
+  - `clampSeconds(long valueSeconds, long minSeconds, long maxSeconds)`: clamp epoch seconds into a range.
+  - `formatDurationSeconds(long durationSeconds)`: human-readable day/hour/minute/second string.
+- `Time.Timer`
+  - Purpose
+    - Simple elapsed-time helper based on `System.nanoTime()`.
+  - Constructor
+    - `Timer()`: create a stopped timer.
+  - Public methods
+    - `start()`: start or restart timing.
+    - `end()`: stop timing and freeze elapsed time.
+    - `read()`: elapsed whole seconds while running or after stop.
+
+==================================================
+PIXEL GENERATOR
+==================================================
+
+Purpose
+- Render token-grid or direct-color cell art to PNG.
+- Build token-grid art manually through a mutable builder.
+- Quantize normal images into token grids.
+- Save and reload token grids as reusable text files.
+
+Primary flows
+- Manual token art
+  - Create `PixelGridBuilder`
+  - Draw with builder methods
+  - Call `builder.render()` or `PixelGenerator.render(builder)`
+- Render an existing token grid
+  - Create `PixelArt`
+  - Call `PixelGenerator.render(art)`
+- Render direct RGB cells
+  - Create `PixelColorArt`
+  - Call `PixelGenerator.render(art)`
+- Quantize an image to a reusable text source
+  - Call `PixelImageQuantizer.quantizeToTextGrid(...)`
+- Load a saved text grid and render it later
+  - Call `PixelImageQuantizer.loadTextGrid(...)`
+  - Wrap the returned `String[][]` in `PixelArt`
+  - Call `PixelGenerator.render(...)`
+
+PixelGenerator
+- Purpose
+  - Final PNG renderer for token-grid and direct-color pixel art.
+- Public methods
+  - `render(PixelGridBuilder builder)`: render builder contents by snapshotting them into `PixelArt`.
+  - `render(PixelArt art)`: render an existing token grid.
+  - `render(PixelColorArt art)`: render a direct-color grid of `Colors.Color`.
+
+PixelArt
+- Purpose
+  - Immutable-ish token-grid render request object.
+- Constructors
+  - `PixelArt(String[][] grid, int preferredWidth, int preferredHeight, String outputPath)`: no border.
+  - `PixelArt(String[][] grid, int preferredWidth, int preferredHeight, String outputPath, int borderSize, String borderColor)`: with optional border.
+- Public methods
+  - `getGrid()`: backing `String[][]` reference.
+  - `getPreferredWidth()`: preferred content width.
+  - `setPreferredWidth(int preferredWidth)`: update preferred content width.
+  - `getPreferredHeight()`: preferred content height.
+  - `setPreferredHeight(int preferredHeight)`: update preferred content height.
+  - `getOutputPath()`: requested output PNG path.
+  - `setOutputPath(String outputPath)`: update output path.
+  - `getBorderSize()`: border size in pixels.
+  - `setBorderSize(int borderSize)`: update border size.
+  - `getBorderColor()`: border token.
+  - `setBorderColor(String borderColor)`: update border token.
+  - `setBorder(int borderSize, String borderColor)`: update both border fields together.
+  - `setPreferredSize(int preferredWidth, int preferredHeight)`: update both preferred dimensions together.
+
+PixelColorArt
+- Purpose
+  - Direct RGB render request that bypasses token-palette lookup.
+- Constructors
+  - `PixelColorArt(Colors.Color[][] grid, int preferredWidth, int preferredHeight, String outputPath)`: no border.
+  - `PixelColorArt(Colors.Color[][] grid, int preferredWidth, int preferredHeight, String outputPath, int borderSize, Colors.Color borderColor)`: with optional border.
+- Public methods
+  - `getGrid()`: backing `Colors.Color[][]` reference.
+  - `getPreferredWidth()`: preferred content width.
+  - `setPreferredWidth(int preferredWidth)`: update preferred content width.
+  - `getPreferredHeight()`: preferred content height.
+  - `setPreferredHeight(int preferredHeight)`: update preferred content height.
+  - `getOutputPath()`: requested output PNG path.
+  - `setOutputPath(String outputPath)`: update output path.
+  - `getBorderSize()`: border size in pixels.
+  - `setBorderSize(int borderSize)`: update border size.
+  - `getBorderColor()`: exact border color.
+  - `setBorderColor(Colors.Color borderColor)`: update exact border color.
+  - `setPreferredSize(int preferredWidth, int preferredHeight)`: update both preferred dimensions together.
+  - `setBorder(int borderSize, Colors.Color borderColor)`: update both border fields together.
+
+PixelGridBuilder
+- Purpose
+  - Main manual authoring API for token-grid art.
+- Constructor
+  - `PixelGridBuilder(int gridWidth, int gridHeight, int preferredWidth, int preferredHeight, String outputPath, int borderSize, String borderColor)`: create a transparent token grid plus render settings.
+- Public configuration methods
+  - `getGridWidth()`: grid width in cells.
+  - `getGridHeight()`: grid height in cells.
+  - `getPreferredWidth()`: preferred content width.
+  - `setPreferredWidth(int preferredWidth)`: update preferred content width.
+  - `getPreferredHeight()`: preferred content height.
+  - `setPreferredHeight(int preferredHeight)`: update preferred content height.
+  - `getOutputPath()`: current output PNG path.
+  - `setOutputPath(String outputPath)`: update output path.
+  - `getBorderSize()`: border size in pixels.
+  - `setBorderSize(int borderSize)`: update border size.
+  - `getBorderColor()`: current border token.
+  - `setBorderColor(String borderColor)`: update border token.
+  - `setPreferredSize(int preferredWidth, int preferredHeight)`: update both preferred dimensions together.
+  - `setBorder(int borderSize, String borderColor)`: update both border fields together.
+- Public grid and draw methods
+  - `getCell(int x, int y)`: read a token from one cell.
+  - `setCell(int x, int y, String token)`: set one cell.
+  - `clearCell(int x, int y)`: reset one cell to transparent.
+  - `clear()`: clear the entire grid.
+  - `fillBackground(String token)`: fill the entire grid with one token.
+  - `fill(int startX, int startY, String token)`: flood-fill a connected region.
+  - `replace(String fromToken, String toToken)`: replace every matching token in the grid.
+  - `drawLine(int x1, int y1, int x2, int y2, String token)`: draw a Bresenham-style line.
+  - `drawRect(int x1, int y1, int x2, int y2, String token)`: draw a rectangle outline.
+  - `fillRect(int x1, int y1, int x2, int y2, String token)`: fill a rectangle.
+  - `drawBorder(String token, int thickness)`: draw a border into the art itself in cell units.
+  - `copyRegion(int x, int y, int width, int height)`: copy a rectangular subgrid.
+  - `pasteRegion(int destX, int destY, String[][] region)`: paste a copied subgrid.
+  - `shift(int deltaX, int deltaY)`: shift the whole grid.
+  - `copyGrid()`: deep copy of the full token grid.
+  - `toPixelArt()`: snapshot current builder state into a `PixelArt`.
+  - `render()`: render immediately through `PixelGenerator`.
+
+PixelImageQuantizer
+- Purpose
+  - Convert normal images to token grids and read/write token-grid text files.
+- Public methods
+  - `quantize(String inputPath, int outputWidth, int outputHeight)`: quantize an image into a `String[][]` using the shared token palette.
+  - `quantizeToTextGrid(String inputPath, int outputWidth, int outputHeight, String outputPath)`: quantize an image and save the token grid as a `.txt` file.
+  - `writeTextGrid(String[][] grid, String outputPath)`: save any existing token grid as a `.txt` file.
+  - `loadTextGrid(String inputPath)`: load a saved text grid back into a `String[][]`.
+
+PixelGeneratorException
+- Purpose
+  - Runtime exception used by the pixel generator for validation and render failures.
+- Constructors
+  - `PixelGeneratorException(String message)`: message-only failure.
+  - `PixelGeneratorException(String message, Throwable cause)`: message plus root cause.
+
+PixelTokenSupport
+- Purpose
+  - Internal token normalization and palette table.
+- Public API
+  - None. This is package-private and should be treated as an implementation detail.
+
+Package note
+- There is still a package-specific reference at `sora.tools.pixelgenerator/info.txt`.
+- That file is now a pixel-generator-focused subdoc. This module document is the higher-level all-tools index.
+
+==================================================
+DPCODE
+==================================================
+
+Purpose
+- Encode data into DP code images.
+- Decode DP code images back into payload bytes plus metadata.
+- Expose both high-level request objects and lower-level compile/decode utilities.
+
+High-level encode flow
+- Create `DPCode`
+- Set payload and options
+- Call `encode()` or `encodeTo(...)`
+
+High-level decode flow
+- Call `DPCodeReader.read(...)`
+- Inspect `ReadResult`
+
+DPCode
+- Purpose
+  - High-level reusable DP encode request object.
+- Public enums
+  - `PayloadSource`: `BYTES`, `TEXT`, `FILE`
+  - `PayloadMode`: currently `RAW_BYTES`
+  - `PreprocessMode`: currently `NONE`
+  - `EccProfile`: `LOW`, `MEDIUM`, `HIGH`, `VERY_HIGH`
+    - `getHeaderValue()`: 2-bit header encoding for the ECC profile.
+  - `BootstrapProfile`: `STANDARD_V1`, `RESERVED_1` through `RESERVED_7`
+    - `getId()`: raw 3-bit bootstrap profile identifier.
+- Constructors
+  - `DPCode(byte[] payloadBytes)`: byte payload source.
+  - `DPCode(String payloadText)`: text payload source.
+  - `DPCode(String payloadTextOrPath, boolean treatAsPath)`: text source or file-path source depending on the flag.
+  - `DPCode(Path payloadFilePath)`: file payload source.
+- Static factories
+  - `fromBytes(byte[] payloadBytes)`: factory for byte payloads.
+  - `fromText(String payloadText)`: factory for text payloads.
+  - `fromFilePath(String payloadFilePath)`: factory from string file path.
+  - `fromFilePath(Path payloadFilePath)`: factory from `Path`.
+- Payload source and payload-content methods
+  - `getPayloadSource()`: current source mode.
+  - `setPayloadBytes(byte[] payloadBytes)`: switch to raw byte source.
+  - `copyPayloadBytes()`: defensive copy of the stored raw bytes.
+  - `copyResolvedPayloadBytes()`: copy of the payload bytes after resolving text or file source.
+  - `setPayloadText(String payloadText)`: switch to text source.
+  - `getPayloadText()`: current source text.
+  - `setPayloadFilePath(String payloadFilePath)`: switch to file-path source using a string.
+  - `setPayloadFilePath(Path payloadFilePath)`: switch to file-path source using a `Path`.
+  - `getPayloadFilePath()`: current source file path.
+- Payload interpretation methods
+  - `getPayloadCharset()`: charset used for text payloads.
+  - `setPayloadCharset(Charset payloadCharset)`: update text charset.
+  - `getPayloadMode()`: current payload mode.
+  - `setPayloadMode(PayloadMode payloadMode)`: update payload mode.
+  - `getPreprocessMode()`: current preprocess mode.
+  - `setPreprocessMode(PreprocessMode preprocessMode)`: update preprocess mode.
+- Encode configuration methods
+  - `getDensityMode()`: current density mode.
+  - `setDensityMode(DPDensityMode densityMode)`: update density mode.
+  - `getEccProfile()`: current ECC profile.
+  - `setEccProfile(EccProfile eccProfile)`: update ECC profile.
+  - `getBootstrapProfile()`: current bootstrap profile enum.
+  - `setBootstrapProfile(BootstrapProfile bootstrapProfile)`: update bootstrap profile enum.
+  - `getBootstrapProfileId()`: raw bootstrap profile id.
+  - `setBootstrapProfileId(int bootstrapProfileId)`: set profile by raw id.
+  - `getImageSizePx()`: requested logical-content image size in pixels.
+  - `setImageSizePx(int imageSizePx)`: update requested logical-content image size.
+  - `getQuietZoneCells()`: fixed quiet-zone thickness in logical cells.
+  - `getOutputPath()`: configured output PNG path.
+  - `setOutputPath(String outputPath)`: set output PNG path from a string.
+  - `setOutputPath(Path outputPath)`: set output PNG path from a `Path`.
+- Execution methods
+  - `compile()`: compile the logical DP structure without final rendering.
+  - `encode()`: render using the configured output path.
+  - `encodeTo(String outputPath)`: render to an explicit output path string.
+  - `encodeTo(Path outputPath)`: render to an explicit output `Path`.
+- `DPCode.EncodeResult`
+  - Purpose
+    - Final high-level encode result record.
+  - Record components
+    - `outputPath`, `compileResult`, `payloadMode`, `preprocessMode`, `eccProfile`, `bootstrapProfile`, `contentSizePx`, `cellSizePx`, `quietZoneSizePx`
+  - Public methods
+    - `getResolvedLogicalSize()`: selected logical DP size.
+    - `getBootstrapProfileId()`: raw bootstrap profile id.
+    - `summary()`: concise one-line summary.
+
+DPCodeReader
+- Purpose
+  - High-level DP image decode facade.
+- Public methods
+  - `read(String imagePath)`: decode from a path string.
+  - `read(Path imagePath)`: decode from a `Path`.
+- `DPCodeReader.ReadResult`
+  - Purpose
+    - Immutable high-level decode result with payload plus header-derived metadata and debug dumps.
+  - Constructor
+    - `ReadResult(...)`: explicit constructor used internally and available publicly.
+  - Public methods
+    - `getImagePath()`: source image path.
+    - `copyPayloadBytes()`: defensive copy of decoded payload bytes.
+    - `getPayloadAsUtf8String()`: decoded payload interpreted as UTF-8.
+    - `getPayloadAsString(Charset charset)`: decoded payload interpreted with a supplied charset.
+    - `getLogicalSize()`: logical DP grid size.
+    - `getPayloadMode()`: decoded payload mode.
+    - `getPreprocessMode()`: decoded preprocessing mode.
+    - `getBootstrapProfile()`: decoded bootstrap profile enum.
+    - `getDensityMode()`: decoded density mode.
+    - `getEccProfile()`: decoded ECC profile.
+    - `getPayloadLength()`: decoded payload length from the header.
+    - `getPayloadCrc()`: decoded payload CRC from the header.
+    - `getErrors()`: number of payload-side decode issues.
+    - `isPayloadVerified()`: whether the payload is considered trustworthy after ECC/CRC checks.
+    - `getBootstrapEcho()`: raw decoded bootstrap echo.
+    - `getBootstrapProfileId()`: raw bootstrap profile id derived from the bootstrap echo.
+    - `getRoleMapDump()`: ASCII role-map debug dump.
+    - `getBootstrapTraversalDump()`: bootstrap traversal debug dump.
+    - `getHeaderTraversalDump()`: header traversal debug dump.
+    - `getPayloadTraversalDump()`: full payload traversal debug dump.
+    - `getPayloadDataRegionDump()`: forward payload-data traversal dump.
+    - `getPayloadEccRegionDump()`: reverse payload-ECC traversal dump.
+    - `summary()`: one-line decode summary.
+
+DPDensityMode
+- Purpose
+  - Encodes how many color levels each DP cell channel can represent.
+- Public methods
+  - `getLevelsPerChannel()`: number of legal channel levels.
+  - `getBitsPerChannel()`: bits encoded by one color channel.
+  - `getBitsPerCell()`: total payload bits per cell.
+  - `getChannelValue(int levelIndex)`: actual 0..255 channel value for a level index.
+  - `getLegalChannelValues()`: copy of the legal channel values array.
+  - `colorFromCellBits(int cellBits)`: convert packed DP cell bits into a `Colors.Color`.
+  - `cellBitsFromColor(Colors.Color color)`: reverse conversion from color back to packed cell bits.
+  - `roundChannelValue(int sampledValue)`: snap a sampled channel value to the nearest legal channel value.
+
+DPEncoder
+- Purpose
+  - Lower-level compile/decode engine beneath `DPCode` and `DPCodeReader`.
+- Public enum
+  - `EccProfile`: lower-level ECC profile enum used internally by the encoder.
+- Public methods
+  - `compileStructure(byte[] payloadBytes, DPDensityMode densityMode, EccProfile eccProfile, int logicalSize)`: compile a logical DP structure with an explicit logical size.
+  - `compileStructure(byte[] payloadBytes, DPDensityMode densityMode, EccProfile eccProfile, int logicalSize, int bootstrapProfileId)`: same compile path with explicit bootstrap profile id.
+  - `decodeStructure(Colors.Color[][] logicalGrid)`: decode from an already-sampled logical color grid.
+  - `decodeImage(Path imagePath)`: decode directly from an exported image file.
+- `DPEncoder.Result`
+  - Purpose
+    - Lower-level compile result holding the logical color grid plus capacity/debug metadata.
+  - Record components
+    - `logicalGrid`, `logicalSize`, `densityMode`, `eccProfile`, `payloadLength`, `payloadCrc`, `payloadCellCount`, `payloadCapacityBits`, `payloadBitCount`, `eccByteCount`, `eccBitCount`, `dataCellCount`, `eccCellCount`, `roleMapDump`, `bootstrapTraversalDump`, `headerTraversalDump`, `payloadTraversalDump`, `payloadDataRegionDump`, `payloadEccRegionDump`
+  - Public methods
+    - `copyLogicalGrid()`: deep copy of the compiled logical color grid.
+    - `summary()`: concise compile summary.
+- `DPEncoder.DecodedResult`
+  - Purpose
+    - Lower-level decode result returned by `decodeStructure` and `decodeImage`.
+  - Record components
+    - `payloadBytes`, `logicalSize`, `densityMode`, `eccProfile`, `payloadLength`, `payloadCrc`, `errors`, `payloadVerified`, `bootstrapEcho`, `roleMapDump`, `bootstrapTraversalDump`, `headerTraversalDump`, `payloadTraversalDump`, `payloadDataRegionDump`, `payloadEccRegionDump`
+  - Public methods
+    - `copyPayloadBytes()`: defensive copy of decoded payload bytes.
+    - `isPayloadVerified()`: whether payload integrity is trusted.
+    - `summary()`: concise decode summary.
+
+Other dpcode files
+- `DPHeader`
+- `DPHeaderCodec`
+- `DPImageSampler`
+- `DPReservedMask`
+- Purpose
+  - Internal helper classes used by the dpcode pipeline.
+- Public API
+  - None intended as a normal external entry surface.
+
+Additional dpcode doc
+- There is a deeper usage/examples document in the `dpcode` folder.
+- Use this module reference for API indexing and that file for worked examples.
+
+==================================================
+QR GENERATOR
+==================================================
+
+Purpose
+- Generate QR PNGs through the pixel generator.
+- Expose lower-level helpers for QR capacities, codewords, and matrix construction.
+
+QrEncoder
+- Purpose
+  - Main high-level QR generation entry point.
+- Public enums
+  - `QrMode`: `NUMERIC`, `ALPHANUMERIC`, `BYTE`
+  - `ErrorCorrectionLevel`: `L`, `M`, `Q`, `H`
+  - `TextEncoding`: `ISO_8859_1`, `UTF_8`
+- Public methods
+  - `encode(String rawText, QrMode mode, ErrorCorrectionLevel ecLevel, TextEncoding encoding, String outputPath)`: generate and render a QR PNG.
+  - `encodeDebug(String rawText, QrMode mode, ErrorCorrectionLevel ecLevel, TextEncoding encoding, String outputPath)`: same as `encode`, but return debug details too.
+- `QrEncoder.DebugResult`
+  - Purpose
+    - Debug record for the high-level QR encode flow.
+  - Record components
+    - `matrix`, `outputPath`, `version`, `chosenMask`, `maskPenalties`, `codewords`
+  - Notes
+    - `matrix` is the rendered token matrix handed to the pixel generator, not the raw boolean module matrix.
+
+QrCodewords
+- Purpose
+  - Lower-level QR payload/codeword construction.
+- Public methods
+  - `countRequiredDataBits(String rawText, QrEncoder.QrMode mode, QrEncoder.TextEncoding encoding, int version)`: count pre-padding payload bits for a specific version.
+  - `buildFinalSequence(String rawText, QrEncoder.QrMode mode, QrEncoder.ErrorCorrectionLevel ecLevel, QrEncoder.TextEncoding encoding, int version)`: build final codewords and final bit stream for a chosen version.
+- `QrCodewords.Result`
+  - Purpose
+    - Final codeword and final-bit handoff between payload construction and matrix writing.
+  - Record components
+    - `finalCodewords`, `finalBits`, `version`, `masklessBitLength`, `debug`
+- `QrCodewords.DebugData`
+  - Purpose
+    - Intermediate codeword/debug snapshot.
+  - Record components
+    - `dataCodewords`, `dataBlocks`, `ecBlocks`, `expectedDataCodewords`, `finalCodewordCount`, `remainderBits`
+
+QrMatrix
+- Purpose
+  - Build masked QR matrices and choose the best mask.
+- Public methods
+  - `buildMatrix(QrCodewords.Result result, QrEncoder.ErrorCorrectionLevel ecLevel)`: build the final masked boolean QR matrix.
+- Notes
+  - The richer `buildMatrixDetails(...)` flow exists but is package-private, not part of the external tool surface.
+
+QrSpec
+- Purpose
+  - QR specification table lookup helpers.
+- Public constants
+  - `MAX_SUPPORTED_VERSION`: highest QR version represented by the embedded tables.
+- Public methods
+  - `getMatrixSize(int version)`: QR matrix size in modules for a version.
+  - `getCharacterCountBits(int version, QrEncoder.QrMode mode)`: character-count field length.
+  - `getDataCodewordCapacity(int version, QrEncoder.ErrorCorrectionLevel ecLevel)`: usable data codeword capacity.
+  - `getRawDataModuleCount(int version)`: number of QR data modules before remainder bits.
+  - `getRawCodewordCount(int version)`: total raw codewords before splitting into blocks.
+  - `getBlockSpec(int version, QrEncoder.ErrorCorrectionLevel ecLevel)`: block layout for a version/EC pair.
+  - `getAlignmentCenters(int version)`: alignment-pattern center coordinates.
+  - `getRemainderBitCount(int version)`: number of remainder bits for a version.
+  - `getFormatBits(QrEncoder.ErrorCorrectionLevel ecLevel, int mask)`: packed QR format bits.
+  - `getVersionBits(int version)`: packed QR version bits.
+  - `getModeIndicator(QrEncoder.QrMode mode)`: QR mode-indicator field value.
+  - `getAlphanumericValue(char ch)`: QR alphanumeric-set value for one character.
+  - `getEciAssignment(QrEncoder.TextEncoding encoding)`: ECI assignment value for one text encoding.
+- `QrSpec.BlockGroup`
+  - Record components
+    - `blockCount`, `dataCodewordsPerBlock`
+- `QrSpec.BlockSpec`
+  - Record components
+    - `ecCodewordsPerBlock`, `group1`, `group2`
+  - Public methods
+    - `totalBlockCount()`: total number of blocks across both groups.
+    - `totalDataCodewords()`: total data codewords across both groups.
+
+==================================================
+NOTES
+==================================================
+
+What counts as the primary surface?
+- For pixel art: `PixelGridBuilder`, `PixelArt`, `PixelGenerator`, `PixelImageQuantizer`
+- For DP code: `DPCode` and `DPCodeReader`
+- For QR: `QrEncoder`
+- The lower-level classes are still documented here because they are public and callable.
+
+Existing sub-documents
+- `sora.tools.pixelgenerator/info.txt`
+  - Pixel-generator-specific reference
+- `sora.tools.dpcode/...usage...txt`
+  - DP-code usage/examples reference

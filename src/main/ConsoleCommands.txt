@@ -1,0 +1,172 @@
+Sora Console Commands
+=========================
+
+Purpose
+-------
+This file tracks the commands currently accepted by the scheduler-backed
+console command reader.
+
+Important behavior
+------------------
+- Console commands use the same whitelist and the same scheduler-owned executor
+  path as scheduled task operations.
+- They are not persisted as tasks.
+- They execute immediately, once, at the time the line is entered.
+- First token is the operation key.
+- Remaining tokens are arguments.
+- Spaces separate arguments.
+- Double quotes preserve spaces inside a single argument.
+
+
+Accepted Commands
+-----------------
+
+LOG_MESSAGE <type> <message>
+- Purpose: Write a message through `Logger.log(...)`.
+- Arguments:
+  - `type`
+    - required
+    - valid examples: `debug`, `info`, `warn`, `error`, `system`
+  - `message`
+    - required
+    - use quotes if it contains spaces
+- Examples:
+  - `LOG_MESSAGE info "Hello world"`
+  - `LOG_MESSAGE warn "Queue is getting large"`
+
+PRINT_MESSAGE <message>
+- Purpose: Print a message directly to console.
+- Arguments:
+  - `message`
+    - required
+    - use quotes if it contains spaces
+- Examples:
+  - `PRINT_MESSAGE "Hello world"`
+  - `PRINT_MESSAGE test`
+
+EXIT
+- Purpose: Perform a full graceful normal shutdown.
+- Arguments:
+  - none
+  - optional `0` or `none` also means full graceful shutdown
+- Examples:
+  - `EXIT`
+  - `EXIT 0`
+  - `EXIT none`
+
+EXIT 1
+- Purpose: Perform the fast no-exit shutdown path.
+- Arguments:
+  - `1`
+- Example:
+  - `EXIT 1`
+
+HELP
+- Purpose: Print this console command guide.
+- Arguments:
+  - none
+- Example:
+  - `HELP`
+
+CONFIG_GET <path>
+- Purpose: Print the current in-memory config value and its flags.
+- Arguments:
+  - `path`
+    - required
+    - full config path under `values`
+- Example:
+  - `CONFIG_GET logger.log_max_lines`
+
+CONFIG_SET <path> <value>
+- Purpose: Change a runtime config value in memory only.
+- Arguments:
+  - `path`
+    - required
+  - `value`
+    - required
+    - supports strings, numbers, `true`, `false`, `null`, and simple JSON object/array text
+- Notes:
+  - if the config leaf is flag `1`, the value changes in memory but not live runtime
+  - if the config leaf is flag `2`, the value changes in memory and still requires explicit module apply
+- Examples:
+  - `CONFIG_SET logger.log_max_lines 100000`
+  - `CONFIG_SET logger.log_ignore "[\"NULL\",\"DEBUG\"]"`
+  - `CONFIG_SET network_request_defaults.collect_metrics false`
+
+CONFIG_FLAGS <path>
+- Purpose: Print the current flags bitmap and meaning for a config path.
+- Arguments:
+  - `path`
+    - required
+- Example:
+  - `CONFIG_FLAGS logger.log_max_lines`
+
+CONFIG_RELOAD
+- Purpose: Re-read runtime config from disk into ConfigManager memory.
+- Arguments:
+  - none
+- Example:
+  - `CONFIG_RELOAD`
+
+TASK_LIST
+- Purpose: Print currently active scheduled or paused tasks from the registry.
+- Arguments:
+  - none
+- Example:
+  - `TASK_LIST`
+
+TASK_PAUSE <taskId>
+- Purpose: Pause a scheduled task by id.
+- Arguments:
+  - `taskId`
+    - required
+- Example:
+  - `TASK_PAUSE 123e4567-e89b-12d3-a456-426614174000`
+
+TASK_RESUME <taskId>
+- Purpose: Resume a paused task by id.
+- Arguments:
+  - `taskId`
+    - required
+- Example:
+  - `TASK_RESUME 123e4567-e89b-12d3-a456-426614174000`
+
+TASK_CANCEL <taskId>
+- Purpose: Cancel a task by id.
+- Arguments:
+  - `taskId`
+    - required
+- Example:
+  - `TASK_CANCEL 123e4567-e89b-12d3-a456-426614174000`
+
+NET_DIAG
+- Purpose: Print the live network diagnostics summary.
+- Arguments:
+  - none
+- Example:
+  - `NET_DIAG`
+
+NET_JOURNAL
+- Purpose: Dump the network journal to a temp DBM path and print that path.
+- Arguments:
+  - none
+- Example:
+  - `NET_JOURNAL`
+
+QUEUE_FLUSH
+- Purpose: Flush QueueManager immediately with materialization.
+- Arguments:
+  - none
+- Example:
+  - `QUEUE_FLUSH`
+
+LOG_TAIL [count]
+- Purpose: Print the most recent in-memory log lines.
+- Arguments:
+  - `count`
+    - optional
+    - default `20`
+    - range `1..500`
+- Examples:
+  - `LOG_TAIL`
+  - `LOG_TAIL 50`

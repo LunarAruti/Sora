@@ -1,0 +1,254 @@
+Random Map Item Placement Plan
+==============================
+
+Purpose
+- Add a deterministic randomization phase after seed-based artifact generation.
+- This phase uses the item seed/container seed to place additional map objects and loose items into valid cells.
+- Forced items saved directly inside artifact templates still appear exactly where the artifact defines them.
+- Randomized items are extra placement results layered on top of generated artifacts.
+- For the same map seed, item seed, artifact set, and item library, random placements should be the same every run.
+
+Artifact Categories Used By Placement
+- 0: forced-only / never normal spawn.
+- 1: basic hallways.
+- 2: exotic hallways.
+- 3: rooms.
+- 4: large chambers.
+- 5: junctions.
+- 6: dead ends.
+- 7: connectors, mainly for reconnection planning.
+- 8: very large, elaborate setpieces that do not allow random spawning.
+- Current generation behavior:
+  - Category 0 is excluded from normal generation and reconnection.
+  - Category 7 is excluded from normal branch generation, but allowed and favored during reconnection.
+  - Categories not listed still work with neutral/default weighting.
+- Random placement is allowed in categories 1, 2, 3, 4, 5, and 6.
+- Random placement is not allowed in categories 0, 7, or 8.
+- Categories 3 and 4 are room-like for boosted rolls.
+- Category 8 is a controlled setpiece category and should not receive random spawns.
+
+Memory Rule
+- Randomized map items must obey the same loaded-area rule as artifacts and placed items.
+- If a chunk/area is unloaded, its randomized items do not exist as runtime objects.
+- If a randomized item is unchanged from its seeded default, it should be regenerated deterministically when the area reloads.
+- If a randomized item is changed by the player, that change goes into the persistent item-state list.
+- Picked-up randomized items should be represented by a deleted persistent state for that seeded random placement.
+- Dropped or moved items should be represented as placed persistent items at their new cell.
+- Container contents are still stored in container persistent state once the container is opened or changed.
+- Current container contents are seeded from item seed plus item id, cell coordinate, and direction.
+- Keep coordinate-based contents for now. If a player moves a container before opening it, its contents may change because the seed input changed.
+
+Random Placement Timing
+- The random item placement phase should run immediately after artifact placement/load-area generation.
+- It should use the item seed, not the map seed, so map shape and random item layout can be controlled separately.
+- It should not mutate artifact templates.
+- It should not write random placements to disk.
+- It should produce runtime/generated item candidates for the currently loaded area only.
+
+Placement Identity
+- Every randomized item needs a stable seeded identity key.
+- The identity key should be stable for the same item seed and generated artifact placement.
+- Suggested key structure:
+  - random:<artifact placement id/index>:<local candidate index>:<item id>:<cell x>:<cell y>:<direction>
+- This lets persistent state delete or override a randomized item without keeping the actual item object loaded forever.
+
+Placement Rates
+- Container spawn chance:
+  - Roughly 5 percent per placed artifact.
+  - Current starting rule: one container roll per normal artifact.
+  - Room/chamber artifacts can receive up to three container rolls and a roughly +10 percent chance bump.
+  - Multiple containers can spawn in the same artifact if multiple candidate rolls succeed.
+  - Container spawns should be much less common than loose floor item spawns.
+- Loose item/equipment spawn chance:
+  - Roughly 10 percent per placed artifact.
+  - Current starting rule: two loose item rolls per normal artifact.
+  - Room/chamber artifacts can receive up to three loose item rolls and a roughly +10 percent chance bump.
+  - If the roll succeeds, choose from the same weighted item/equipment loot logic used for containers.
+  - Equipment still uses the two-layer system:
+    - first roll the equipment template in the normal item pool,
+    - then choose the actual equipment from equipment weights.
+- Map-detail/hazard spawn chance:
+  - More common than containers and loose items.
+  - Map details and hazards use their own roll/chance, separate from loose item and container rolls.
+  - Includes non-container map objects such as gas vents, steam vents, rubble, bones, debris, pallets, water, oil, and future detail objects.
+  - These can have limited interactions or passive effects.
+
+Container Random Placement
+- Randomly spawned containers are the foundation for later lock/key placement.
+- Only randomized containers can later be chosen as locked containers that need nearby keys.
+- Artifact-forced containers can still have normal contents, but should not be used for required key-lock placement unless we explicitly decide otherwise.
+- Candidate container types:
+  - chest
+  - barrel
+  - crate
+  - table
+  - bookshelf
+  - empty_crate
+  - empty_table
+  - empty_bookshelf
+  - future empty_barrel
+- Containers use the same contents generation as existing containers.
+- Contents are generated on first open unless persistent container state already exists.
+- Random container placement must avoid walls, other items, and invalid floor/void cells.
+- Chests and bookshelves are special wall-facing containers.
+
+Chest And Bookshelf Direction
+- Chests and bookshelves should have direction like wall lamps.
+- Their direction faces away from the wall they are placed against.
+- In the editor:
+  - Chests/bookshelves can be placed anywhere.
+  - If placed against a valid flat wall, direction is assigned automatically away from the wall.
+  - If not against a wall, the user can manually choose direction.
+- In random placement:
+  - If a chest/bookshelf is chosen and the chosen cell is next to a valid flat wall, it faces away from that wall.
+  - Chests and bookshelves must spawn against valid flat walls during random placement.
+  - The cell opposite the wall, in the facing direction, should be occupied/walkable floor.
+  - They cannot random-spawn free-standing.
+  - They cannot use a wall that is angled or non-flat; if only angled/non-flat wall contact exists, pick a new area/cell.
+- Barrels, crates, tables, and most other containers can spawn anywhere on valid floor and can use a random/default direction.
+
+Flat Wall Detection
+- A valid wall-adjacent placement wall must be axis-aligned.
+- Horizontal wall:
+  - chest/bookshelf below it faces south,
+  - chest/bookshelf above it faces north.
+- Vertical wall:
+  - chest/bookshelf right of it faces east,
+  - chest/bookshelf left of it faces west.
+- Angled walls are invalid for wall-facing container attachment.
+- If multiple flat walls touch the cell, choose deterministically from the item seed/candidate seed unless a clearer editor rule is chosen later.
+
+Loose Item Random Placement
+- Loose floor items include food, tools, medical items, light items, weapons, and equipment.
+- Use the same weighted item/equipment selection system as container loot.
+- Keys should stay excluded from ordinary random loose item spawning until lock/key placement rules are added.
+- Hallway artifacts can receive loose items.
+- Loose items must spawn on valid occupied floor cells.
+- Loose items must not overlap another item in the same cell.
+- Loose items must not spawn in void/out-of-bounds space.
+- Placement inside occupied areas is allowed as long as the cell is not inside/intersecting a wall.
+- Loose light items should preserve their normal rules:
+  - floor lanterns spawn off,
+  - torches spawn off,
+  - carried/loose fuel state is seeded from item properties where appropriate.
+
+Map Detail Random Placement
+- These are map-based objects, not normal inventory loot.
+- They can be passive decoration, terrain modifiers, hazards, or limited-interaction searchable objects.
+- Existing candidates:
+  - gas_vent
+  - steam_vent
+  - water_puddle
+  - oil_puddle
+  - bones
+  - rubble
+  - debris
+  - pallet
+  - wood_sticks
+  - bloodstain
+  - scratch_marks
+  - hanging_chains
+- Approved map-detail additions:
+  - broken_barrel
+  - broken_crate
+  - broken_shelf
+  - broken_table
+  - cracked_pot
+  - flower_pot
+  - wall_painting
+  - torn_banner
+  - broken_statue
+  - loose_bricks
+  - ash_pile
+  - discarded_cloth
+  - torn_bag
+  - smashed_lantern
+  - old_toolbox
+  - broken_chair
+  - loose_papers
+  - rusted_chain_pile
+  - scorch_mark
+  - gold_mark
+  - moss_patch
+  - fungus_patch
+
+Lock And Key Future Dependency
+- Randomized containers are needed before locked containers and keys.
+- Later, when selecting a locked random container or locked door, the generator must also place or assign a reachable key nearby.
+- Reachable means close enough in artifact graph distance, roughly within five artifacts in any direction.
+- The lock/key system should not randomly lock something unless it can prove a matching key can be placed in a reachable location.
+- Keys should likely spawn in randomized containers or scripted/special locations, not ordinary floor loot.
+
+Implementation Pass Plan
+------------------------
+- Pass 1: Directed container definitions only.
+  - Add direction behavior/properties to map items that need it, starting with chests and bookshelves.
+  - Do not implement random placement yet.
+  - Editor support is handled separately by the user.
+- Pass 2: Random placement data model.
+  - Add a runtime representation for generated random item candidates separate from artifact-forced items.
+  - Add stable random placement keys.
+  - Make loaded-area rendering/interactions include randomized candidates only while inside loaded bounds.
+  - Make persistent item state able to delete or override random candidates by key.
+  - Current implementation has active random item lists, random item key mapping, persistence key resolution, loaded-area cleanup, rendering/interactions/hazard/light/terrain wiring, and audit coverage.
+- Pass 3: Valid cell candidate collection.
+  - Collect valid occupied floor cells per placed artifact.
+  - Reject void, wall-blocked cells, existing artifact-forced item cells, randomized item cells, and placed persistent item cells.
+  - Add flat-wall detection for wall-facing containers.
+  - Add direction assignment for chests/bookshelves from flat walls.
+  - Current implementation can collect valid cells per artifact, enforce allowed categories 1-6, identify room-like categories 3/4, reject blocked/occupied cells, and return flat wall-facing directions with a walkable facing cell.
+- Pass 4: Random loose item spawning.
+  - Two loose item rolls per normal artifact.
+  - Three loose item rolls and +10 percent chance for room/chamber artifacts.
+  - Use existing item/equipment weighted loot selection.
+  - Keep keys out of ordinary loose floor spawning.
+  - Current implementation generates active loose item/equipment candidates from item seed, with two normal rolls, three room/chamber rolls, key exclusion, equipment template support, portable floor lantern support, randomized fuel for light loot, runtime-only generated properties, and persistent deleted/override support through random keys.
+- Pass 5: Random container spawning.
+  - One container roll per normal artifact.
+  - Three container rolls and +10 percent chance for room/chamber artifacts.
+  - Chests/bookshelves only spawn against valid flat walls.
+  - Barrels, crates, tables, and empty variants can spawn on normal valid floor cells.
+  - Random containers use the existing coordinate-based container contents system.
+  - Empty container variants do not open a GUI and only keep push/physical behavior.
+  - Container placement runs before loose item placement so containers reserve their cells first.
+  - Current implementation generates active random containers from item seed with persistent deleted/moved support through random keys.
+- Pass 6: Random map-detail/hazard spawning.
+  - Add a separate weighted pool for map-based details/hazards.
+  - Include existing objects such as vents, puddles, bones, rubble, debris, pallets, bloodstains, scratches, chains, and sticks.
+  - Add selected new detail objects after final approval.
+  - Details and hazards use separate rolls so gas/steam can stay rarer than normal decoration.
+  - Hazards are allowed in hallways, rooms, chambers, junctions, and dead ends, but category 0 spawn/default artifacts still suppress random placement.
+  - Wall-required details use the same flat-wall direction logic as chests/bookshelves.
+  - Current implementation generates active random hazards and details from item seed, reserves cells before loose item placement, supports wall-facing details, and seeds pop-out searchable detail contents at spawn time.
+- Pass 7: Review and tuning.
+  - Review spawn density, collision, persistence, and loaded/unloaded cleanup.
+  - Adjust room/chamber roll bonuses and item weights after testing.
+
+Open Questions
+- How many random placement attempts should each artifact get for each group?
+- Should the 5 percent container and 10 percent loose item rates be one roll per artifact, or one roll per candidate cell inside the artifact with a cap?
+- Should map-detail/hazard placement use one shared chance, or separate chances for detail, terrain, and hazards?
+- Should chests/bookshelves be allowed to spawn free-standing in random placement, or should random placement strongly prefer wall-adjacent cells and only use free-standing as a fallback?
+- Should bookshelves require a wall more strictly than chests?
+- Should random hazards be allowed in the default spawn artifact or near the player start?
+- Should random containers/items be allowed inside every artifact category, or should some artifact categories suppress random placement?
+- Should rooms/chambers get higher item/container chances than hallways?
+- Should the generator use artifact-local occupied polygons to find valid cells, or use the final loaded occupied-space query after all artifacts are placed?
+- Should random map-detail objects be allowed to spawn on top of terrain effects like water/oil, or should every placed object reserve its cell exclusively?
+- Should random item placement respect visibility/line-of-sight from artifact openings, or is valid occupied floor enough for now?
+- Should container contents for randomized containers use the container's randomized placement identity instead of raw cell coordinates, so pushing before opening does not change seeded contents?
+
+Decisions So Far
+- Use one container roll per normal artifact.
+- Use two loose item rolls per normal artifact.
+- Rooms/chambers get three rolls and about +10 percent chance.
+- Random chests/bookshelves require flat wall-adjacent placement.
+- Random hazards are allowed near the default spawn artifact for now.
+- Keep container contents based on current coordinates for now, so moving a container before opening can change its seeded contents.
+- Random loose items are allowed in hallway artifacts.
+- Random placement is allowed inside occupied areas as long as it does not overlap another item and does not intersect a wall.
+- Map details and hazards have their own higher probability separate from loose items and containers.
+- Random placement is allowed in artifact categories 1, 2, 3, 4, 5, and 6 only.
+- Category 8 is the large/elaborate setpiece category and receives no random spawns.
+- Category 7 receives no random spawns for now.
+- Editor support for chest/bookshelf direction will be handled separately by the user.

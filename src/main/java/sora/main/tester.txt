@@ -1,0 +1,44 @@
+            String[][] rem = quantize("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\rem2.png",320,320);
+            sora.tools.pixelgenerator.PixelArt pixel = new PixelArt(rem,800,800,"C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\rem22.png");
+            PixelGenerator.render(pixel);
+
+            PixelGridBuilder builder = new PixelGridBuilder(14,14,200,200,"C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\vixyCode.png",10,"w");
+            builder.fillBackground("w");
+
+            builder.drawLine(0,0,4,0,"b");
+            builder.drawLine(0,0,0,4,"b");
+            builder.drawLine(13,13,13,9,"b");
+            builder.drawLine(13,13,9,13,"b");
+
+            builder.setCell(6,0,"b");
+            builder.setCell(8,0,"b");
+            builder.setCell(10,0,"b");
+            builder.setCell(12,0,"b");
+            builder.setCell(13,1,"b");
+            builder.setCell(13,3,"b");
+            builder.setCell(13,5,"b");
+            builder.setCell(13,7,"b");
+
+            builder.setCell(0,13,"u");
+            builder.setCell(1,13,"u");
+            builder.setCell(0,12,"u");
+            builder.setCell(1,12,"u");
+
+            builder.drawLine(0,11,2,11,"b");
+            builder.drawLine(2,12,2,13,"b");
+
+            builder.fillRect(12,1,9,4,"g");
+
+            builder.render();
+
+
+            String text = "Looking for a fun and relaxing way to unwind? Come join the Residence Hall Association (RHA) for Picnic & Popsicles: A casual, outdoor hangout designed to bring our community together! Enjoy free popsicles, sandwiches from Jimmy Johns, and a chance to relax with friends. Feel free to bring a blanket, or anything that helps you enjoy the springtime.";
+                        DPCode code = new DPCode(text);
+                        code.setBootstrapProfile(DPCode.BootstrapProfile.STANDARD_V1);
+                        code.setOutputPath("C:\\Users\\lunar\\OneDrive\\Desktop\\current\\UC_Admin\\database\\code.png");
+                        code.setImageSizePx(500);
+                        code.setPayloadMode(DPCode.PayloadMode.RAW_BYTES);
+                        code.setDensityMode(DPDensityMode.D16);
+                        code.setPreprocessMode(DPCode.PreprocessMode.NONE);
+                        code.setEccProfile(DPCode.EccProfile.MEDIUM);
+                        code.encode();

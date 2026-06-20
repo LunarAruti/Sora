@@ -238,6 +238,11 @@ Notes
 - `01178` Review the storage fallback and accept or correct it.
 - `01179` Fix materialization or journal truncation before retrying rotation.
 - `01180` Inspect journal stats and rotation checks.
+- `01181` Pass a non-empty file path.
+- `01182` Inspect the cache state and ensure the JSON object was loaded successfully.
+- `01183` Inspect QueueManager for the full-object read failure.
+- `01184` Fix the integrity validation failure or underlying full-object read error.
+- `01185` Inspect the exception and cached JSON object copy path.
 
 [02] BatchManager
 - `02001` Pass a non-empty path.
@@ -478,3 +483,25 @@ Notes
 - `13023` Fix the registry delete path for completed one-shot tasks.
 - `13024` Fix the registry delete path for missed one-shot tasks.
 - `13025` Inspect why the one-shot task became overdue before execution.
+
+[14] ConfigManager
+- Reserved for the upcoming config module under `sora.config`.
+- Use this group for config bootstrap, runtime config load, validation, fallback, and
+  config-application diagnostics/exceptions as implementation is added.
+- `14001` Fix the runtime config path or restore its parent directory structure.
+- `14002` Create or restore `database/config/config.json`, or accept coded defaults.
+- `14003` Ensure the runtime config path points to a regular file.
+- `14004` Populate the runtime config file with valid JSON content instead of leaving it blank.
+- `14005` Normalize or repair the configured runtime config path.
+- `14006` Check file access, locks, or permissions for runtime config reads.
+- `14007` Pass a non-empty config value path before editing in-memory config.
+- `14008` Pass a non-empty config flags path before editing in-memory config.
+- `14009` Use a valid v1 flags bitmap in the range `0..2`.
+- `14010` Fix malformed JSON syntax in `config.json` or accept coded defaults.
+- `14011` Inspect the runtime config reader close path or underlying file handle state.
+- `14012` Use a supported config version or update the loader for the new schema.
+- `14013` Store the config version as a numeric field.
+- `14014` Make the root `values` field a JSON object.
+- `14015` Make intermediate config nodes JSON objects.
+- `14016` Fix the invalid config leaf entry so it includes a valid `value` and `flags`.
+- `14017` Restore or add a valid config leaf entry at that path.

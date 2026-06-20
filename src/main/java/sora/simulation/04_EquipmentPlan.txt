@@ -1,0 +1,541 @@
+Sora Equipment and Quick Use Plan
+====================================
+
+Scope
+- This note captures the planned equipment, primary hand, secondary quick-slot, and apparel expansion systems.
+- No runtime implementation is implied by this note until a later equipment pass starts.
+- Equipment is different from normal items at the library/loot-table level, even though it behaves like items once it exists in inventory, containers, world drops, or equipment slots.
+
+Core Controls
+-------------
+- F uses the primary held item.
+- Number keys 1 through 6 use secondary quick-slot items.
+- G swaps the primary slot with secondary slot 1 only when the player has the apparel/attachment that enables this behavior.
+- G swap is active only during normal gameplay, not while inventory/container/document/oil targeting modes are open.
+- At maximum capability, the player has one primary slot, six secondary slots, and 10x15 inventory space.
+
+Primary Slot
+------------
+- The primary slot represents the item currently held in the player's hand.
+- It can hold any item unless a future item-specific rule forbids it.
+- Typical primary use examples:
+  - Knife, spear, crowbar, rock, or similar physical items: swing/use in open air for future combat or object hits.
+  - Portable lantern: turn on or turn off.
+  - Food: eat.
+  - Bandage: apply.
+  - Lantern oil: start fill-lantern targeting mode.
+  - Note/map fragment: read.
+- The primary slot should be visually larger than secondary slots.
+
+Secondary Quick Slots
+---------------------
+- Secondary slots represent items attached to the player for quick access.
+- The player starts with 2 secondary slots.
+- The maximum secondary slots is 6.
+- Number keys activate the corresponding slot:
+  - 1 uses secondary slot 1.
+  - 2 uses secondary slot 2.
+  - 3 through 6 work only when those slots are unlocked.
+- By default, secondary slots can hold small consumables such as food, medical items, notes, map fragments, lantern oil, and flares.
+- Apparel can expand the number of secondary slots and the kinds of items those slots accept.
+- Secondary slots are for quick item use only. Tool-based contextual world actions require the tool in primary.
+
+Inventory Size
+--------------
+- Default inventory size should become 10 wide by 5 high.
+- Bags/backpacks expand inventory height in 5-row increments.
+- Inventory must never exceed 10 wide by 15 high.
+- Suggested starting inventory progression:
+  - No bag: 10x5.
+  - Satchel: 10x8.
+  - Backpack: 10x12.
+  - Heavy Backpack: 10x15 with movement noise.
+- When inventory capacity shrinks and items no longer fit:
+  - Try to move displaced items into remaining inventory space.
+  - If no space exists, drop them near the player using the existing drop rules.
+  - If dropping fails, show a notification and keep the apparel change from completing, unless the future design deliberately allows forced dropping.
+
+Apparel/Capability Slots
+------------------------
+- The character equipment UI should show a small character/stickman region beneath active effects.
+- Apparel/capability slots are drop targets placed around the character figure.
+- Final planned apparel slots for now:
+  - Back: satchel/backpack items that control inventory size.
+  - Waist: belts that control secondary slot count and what those slots can hold.
+  - Leg: holsters/leg pouches that enable primary/secondary swapping or add restricted quick access.
+  - Chest: vests for defense.
+  - Face: masks for gas protection.
+  - Feet: shoes/boots for movement, terrain, and later noise behavior.
+  - Hands: gloves for interaction capability.
+  - Accessory: key ring, charm, watch, compass, and other small passive utility items.
+- Shoulder equipment is intentionally excluded for now.
+- Apparel should never push the player beyond max inventory or max secondary-slot caps.
+
+Back Slot Variations
+--------------------
+- Satchel
+  - Slot: back.
+  - Inventory size: 10x8.
+  - Restriction/tradeoff: smaller than backpack, probably lighter/quieter later.
+- Backpack
+  - Slot: back.
+  - Inventory size: 10x12.
+  - Restriction/tradeoff: standard medium storage.
+- Heavy Backpack
+  - Slot: back.
+  - Inventory size: 10x15.
+  - Restriction/tradeoff: maximum storage with added movement noise while moving.
+
+Waist Slot Variations
+---------------------
+- Simple Belt
+  - Slot: waist.
+  - Adds +1 secondary slot.
+  - Secondary allowance: all small consumables.
+- Food Belt
+  - Slot: waist.
+  - Adds +2 secondary slots.
+  - Secondary allowance: food only.
+- Medical Belt
+  - Slot: waist.
+  - Adds +2 secondary slots.
+  - Secondary allowance: medical items only.
+- Utility Belt
+  - Slot: waist.
+  - Adds +2 secondary slots.
+  - Secondary allowance: broad small-item access, including food, medical, notes, lantern oil, lockpicks, flares, rocks, and other non-large items.
+
+Leg Slot Variations
+-------------------
+- Small Leg Pouch
+  - Slot: leg.
+  - Adds +2 secondary slots.
+  - Secondary allowance: tiny items only.
+- Food Pouch
+  - Slot: leg.
+  - Adds +2 secondary slots.
+  - Secondary allowance: food only.
+- Medical Pouch
+  - Slot: leg.
+  - Adds +2 secondary slots.
+  - Secondary allowance: medical items only.
+- Oil Pouch
+  - Slot: leg.
+  - Adds +2 secondary slots.
+  - Secondary allowance: lantern oil only.
+- Leg Pouch
+  - Slot: leg.
+  - Adds +2 secondary slots.
+  - Enables G swap between primary and secondary slot 1.
+  - Secondary allowance: small non-large items.
+- Large Holster
+  - Slot: leg.
+  - Adds +2 secondary slots.
+  - Enables G swap between primary and secondary slot 1.
+  - Secondary allowance: any item that can be carried in a quick slot. This is one of the strongest leg-slot items.
+  - Restriction: should allow larger carried items such as the portable lantern, but should not allow obviously huge items.
+
+Chest Slot Variations
+---------------------
+- Light Vest
+  - Slot: chest.
+  - Capability: small defense increase later.
+  - Restriction/tradeoff: no carry expansion.
+- Reinforced Vest
+  - Slot: chest.
+  - Capability: stronger defense later.
+  - Restriction/tradeoff: possible movement/noise penalty later.
+
+Face Slot Variations
+--------------------
+- Cloth Mask
+  - Slot: face.
+  - Capability: weak gas exposure delay or reduction later.
+  - Restriction/tradeoff: low protection.
+- Protective Mask
+  - Slot: face.
+  - Capability: moderate gas protection.
+- Filter Mask
+  - Slot: face.
+  - Capability: strongest gas protection.
+  - Restriction/tradeoff: could require filters later if we add filter durability.
+
+Feet Slot Variations
+--------------------
+- Worn Shoes
+  - Slot: feet.
+  - Capability: minor future terrain slow reduction for debris, rubble, bones, water, oil, and similar floor clutter.
+- Work Boots
+  - Slot: feet.
+  - Capability: stronger future terrain slow reduction for debris, rubble, bones, water, oil, and similar floor clutter.
+  - Tradeoff: adds movement noise while moving.
+- Quiet Shoes
+  - Slot: feet.
+  - Capability: moderate future terrain slow reduction with lower movement noise.
+  - Restriction/tradeoff: weaker terrain protection than boots.
+
+Hands Slot Variations
+---------------------
+- Fingerless Gloves
+  - Slot: hands.
+  - Capability: +5 future search/drop-rate support.
+- Cloth Gloves
+  - Slot: hands.
+  - Capability: +10 future search/drop-rate support and minor interaction safety later.
+- Work Gloves
+  - Slot: hands.
+  - Capability: +15 future search/drop-rate support, better interaction safety, and future pry-time support.
+
+Accessory Slot Variations
+-------------------------
+- Key Ring
+  - Slot: accessory.
+  - Capability: holds many keys outside normal inventory.
+  - Restriction/tradeoff: only non-rusted keys.
+  - Current behavior: stores non-rusted keys in a key-ring list while preserving key item id and key properties.
+  - Current behavior: dragging a key onto a key ring removes it from inventory/container/equipment source and stores it in the key-ring list.
+  - Current behavior: key-ring context info shows up to six stored keys at a time with simple up/down rows.
+  - Current behavior: clicking a stored key removes it from the key ring and puts that key on the cursor for inventory placement.
+  - Future behavior: when equipped in the accessory slot, use stored key ids for doors/chests/locks.
+- Charm
+  - Slot: accessory.
+  - Capability: sanity-related passive behavior later.
+- Watch
+  - Slot: accessory.
+  - Capability: future elapsed-time, effect timer, or fuel estimate UI helper.
+- Compass
+  - Slot: accessory.
+  - Capability: future navigation/map helper.
+
+Equipment Loot Model
+--------------------
+- Equipment should not have individual normal item spawn probability.
+- Normal container generation should include one template entry that represents equipment as a whole.
+- Suggested template id: equipment_template.
+- The equipment template has a normal item loot weight.
+- Starting equipment_template loot weight should match the crowbar tier, currently 2.0.
+- When the normal loot table selects equipment_template, the generator rolls inside the equipment library to choose the actual equipment item.
+- Each equipment item has equipment_weight for that second roll.
+- This creates two layers:
+  - Layer 1: normal loot decides whether this spawn is food, medical, tool, document, oil, equipment_template, etc.
+  - Layer 2: equipment loot decides which actual equipment piece the equipment_template becomes.
+- This prevents adding many equipment definitions from lowering the spawn rate of important normal items.
+- Stronger or more flexible equipment should have lower equipment_weight.
+- Simple/restricted equipment should have higher equipment_weight.
+- Equipment generated inside a container is stored in that container's contents like any other item entry.
+- Equipment should not be generated until the container is opened, matching the current item-seed container behavior.
+- Equipment never stacks. Quantity is always 1.
+- Tables are excluded from equipment drops.
+- Bookshelves are excluded from equipment drops.
+- Rubble is excluded from equipment drops.
+- Bones can generate equipment.
+
+Item Eligibility Ideas
+----------------------
+- Tiny items:
+  - keys, lockpicks, notes, map fragments.
+- Small consumables:
+  - food, bandage, antitoxin, endurance draught, lantern oil, flare.
+- Small tools:
+  - rock, lockpick, possibly knife.
+- Large hand items:
+  - crowbar, spear, torch, shield, portable lantern.
+- Default secondary slots should allow small consumables.
+- Belts/pouches/special apparel can expand what item classes are allowed.
+- Secondary slots can hold stacks.
+- The primary slot can hold any item.
+- Tool-based world secondary actions require the tool in primary, not merely in a secondary slot or inventory.
+- A portable lantern emits light and applies Comfortable while on in primary.
+- A portable lantern can emit from secondary only when the equipped apparel supports that behavior.
+
+Inventory UI Plan
+-----------------
+- Inventory grid appears on the right as it does now, but its height depends on current inventory capacity.
+- The left side keeps active effects at the top.
+- Directly beneath active effects, draw the character equipment area.
+- Apparel slots appear around the character figure.
+- Directly beneath the character figure, draw the use slots:
+  - one larger primary slot.
+  - currently unlocked secondary slots in a row, up to 6.
+- The primary slot should be the most visually prominent use slot because F uses it.
+- Secondary slots should be smaller and ordered left to right as 1 through 6.
+- If only two secondary slots are unlocked, only slots 1 and 2 should be visible for now.
+- Locked secondary slots should either be hidden or shown dimmed; hiding is cleaner for now.
+- Equipment slot boxes should be smaller than inventory cells so the little figure still fits behind/among them in the side panel.
+- Empty equipment slot labels should appear under the boxes, not inside them.
+- Equipped item hover should display the item name like inventory/container hover.
+- Equipped item context menu should support at least unequip, drop, and use when valid.
+
+Unequip and Capacity Rules
+--------------------------
+- Unequipping apparel can shrink inventory rows, secondary slot count, or slot eligibility.
+- If removed apparel invalidates equipped/quick-slot items:
+  - First try moving affected items into inventory.
+  - If inventory has no space, try dropping them near the player.
+  - If neither succeeds, block the unequip and notify the player.
+- Dropped items must use the same unified persistent item-state behavior as current inventory drops.
+
+Open Questions
+--------------
+- When pressing 1 through 6 on a stack of food, should one item be consumed and the stack stay equipped?
+- Should two-handed items exist later, blocking shield/primary combinations?
+- Movement noise should be a running value from 0 to 1000, not a multiplier.
+- Equipment can contribute flat movement-noise values while the player is moving.
+- Face masks can contribute small constant breathing noise while worn.
+
+Implementation Plan
+===================
+
+Pass 1: Equipment Data Model
+----------------------------
+- Add a dedicated equipment definition model/library separate from DungeonItemLibrary.
+- Equipment definitions should include:
+  - id
+  - public name
+  - apparel/body slot
+  - inventory size
+  - visual
+  - equipment_weight
+  - properties/capabilities
+- Equipment can reuse the same runtime inventory entry shape as items:
+  - item_id
+  - x
+  - y
+  - quantity
+  - properties
+- Runtime code needs lookup helpers that can resolve both normal items and equipment by id.
+- Add equipment slot concepts:
+  - primary
+  - secondary 1 through secondary 6
+  - back
+  - waist
+  - leg
+  - chest
+  - face
+  - feet
+  - hands
+  - accessory
+- Add an equipment-state object owned by MazeSimulationGame.
+- Equipped items are removed from the inventory grid and stored only in the equipment state.
+- Secondary equipped items may keep stack quantity.
+- Add helper rules for:
+  - current inventory capacity from back item.
+  - current unlocked secondary-slot count from waist/leg/chest/etc.
+  - whether an item fits a secondary slot.
+  - whether an apparel item fits a body slot.
+  - whether G swap is enabled.
+- Keep the current max caps strict:
+  - inventory max 10x15.
+  - secondary max 6.
+  - one primary slot.
+
+Pass 2: Equipment Definitions
+-----------------------------
+- Add apparel/equipment definitions to the equipment library, not the normal item library.
+- Suggested definitions:
+  - satchel
+  - backpack
+  - heavy_backpack
+  - simple_belt
+  - food_belt
+  - medical_belt
+  - utility_belt
+  - small_leg_pouch
+  - food_pouch
+  - medical_pouch
+  - oil_pouch
+  - leg_pouch
+  - holster / Large Holster
+  - light_vest
+  - reinforced_vest
+  - cloth_mask
+  - protective_mask
+  - filter_mask
+  - worn_shoes
+  - work_boots
+  - quiet_shoes
+  - fingerless_gloves
+  - cloth_gloves
+  - work_gloves
+  - key_ring
+  - charm
+  - watch
+  - compass
+- Add properties for apparel:
+  - apparel_slot
+  - inventory_rows
+  - secondary_slots
+  - secondary_allowance
+  - enables_primary_swap
+  - allows_secondary_light
+  - gas_protection
+  - terrain_slow_reduction
+  - movement_noise
+  - breathing_noise
+  - defense
+  - search_bonus
+  - pry_time_bonus
+  - key_capacity
+- Add visuals and equipment weights.
+- Keep rare/strong capability items lower equipment_weight than simple pouches/belts.
+
+Pass 3: Container Loot Integration
+----------------------------------
+- Add one normal item loot-table entry for equipment_template, currently weighted at 18.0.
+- When equipment_template is selected during container generation:
+  - choose an actual equipment definition using equipment_weight.
+  - create a container entry using that selected equipment id.
+  - place it using the same grid placement rules as normal items.
+- Equipment entries in containers should support:
+  - hover name.
+  - drag/drop.
+  - move to inventory.
+  - drop.
+  - context menu.
+  - Use/Equip action.
+- Container persistence should store the final selected equipment id, not equipment_template.
+- Opened containers should preserve equipment contents exactly like normal item contents.
+- Equipment should not dilute normal loot beyond the single equipment_template entry.
+- Exclude equipment_template from table and rubble loot pools.
+- Exclude equipment_template from bookshelf loot pools.
+- Allow equipment_template in bones and normal storage containers.
+- Force generated equipment quantity to 1.
+
+Pass 4: Inventory Capacity Shrink
+---------------------------------
+- Change default inventory size to 10x5.
+- Make inventory rendering and placement use current capacity instead of hard-coded max capacity.
+- When equipping/removing back items changes capacity:
+  - If capacity grows, just resize available inventory space.
+  - If capacity shrinks, detect inventory items outside the new bounds.
+  - Try moving displaced items into valid free cells.
+  - If they cannot fit, try dropping them near the player.
+  - If neither works, reject the equipment change and notify the player.
+- Existing container inventories remain unaffected.
+
+Pass 5: Equipment UI
+--------------------
+- In the inventory overlay, keep active effects at the upper-left.
+- Beneath effects, draw the character equipment area.
+- Draw body slots:
+  - back
+  - waist
+  - leg
+  - chest
+  - face
+  - feet
+  - hands
+  - accessory
+- Draw use slots beneath the body area:
+  - one large primary slot.
+  - visible secondary slots based on current unlocked count.
+- Support hover name display for equipped items.
+- Support dragging items from inventory/container into equipment slots.
+- Support dragging equipped items back into inventory/container.
+- Support context menu actions on equipped items:
+  - Use
+  - Unequip
+  - Drop
+
+Pass 6: Equip and Unequip Rules
+-------------------------------
+- Equip from context menu should:
+  - put equipment/apparel into its matching body slot only if that slot is empty.
+  - put normal items into the next available use slot, checking primary first and then secondary slots in order.
+  - reject with a notification when no legal empty slot exists.
+  - never swap items.
+- Equipment context menus should show only Equip before equipped, not both Use and Equip.
+- Items that can be used and equipped, such as lantern oil, should show both Use and Equip.
+- Items that can only be equipped, such as crowbar, should show only Equip.
+- Dragging an item onto an occupied equipment/use slot can swap when both items are legal in their new slots.
+- Dragging an equipped item back into inventory/container should move it out of equipment.
+- Equipped items should support context menu actions:
+  - Use when the item has a wired use action.
+  - Unequip.
+  - Drop.
+- Future primary-use behavior may allow held equipment to equip into its apparel slot, but context-menu Equip should stay no-swap.
+- Dragging should determine exact target slot.
+- If a target equipment slot is occupied:
+  - swap when legal.
+  - otherwise reject with notification.
+- Unequipping should try inventory first, then world drop, then reject if no legal destination exists.
+- Dropping equipped items should use the same drop rules and persistence as inventory drops.
+
+Pass 7: Primary and Secondary Use Hotkeys
+-----------------------------------------
+- F uses the primary item.
+- 1 through 6 use the matching unlocked secondary slot.
+- F and 1 through 6 only use equipped items during normal gameplay.
+- F and 1 through 6 should not use equipped items while inventory, container, document, or targeting modes are open.
+- Using an equipped stack consumes one quantity and leaves the remaining stack equipped.
+- Primary use should call the same item-use behavior as inventory context Use where possible:
+  - food eats.
+  - bandage applies.
+  - antitoxin drinks.
+  - endurance draught drinks.
+  - lantern oil enters fill-lantern mode.
+  - note/map fragment reads.
+  - lantern toggles on/off.
+- If lantern oil is used while a portable lantern is equipped in primary, it should fill that primary lantern immediately instead of entering selection mode.
+- If the primary lantern is already full, oil should not be consumed.
+- If lantern oil is used from an equipped slot during normal gameplay and no primary lantern is equipped, show a notification instead of entering selection mode.
+- Weapons/tools without concrete behavior should show a notification such as Swung Crowbar.
+
+Pass 8: Primary Tool World Interactions
+---------------------------------------
+- Contextual world secondary actions should check the primary item only.
+- Pry behavior is deferred until locked-object interactions exist.
+- Pry should only appear for locked objects and should likely occupy that object's primary interaction slot.
+- Crowbar should be the main pry tool once implemented.
+- Knife can also pry, but should have a significantly lower success chance.
+- Until lock/pry mechanics exist, crowbar and knife should not alter chest, barrel, crate, or rubble prompts.
+
+Pass 9: Equipped Light Behavior
+-------------------------------
+- Portable lantern in primary emits light centered on the player when on and fueled.
+- Portable lantern in primary applies Comfortable while on and fueled.
+- Portable lantern in secondary emits light only from secondary slot 1 when equipped apparel allows secondary light.
+- Lantern fuel drains while equipped and on, including while inventory or container menus are open.
+- Inventory-stored lanterns still do nothing.
+- Dropped lanterns remain off by default.
+
+Pass 10: Apparel Capability Hooks - Deferred
+--------------------------------------------
+- Hold off on most gameplay effects caused by worn apparel until after the current equipment/inventory passes are solidified.
+- Active now: movement_noise affects current noise while moving; breathing_noise affects current noise constantly while the mask is worn.
+- Deferred: damage/defense changes, strength or interaction changes, gas/asphyxiation changes, movement/terrain slow changes, and other stat modifiers caused by wearing equipment.
+- Apparel definitions can keep capability metadata for display/planning, but equipping apparel should not actively alter those systems yet.
+- Face masks can later alter, decrease, or delay gas/asphyxiation effects. Ask for exact gas-mask behavior before implementing these rules.
+- Feet items can later modify terrain slow behavior further; basic puddle/bone/rubble slow is wired.
+- Feet and other movement-noise apparel now modify current noise while moving.
+- Character noise is now an active running number on the character state, not a timed effect; movement_noise and breathing_noise apparel properties are active.
+- Vest items can later provide defense once damage reduction is wired.
+- Gloves can later affect interaction/pry/search mechanics.
+- Accessory key ring can later store keys once key/lock behavior is wired.
+- Watch/compass/charm remain capability placeholders until their systems exist.
+
+Pass 11: Persistence and Memory Rules
+-------------------------------------
+- Equipped items are player-state objects, not loaded chunk objects.
+- Equipment in unopened containers does not exist until generated on first open.
+- Equipment in opened containers exists only in that container's persistent contents.
+- Equipment dropped into the world uses the unified persistent item-state map as a placed world item.
+- Equipment removed from inventory/container during equip must be removed from that source immediately.
+- If a chunk unloads, world-dropped equipment should leave active world lists just like dropped normal items.
+- Persistent item state is the single map-delta list for changed/deleted seed items and placed/dropped world items.
+- Placed/dropped entries store the item id, cell coordinate, direction, quantity, and properties needed to recreate them when the chunk reloads.
+- Placed/dropped entries use a separate persistent key namespace from seed-spawned entries so a placed item cannot overwrite a seed deletion marker at the same cell.
+- Seed-spawned changed/deleted objects reload from their seed identity, while placed/dropped items reload from their stored cell coordinate/properties.
+- Untouched seed-default map items should not create persistent item-state entries.
+- Seeded map lights that spawn off should not enter persistent item state unless toggled or otherwise changed.
+- Seeded map lights that spawn on may enter persistent item state once their fuel starts draining, because fuel is then changed from the seed default.
+- A lightweight ownership audit should run occasionally and log suspicious duplicates, but it should not repair or delete anything automatically.
+
+Pass 12: Review and Cleanup
+---------------------------
+- Verify equipment state clears on close.
+- Verify equipped items do not also exist in inventory/container lists.
+- Verify max inventory and max secondary slots cannot be exceeded.
+- Verify shrinking capacity cannot lose items silently.
+- Verify dropped equipped items use unified persistent item state.
+- Verify world interactions are disabled while inventory/container/document/oil selection modes are open.

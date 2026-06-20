@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "ucadmin"
+group = "sora"
 version = "1.0"
 
 repositories {
@@ -17,7 +17,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("ucadmin.main.Main")
+    mainClass.set("sora.main.Main")
 }
 
 tasks.withType<JavaCompile> {

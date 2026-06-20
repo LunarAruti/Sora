@@ -1,0 +1,520 @@
+Sora Dungeon Item Library
+=============================
+
+Purpose
+- This file is the design reference for dungeon items.
+- The code-side library lives in sora.simulation.items.DungeonItemLibrary.
+- Editor support should eventually place items from the library, not create new item definitions.
+- The artifact editor should only place map-based items.
+- Interactable items stay in the library for inventory, loot tables, and container contents, not direct artifact placement.
+- Runtime placed items use cell coordinates, not grid intersections.
+- Placeholder visuals are deliberately blocky and readable until real textures exist.
+
+Shared Data Rules
+- id: stable item id used in artifact JSON and runtime lookups.
+- name: display name.
+- kind: map or interactable.
+- category: broad behavior group.
+- properties: item-specific defaults.
+- placement: cell or grid.
+- requires_wall: true when the editor must find a touched wall and save the direction facing away from it.
+- cell_based, grid_based, map_based, and detail are derived flags also present in the library defaults.
+- Map items use position/direction from the placed artifact item.
+- Interactable items use inventory_size for grid inventory placement.
+- Player inventory is a 10 by 15 cell grid for now.
+- Inventory entries store item_id, x, y, quantity, and per-instance properties.
+- Inventory items are not rotatable yet; inventory_size is used exactly as defined.
+- Inventory placement must stay inside the grid and cannot overlap another item.
+- Inventory quantity cannot exceed the item's can_stack value.
+- Interactable world items default to pickup behavior.
+- Pickup first fills an existing stack for the same item id, then uses the next open inventory slot.
+- Pickup copies the world item id and current properties into inventory, then marks that seed-spawned world item deleted in persistent item state.
+- Picked-up world items keep only their deleted marker in persistent item state. Runtime properties such as fuel_remaining and is_on move into the inventory copy.
+- If no stack or open slot is available, interaction adds a "Your inventory is full." notification.
+- Container contents should use inventory-style slots:
+  contents: [{ item_id, x, y, quantity, properties }]
+- Locked objects store required_key_id.
+- Keys store key_id.
+- Tools do not store what they can affect. The target object stores properties such as can_be_pried_open.
+- Effects should be referenced by effect_id. The effect system owns duration, damage, stamina, poison, etc.
+- Food uses hunger_amount to start the Eating effect when used. Food is consumed on use unless hunger is already full.
+- Lantern oil uses fuel_amount to refill a selected portable lantern. Spawned oil rolls fuel_amount between fuel_amount_min and fuel_amount_max.
+- Item use can be triggered from the item context menu or by pressing E while hovering an inventory/container item.
+- E is the default keyboard command for an item's primary use, but the public verb can differ by item. Examples: food shows Eat, lantern oil shows Fill, notes show Read.
+- Inventory/container Use actions should only appear when the behavior is currently wired. Placeholder-only uses stay hidden until implemented.
+- Map fragments and written notes now expose Read. Reading opens a centered document panel, keeps the game running, and closes with Tab or Escape.
+- Bandages apply Regeneration. Antitoxin is drunk and applies Neutralization. Endurance draught is drunk and applies Elevated Stamina plus Endurance Boost.
+- Inventory/container context menus should only show actions the item supports. Decorative or non-usable items should not show Use or Equip. This is controlled by code-side action predicates so item-specific rules can be expanded later.
+- Lantern oil enters a selection mode. The hovered item is outlined blue if it is a valid lantern target or red if it is invalid. No item hovered means no outline. Tab cancels the mode; Esc cancels and closes the active inventory/container menu.
+- Section headings below are stable ids, not public labels. Public display names are defined in DungeonItemLibrary and can change without breaking saved artifacts.
+- interactable: true means the game can target the map object or world item with E/Q.
+- can_stack: numeric max quantity allowed in one inventory stack. Missing can_stack means a max stack of 1.
+- loot_weight: numeric container loot weight for interactable inventory items. 0 means the item is excluded from random loot.
+
+Current Runtime Interactions
+- The two closest assigned interactions use E and Q. One object may consume both buttons if it has two actions.
+- Objects with only one action use the standard nearest-object assignment: closest gets E, second closest gets Q.
+- Object names render above their assigned action text. Two-action objects use one white cell outline.
+- Wall-mounted lamps: Turn on or Turn off.
+- Portable floor lantern: E Turn on or Turn off, Q Pick up.
+- World interactable items: E Pick up.
+- Bomb: E Pick up, Q Light bomb.
+- Map fragment and written note: E Pick up, Q Read.
+- Chest, storage barrel, and supply crate while holding nothing: E Open, Q Push.
+- Empty supply crate while holding nothing: Push.
+- Utility table, archive shelf, bone remains, and collapsed rubble: E Search.
+- Record table: E Save, Q Menu.
+- Control lever: E Toggle.
+- Hanging chains: E Pull.
+- Toxic gas vent: E Inspect.
+- Turn on/off, Pick up, Search containers, grid item movement/drop, usable consumables, and Read have concrete behavior right now. Other actions are placeholders for later systems.
+
+Light Fuel Rules
+- Map lights initialize into persistent item state when their loaded area is generated.
+- Initial fuel_remaining is seeded per light from 0 to 1000.
+- A loaded light loses 1 fuel per second only while it is on.
+- Unloaded lights do not drain fuel.
+- Turned-off lights do not drain fuel.
+- In the last 50 fuel, light radius shrinks proportionally until it reaches 0.
+- At 0 fuel, the light turns off and cannot be turned back on.
+- Picked-up floor lanterns copy their current fuel_remaining and is_on values into inventory before the world item is marked deleted.
+- Floor lanterns placed or dropped onto the world start off; they only emit light after being turned on.
+
+Map-Based Items
+---------------
+
+wall_light
+- Category: light.
+- Properties: is_on, light_radius, burn_time, fuel_remaining, spawn_on_chance, effect_id, flicker, interactable.
+- Visual: small yellow wall-edge box, dark brass outline, pale yellow direction accent, glyph L.
+- Notes: Does not require power. Uses lit while on. Can toggle steady wall lights when fuel remains.
+
+floor_lantern
+- Category: light.
+- Properties: is_on, light_radius, burn_time, fuel_remaining, spawn_on_chance, effect_id, pickupable, inventory_size, interactable.
+- Visual: squat yellow lantern centered in the cell, brown outline, pale glow accent, glyph F.
+- Notes: Can later be picked up and stored in inventory. Uses lit while on.
+
+broken_light
+- Category: light.
+- Properties: is_on, light_radius, burn_time, fuel_remaining, spawn_on_chance, effect_id, flicker, flicker_min, flicker_speed, interactable.
+- Visual: dim yellow-gray cracked wall light, dark outline, bright flicker accent, glyph B.
+- Notes: Flickers visually but does not restore sanity. Not interactable for toggle behavior.
+
+lever
+- Category: trigger.
+- Properties: is_on, target_ids, one_time_use.
+- Visual: thin gray post with angled yellow handle, glyph slash.
+
+pressure_plate
+- Category: trigger.
+- Properties: is_pressed, target_ids, one_time_use, toggle.
+- Visual: flat gray floor plate with pale inset, glyph P.
+
+gas_vent
+- Category: hazard.
+- Properties: is_active, effect_id, radius.
+- Visual: dark metal floor grate with pale green slots, glyph G.
+- Notes: Active vents create a transparent green 4x4 gas area. Standing inside applies Toxic Exposure; staying in gas for more than 10 seconds applies Asphyxiation.
+
+steam_vent
+- Category: hazard.
+- Properties: is_active, effect_id asphyxiation, radius.
+- Visual: dark metal floor grate with pale steam slots, glyph V.
+- Notes: Passive hazard for now. Active vents create a transparent pale steam 4x4 area. Standing inside uses the same delay/ramp as gas Asphyxiation but does not apply Toxic Exposure.
+
+save_table
+- Category: save.
+- Properties: can_save.
+- Visual: small brown table with a bright book square, glyph S.
+
+water_puddle
+- Category: hazard.
+- Properties: slow_multiplier.
+- Visual: irregular blue floor patch with light blue highlight, glyph W.
+- Notes: Applies Encumbered and terrain noise in a transparent highlighted 3x3 area centered on the puddle.
+
+oil_puddle
+- Category: hazard.
+- Properties: slow_multiplier, flammable, burn_duration.
+- Visual: irregular dark slick with muted brown highlight, glyph O.
+- Notes: Applies Encumbered and terrain noise in a transparent highlighted 3x3 area centered on the slick.
+
+chest
+- Category: container.
+- Properties: locked, required_key_id, can_be_lockpicked, can_be_pried_open, capacity 10x5, contents, directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall.
+- Visual: brown chest block with gold latch, glyph C.
+- Notes: Locked chest is a chest state, not a separate item.
+
+barrel
+- Category: container.
+- Properties: can_be_pried_open, capacity 10x10, contents, collides.
+- Visual: round brown barrel with darker bands, glyph B.
+
+crate
+- Category: container.
+- Properties: can_be_pried_open, capacity 10x15, contents, collides.
+- Visual: square wood crate with diagonal slat marks, glyph R.
+
+empty_crate
+- Category: container.
+- Properties: can_be_pried_open, collides.
+- Visual: darker hollow crate outline, glyph E.
+
+table
+- Category: container.
+- Properties: capacity 5x5, contents, collides.
+- Visual: flat brown tabletop with small leg pixels, glyph T.
+- Notes: Contents represent items lying on the table.
+
+empty_table
+- Category: container.
+- Properties: collides, interactable.
+- Visual: plain brown tabletop with no stored contents, glyph T.
+- Notes: Pushable table without container contents.
+
+bookshelf
+- Category: container.
+- Properties: capacity, contents, can_be_searched, directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall, collides.
+- Visual: tall brown shelf block with colored book stripes, glyph H.
+
+empty_bookshelf
+- Category: container.
+- Properties: directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall, collides, interactable.
+- Visual: tall empty brown shelf block, glyph H.
+- Notes: Pushable shelf without container contents.
+
+debris
+- Category: detail.
+- Properties: slow_multiplier, collides.
+- Visual: loose gray-brown chunks scattered across the cell, glyph D.
+
+pallet
+- Category: detail.
+- Properties: flammable, slow_multiplier 0.9, non-colliding, interactable.
+- Visual: parallel tan wood slats, glyph equals.
+- Notes: Flat walkable pushable object that applies Encumbered while crossed.
+
+wood_sticks
+- Category: detail.
+- Properties: flammable.
+- Visual: crossed thin brown sticks, glyph X.
+
+bloodstain
+- Category: detail.
+- Properties: clue_type.
+- Visual: dark red irregular floor stain with no required glyph.
+
+scratch_marks
+- Category: detail.
+- Properties: clue_type.
+- Visual: three pale slash marks, glyph ///.
+
+bones
+- Category: detail.
+- Properties: capacity 5x5, contents, interactable.
+- Visual: small pale bone pile, glyph N.
+- Notes: Searchable container. Cannot be pushed.
+
+rubble
+- Category: detail.
+- Properties: capacity 5x5, contents, can_be_pried_open, can_be_bombed, collides, interactable.
+- Visual: dense gray rock pile, glyph U.
+- Notes: Searchable container. Cannot be pushed. Bomb/pry behavior is reserved for later equipment passes.
+
+hanging_chains
+- Category: detail.
+- Properties: noise_on_touch, target_ids.
+- Visual: thin vertical metal chain links, glyph vertical bar.
+
+broken_barrel
+- Category: detail.
+- Properties: breaks_into wood_sticks, collides, interactable.
+- Visual: splintered barrel remains with bent dark bands, glyph b.
+- Notes: Not searchable. Pushing breaks it into Broken Timber.
+
+broken_crate
+- Category: detail.
+- Properties: breaks_into wood_sticks, collides, interactable.
+- Visual: collapsed crate boards and slats, glyph r.
+- Notes: Not searchable. Pushing breaks it into Broken Timber.
+
+broken_shelf
+- Category: detail.
+- Properties: directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall, breaks_into wood_sticks, collides, interactable.
+- Visual: broken wall shelf with missing planks, glyph s.
+- Notes: Not searchable. Pushing breaks it into Broken Timber.
+
+broken_table
+- Category: detail.
+- Properties: breaks_into wood_sticks, collides, interactable.
+- Visual: cracked tabletop with snapped legs, glyph t.
+- Notes: Not searchable. Pushing breaks it into Broken Timber.
+
+cracked_pot
+- Category: detail.
+- Properties: can_be_broken, break_tool_ids, drop_chance, drop_item_id, collides, interactable.
+- Visual: small cracked clay pot, glyph P.
+- Notes: Pushable normally. If the right tool is in primary, Break can replace it with debris and may pop out an item.
+
+flower_pot
+- Category: detail.
+- Properties: can_be_broken, break_tool_ids, drop_chance, drop_item_id, collides, interactable.
+- Visual: small clay pot with faded plant stems, glyph F.
+- Notes: Inspectable normally. If the right tool is in primary, Break can replace it with debris and may pop out an item.
+
+wall_painting
+- Category: detail.
+- Properties: directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall, inspect_text, interactable.
+- Visual: faded framed painting mounted to a wall, glyph W.
+- Notes: Inspect only. No search container.
+
+torn_banner
+- Category: detail.
+- Properties: directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall, inspect_text, interactable.
+- Visual: tattered wall banner with faded cloth, glyph B.
+- Notes: Inspect only. No search container.
+
+broken_statue
+- Category: detail.
+- Properties: can_be_bombed, drop_chance, drop_item_id, collides, interactable.
+- Visual: cracked stone statue base and torso, glyph S.
+- Notes: Inspect for now. Bomb item-drop behavior is reserved for later.
+
+loose_bricks
+- Category: detail.
+- Properties: directional, prefers_wall, direction_source wall_or_manual, random_requires_flat_wall.
+- Visual: small cluster of loose brick pieces, glyph L.
+- Notes: Decorative only.
+
+ash_pile
+- Category: detail.
+- Properties: none.
+- Visual: soft gray ash scattered across the floor, glyph A.
+- Notes: Decorative only.
+
+discarded_cloth
+- Category: detail.
+- Properties: none.
+- Visual: dirty folded cloth scraps, glyph C.
+- Notes: Decorative only.
+
+torn_bag
+- Category: detail.
+- Properties: none.
+- Visual: ripped empty cloth bag, glyph G.
+- Notes: Decorative only.
+
+smashed_lantern
+- Category: detail.
+- Properties: has_item, drop_item_id lantern_oil, drop_chance, interactable.
+- Visual: broken lantern frame with dull glass pieces, glyph L.
+- Notes: Search does not open a GUI. On first search it may pop out Lantern Oil, then persists has_item false.
+
+old_toolbox
+- Category: detail.
+- Properties: has_item, drop_pool lockpick/knife, drop_chance, interactable.
+- Visual: rusty little toolbox with a dark latch, glyph T.
+- Notes: Search does not open a GUI. On first search it may pop out a Lockpick or Utility Knife, then persists has_item false.
+
+broken_chair
+- Category: detail.
+- Properties: breaks_into wood_sticks, collides, interactable.
+- Visual: collapsed wooden chair frame, glyph h.
+- Notes: Decorative pushable. Pushing breaks it into Broken Timber.
+
+loose_papers
+- Category: detail.
+- Properties: none.
+- Visual: scattered loose papers, glyph p.
+- Notes: Decorative only.
+
+rusted_chain_pile
+- Category: detail.
+- Properties: none.
+- Visual: heap of rusted chain links, glyph R.
+- Notes: Decorative only.
+
+scorch_mark
+- Category: detail.
+- Properties: none.
+- Visual: dark burn mark across the floor.
+- Notes: Decorative only.
+
+gold_mark
+- Category: detail.
+- Properties: none.
+- Visual: small faded gold marking, glyph *.
+- Notes: Decorative only.
+
+moss_patch
+- Category: detail.
+- Properties: none.
+- Visual: low green moss patch, glyph M.
+- Notes: Decorative only.
+
+fungus_patch
+- Category: detail.
+- Properties: none.
+- Visual: cluster of dull purple fungus caps, glyph f.
+- Notes: Decorative only.
+
+Interactable Items
+------------------
+
+apple
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 8, heal_amount, loot_weight.
+- Visual: small red block with green stem pixel, glyph A.
+
+bread
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 14, heal_amount, loot_weight.
+- Visual: tan loaf block with lighter top stripe, glyph B.
+
+moldy_bread
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 7, heal_amount, effect_id sick, loot_weight.
+- Visual: green-tinted bread block, glyph M.
+
+cheese
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 10, heal_amount, loot_weight.
+- Visual: yellow wedge-like block with dark holes, glyph C.
+
+spoiled_cheese
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 5, heal_amount, effect_id sick, loot_weight.
+- Visual: green-yellow cheese wedge with dark spots, glyph S.
+
+dried_rations
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 18, heal_amount, loot_weight.
+- Visual: tied brown ration packet, glyph R.
+
+cooked_meat
+- Category: food. Inventory: 1x2.
+- Properties: can_stack, hunger_amount 28, heal_amount, loot_weight.
+- Visual: vertical red-brown meat strip, glyph M.
+
+spoiled_meat
+- Category: food. Inventory: 1x2.
+- Properties: can_stack, hunger_amount 9, heal_amount, effect_id sick, loot_weight.
+- Visual: sickly green-brown meat strip, glyph X.
+
+cave_roach
+- Category: food. Inventory: 1x1.
+- Properties: can_stack, hunger_amount 3, heal_amount, effect_id sick, loot_weight.
+- Visual: small brown cave insect, glyph R.
+
+water_flask
+- Category: food. Inventory: 1x2.
+- Properties: can_stack, hunger_amount 15, uses, effect_id, loot_weight.
+- Visual: blue vertical bottle block, glyph W.
+- Notes: Uses refreshed.
+
+bandage
+- Category: medical. Inventory: 1x1.
+- Properties: can_stack, heal_amount, effect_id, loot_weight.
+- Visual: cream square with a small cross mark.
+- Notes: Applies Regeneration for 15 seconds.
+
+antidote
+- Category: medical. Inventory: 1x1.
+- Properties: can_stack, effect_id, loot_weight.
+- Visual: small green vial, glyph A.
+- Notes: Drink. Applies Neutralization, removing neutralizable negative effects and restoring 10 sanity.
+
+stamina_draught
+- Category: medical. Inventory: 1x1.
+- Properties: can_stack, effect_id, loot_weight.
+- Visual: small purple vial, glyph S.
+- Notes: Drink. Applies Elevated Stamina and Endurance Boost for a randomized hidden duration.
+
+torch
+- Category: light. Inventory: 1x2.
+- Properties: light_radius, burn_time, fuel_remaining, is_on, loot_weight.
+- Visual: brown handle with orange flame top, glyph T.
+- Future behavior: torches use fuel like lanterns, but cannot be refilled or placed. Lighting a torch should cost an upfront fuel amount, then drain at roughly lantern pace while lit. Torches should emit a larger fire-like light radius than lanterns.
+
+lantern_oil
+- Category: tool. Inventory: 1x1.
+- Properties: can_stack, fuel_amount, fuel_amount_min, fuel_amount_max, loot_weight.
+- Visual: small dark oil can with yellow cap, glyph O.
+
+flare
+- Category: light. Inventory: 1x1.
+- Properties: light_radius, burn_time, fuel_remaining, effect_id, throwable, loot_weight.
+- Visual: red stick with bright hot tip, glyph F.
+
+rock
+- Category: tool. Inventory: 1x1.
+- Properties: can_stack, throwable, noise_radius, loot_weight.
+- Visual: small gray chunk, glyph R.
+
+bomb
+- Category: tool. Inventory: 2x2.
+- Properties: fuse_time, blast_radius, effect_id, loot_weight.
+- Visual: dark square bundle with red fuse pixel, glyph exclamation.
+
+small_key
+- Category: key. Inventory: 1x1.
+- Properties: key_id, loot_weight 0.
+- Visual: small gold key silhouette, glyph K.
+
+rusted_key
+- Category: key. Inventory: 1x1.
+- Properties: key_id, can_stack, loot_weight 0.
+- Visual: brown-orange key silhouette, glyph K.
+
+marked_key
+- Category: key. Inventory: 1x1.
+- Properties: key_id, loot_weight 0.
+- Visual: gold key with a bright mark, glyph star.
+
+lockpick
+- Category: tool. Inventory: 1x1.
+- Properties: can_stack, break_chance, loot_weight.
+- Visual: thin pale metal pick, glyph L.
+
+crowbar
+- Category: tool. Inventory: 1x3.
+- Properties: noise_radius, loot_weight.
+- Visual: long red-brown hooked bar, glyph J.
+
+hand_axe
+- Category: combat. Inventory: 2x2.
+- Properties: damage, reach, attack_speed, loot_weight.
+- Visual: short axe with pale metal head, glyph A.
+
+map_scrap
+- Category: document. Inventory: 1x1.
+- Properties: reveal_radius, loot_weight.
+- Visual: tan paper square with a map line, glyph M.
+- Current use: Read opens a map-fragment panel. Actual map reveal behavior is reserved for a later mapping pass.
+
+note
+- Category: document. Inventory: 1x1.
+- Properties: text, loot_weight.
+- Visual: pale paper square, glyph N.
+- Current use: Read opens the note text. Blank notes show as a blank page.
+
+knife
+- Category: combat. Inventory: 1x2.
+- Properties: damage, reach, attack_speed, loot_weight.
+- Visual: short vertical silver blade, glyph I.
+
+spear
+- Category: combat. Inventory: 1x3.
+- Properties: damage, reach, attack_speed, loot_weight.
+- Visual: long brown shaft with pale tip, glyph caret.
+
+long_spear
+- Category: combat. Inventory: 1x4.
+- Properties: damage, reach, attack_speed, loot_weight.
+- Visual: long reach spear with pale point, glyph L.
+
+wooden_shield
+- Category: armor. Inventory: 2x2.
+- Properties: block_amount, durability, loot_weight.
+- Visual: rounded brown shield block, glyph O.

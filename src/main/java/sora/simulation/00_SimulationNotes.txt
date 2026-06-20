@@ -1,0 +1,282 @@
+Sora Simulation Module Notes
+================================
+
+Purpose
+- The simulation module is a standalone game runtime hosted by the Sora framework.
+- It is not the framework bot main process.
+- A simulation is instantiated as an object and controlled through run() and exit().
+- The module may use existing framework tools such as Logger, DatabaseManager, NetworkManager, and scheduler utilities when needed.
+
+Current Runtime Contract
+- SimulationEngine is the primary runtime object.
+- run() starts the simulation.
+- exit() stops the simulation.
+- Shutdown is owned by the simulation itself.
+- The dungeon game object can be created in admin mode for faster no-clip movement and full-map visibility.
+- The framework crash manager is not responsible for simulation crashes.
+- If either simulation thread crashes, SimulationEngine logs the crash, calls the game crash hook, and shuts itself down.
+- The engine owns exactly two simulation-managed threads:
+  - Simulation Render: creates the simple GUI and runs the update/render loop.
+  - Simulation Input: receives queued keyboard and mouse events and dispatches them to blank game hooks.
+- Java GUI libraries may create their own internal platform threads, but the simulation module itself manages only the two threads above.
+
+Logging Contract
+- Simulation log codes are separate from the framework bot code registry.
+- Simulation codes start with A0 followed by a three-digit issue number.
+- Example: A0001.
+- Use Logger.log with the same style as QueueManager:
+  - SYSTEM for start/stop/lifecycle events.
+  - INFO for successful meaningful operations.
+  - DEBUG for low-level loop or state breadcrumbs.
+  - WARN for survivable abnormal conditions.
+  - ERROR for crashes and failed stop/start behavior.
+- Use Logger.logDump for crash forensics and large diagnostic payloads.
+- Keep simulation code meanings in SimulationCodes.txt, not src/main/codes.txt.
+
+Input Contract
+- Key and mouse listeners exist as templates.
+- Current input hooks are intentionally blank.
+- Future behavior should be added through SimulationGame methods:
+  - onKeyPressed
+  - onKeyReleased
+  - onKeyTyped
+  - onMousePressed
+  - onMouseReleased
+  - onMouseMoved
+  - onMouseDragged
+
+Game Design
+- The game is a 2D dungeon exploration game.
+- Dungeon generation is seed-based.
+- The same seed should generate the same dungeon.
+- Non-admin players can always see map geometry through a dark gray visibility filter.
+- Non-admin visibility has an unblocked clear circle around the player with a hazy fade to the darker map view.
+- Items are hidden outside player/light visibility and fade in through the hazy boundary.
+- Wall light items that enter visibility create their own larger unblocked visibility circles for nearby items.
+- Generated map items are rendered through DungeonItemLibrary placeholder visuals until real textures exist.
+- Map light items use their library light_radius when contributing visibility.
+- Map light on/off spawn state is deterministic from the game seed and item cell.
+- Flickering map lights modulate both their visible item alpha and emitted visibility radius strength.
+- Player vision radius is controlled by a multiplier. The standard current radius is 1.0.
+- Sanity scales the final player vision radius; 100 sanity is full radius and 0 sanity is 40 percent radius.
+- Health reaching 0 stops gameplay updates and renders a simple death screen with a Quit button.
+- Tab toggles the inventory overlay while the simulation keeps updating.
+- The Swing simulation panel disables focus traversal so Tab reaches the game input handler.
+- Inventory active effects render as a left-side stack; no-timer effects omit the time field and sort above timed effects by strength.
+- Four bottom status bars display health, sanity, hunger, and stamina from left to right.
+- Effects and character properties are documented in 02_SimulationEffects.txt.
+- Player noise is a current sound-output value from 0 to 1000.
+- Noise does not accumulate and does not decay like a meter.
+- Movement sets a fixed current noise while the player is moving, and that movement noise stops immediately when movement stops.
+- Interactions create a short current-noise pulse; they do not permanently add to the noise value.
+- Current sound sources:
+  - Walking: 18 current noise while moving.
+  - Running: 45 current noise while moving.
+  - Worn masks: constant breathing noise while equipped.
+    - Cloth Mask: +2.
+    - Protective Mask: +4.
+    - Filter Mask: +6.
+  - Equipment movement noise applies only while moving.
+    - Heavy Backpack: +12.
+    - Reinforced Vest: +8.
+    - Work Boots: +10.
+    - Quiet Shoes: -8.
+  - Small interactions such as toggling lights, reading, inspecting, saving, menus, item use, moving inventory items, equipping, unequipping, and dropping: 4 current noise briefly.
+  - Picking up an item: 2 current noise briefly.
+  - Opening/searching content containers: 18 current noise for open, 25 current noise for search, briefly.
+  - Pushing objects: 40 current noise briefly.
+  - Lighting a bomb: 10 current noise briefly.
+  - Moving keys on/off a key ring: 3 current noise briefly.
+  - Terrain noise applies only while moving through the affected cell.
+    - Water Pool: +2.
+    - Oil Slick: +1.
+    - Bone Remains: +8.
+    - Collapsed Rubble: +10.
+- Admin mode displays the current noise number near the bottom-right status bars.
+- Future sound sources should include prying, enemy activity, thrown objects, and other terrain/item-specific sounds.
+- Current terrain slow multipliers:
+  - Water Pool: 0.9.
+  - Oil Slick: 0.8.
+  - Bone Remains: 0.7.
+  - Collapsed Rubble: 0.7.
+- Terrain slow is applied through the Encumbered effect, with effect strength set to the terrain multiplier.
+- Equipped hand torches use 500 fuel, drain while on/equipped, emit a light radius of 18, and apply Comfortable while lit.
+- The dungeon is assembled from handcrafted artifact templates.
+- The generator chooses which artifacts to place, how they connect, and how they rotate.
+- Artifact geometry is manually defined; generation does not invent raw room geometry.
+- Item definitions and placeholder visuals are documented in 01_SimulationItems.txt.
+
+Loading And Memory
+- The runtime only owns the current DungeonLoadedArea.
+- DungeonGenerationService must not retain a generated DungeonMap after returning a loaded area.
+- Artifacts and map items outside the current loaded area are treated as nonexistent.
+- Runtime must not keep unloaded artifact or item object references.
+- Changed item state is tracked only in a compact persistent item-state list.
+- If an item has never been changed from its seeded default, it should not have a persistent state entry.
+- Persistent item-state entries can store deletion, such as picked-up ground items, and changed properties, such as a light's is_on value.
+- Player-dropped world items are stored in the same persistent item-state list as placed item entries with stored cell coordinates and properties.
+- Active dropped world items are loaded from persistent item state only when their cell is inside the current loaded area.
+- Active dropped world items outside the loaded area are removed from the runtime list and exist only as compact persistent item-state entries.
+- Persistent player-owned data, such as inventory and character effects, may remain because it is not unloaded map-object state.
+- Container contents are tracked separately in container persistent state after the container is opened or changed.
+- Input queues and editor undo history are bounded.
+- Player notifications are bounded to five visible rows and expire after five seconds.
+
+Artifacts
+- Artifact templates are master definitions.
+- Templates never move, rotate, or change.
+- Artifact instances are placed copies of templates.
+- Instances store world position, rotation, and vertical mirror state while referencing their template.
+- All template coordinates are relative to artifact center (0,0).
+- Only four rotations are supported: 0, 90, 180, and 270 degrees.
+- Rotation is handled by instances using coordinate swapping/sign changes.
+- Generation may mirror artifact instances across the artifact's vertical centerline to reuse one-sided connector geometry.
+
+Artifact Data
+- Walls are line segments.
+- A wall has a start coordinate and an end coordinate.
+- Walls define collision and visual structure.
+- Walls do not define dungeon connectivity.
+- Openings are separate from walls.
+- An opening has a center position, direction, and width.
+- Openings are the connection points between artifacts.
+- Occupied areas are separate from walls and openings.
+- Occupied areas are polygons describing the physical space consumed by the artifact.
+- Rectangular occupied areas are stored as four-point polygons.
+- Occupied polygons are used for overlap checks.
+- Floor space is not stored directly.
+- Valid floor locations can be derived from occupied space minus walls and other blockers.
+
+Generation Process
+- Select an existing artifact.
+- Select an unused opening.
+- Choose a compatible artifact.
+- Rotate and optionally mirror the new artifact appropriately.
+- Align the new artifact opening with the existing opening.
+- Check rotated and translated occupied areas for overlap.
+- Place the artifact if valid.
+- If no continuing artifact can be placed from an opening, a one-opening artifact may be placed as a dead-end cap.
+- Nearby unconnected openings may be reconnected with a bounded connector search before final open walls are sealed.
+- Reconnection should primarily use connector artifacts and hallway artifacts, including straight, offset, and L-shaped hall pieces.
+- Continue indefinitely to support an infinite dungeon.
+
+Future Editor
+- Artifact definitions should eventually be created through an artifact editor.
+- The editor should behave like a simple paint program for drawing artifact geometry.
+- The editor exists to avoid manually editing large coordinate lists in source code.
+- The artifact editor is the first major simulation tool to build before gameplay.
+- The editor is its own object/runtime with run() and exit(), separate from the game runtime.
+- The editor should overlap with the game runtime structure as closely as practical.
+- The editor owns two editor-managed threads:
+  - a GUI/render thread
+  - an input dispatch thread
+- Artifact data is saved through DatabaseManager, not by direct file I/O and not by using BatchManager or QueueManager directly.
+- Artifact storage path is database/artifacts/artifacts.json.
+- The central artifacts JSON should store all artifact templates by id/name.
+- The editor supports saving artifacts and loading existing artifacts by id or saved name.
+- The canvas is a gridded pixel canvas, initially around 200 by 200 cells.
+- The user manually places the artifact center.
+- Saved artifact geometry coordinates are offsets from the selected center.
+- Editor controls should include scroll-wheel zoom, right-click drag pan, and left-click drawing.
+- The editor should show a small controls strip along the bottom.
+- Pressing R rotates the preview by 90 degrees without changing saved template geometry.
+- When preview rotation is active, editor input should map clicks back into template coordinates so drawing and erasing line up with the rotated display.
+- Pressing X toggles between eraser and the previously selected non-eraser tool.
+- Tools should include select, center, wall, opening, occupied area, item placement, and eraser.
+- The select tool should select every editable element inside or intersecting the selected rectangle.
+- Ctrl+C copies the current selection into an editor-session clipboard.
+- Ctrl+V pastes the clipboard near the current cursor position.
+- The editor-session clipboard should persist across loading or creating artifacts, but clear when the editor exits.
+- Wall drawing uses first point then second point, with a preview while the mouse moves.
+- Occupied area drawing supports two modes.
+- Dragging with the occupied tool creates a rectangular occupied polygon.
+- Clicking with the occupied tool places polygon points.
+- Clicking the starting polygon point closes and saves the occupied polygon.
+- Occupied areas are saved as a list of points.
+- Older occupied rectangle saves should still load by converting start/end corners into a four-point polygon.
+- Opening drawing uses first click for position and second click for direction.
+- Inactive layers should stay visible but faded and non-interactive.
+- The editor may allow invalid artifacts but should warn on save.
+- The editor should reject saving artifacts named default because that name is reserved for the generator bootstrap artifact.
+- Undo and redo should exist from the first editor pass.
+- Ctrl+Z and Ctrl+Y should trigger undo and redo.
+- The eraser should remove walls by touching any part of the wall segment, occupied areas by clicking inside the area, center/opening dots by proximity, and placed items by cell.
+- Editor action buttons should live at the bottom of the side panel so more tools can be added above them.
+- Items are placed on cells/blocks, not grid intersections.
+- Item templates are selected from DungeonItemLibrary by id.
+- Items marked requires_wall can only be placed on a cell touching a wall.
+- Wall-mounted item direction is assigned automatically from the touched wall and saved with the item.
+- Runtime wall light positions are cell coordinates; draw and ray origins should use the cell center, not the grid intersection.
+- The visible wall light box should sit inside its cell while touching the cell edge opposite its facing direction, which is the wall side.
+- Rotated item cells should transform around the cell center and then snap back to a cell; do not rotate item cell coordinates as grid intersections.
+- Editor rotation preview and rotated item placement should use the same cell transform as runtime generation.
+- Artifact JSON stores items as id, position, and direction.
+- Runtime artifact loading should preserve item id, position, and direction and transform them with the placed artifact.
+- Artifact templates should include a numeric category.
+- Category 0 is reserved for forced/non-random artifacts and should never spawn through normal generation.
+- Categories describe artifact roles such as basic hallways, exotic hallways, rooms, chambers, junctions, dead ends, connectors, and setpieces.
+- Current artifact category map:
+  - 0: forced-only / never normal spawn.
+  - 1: basic hallways.
+  - 2: exotic hallways.
+  - 3: rooms.
+  - 4: large chambers.
+  - 5: junctions.
+  - 6: dead ends.
+  - 7: connectors, mainly for reconnection planning.
+  - 8: very large, elaborate setpieces that do not allow random spawning.
+- Current category behavior:
+  - Category 0 is excluded from normal generation and reconnection.
+  - Category 7 is excluded from normal branch generation, but allowed and favored during reconnection.
+  - Categories not listed still work with neutral/default weighting.
+- Generation profiles use artifact categories together with derived geometry/opening metadata to decide what can spawn next.
+- Artifact loading should be backward-compatible with older artifact JSON versions.
+- When a new save uses a name that already exists, the editor should ask before overwriting.
+- When a loaded artifact is renamed and saved, the old name lookup should be removed.
+- Loaded artifacts can be deleted from the central artifact JSON.
+
+Future Systems
+- Interactables, lighting, darkness, enemies, loot, spawn locations, decorations, and similar systems will be built on top of artifacts later.
+
+Upcoming Item/Interaction Passes
+--------------------------------
+- Pass 1: Library and balance cleanup.
+  - Add spoiled food variants and a few extra tools/weapons.
+  - Tune spoiled-food loot rates upward slightly.
+  - Set equipment template loot weight slightly more common than pry-bar rarity while keeping the two-layer equipment selection.
+  - Adjust equipment box spacing so labels remain readable.
+  - Add running sanity drain through the Running effect.
+- Pass 2: Lantern-oil world interaction.
+  - If lantern oil is equipped in primary or an unlocked secondary slot, wall lamps should gain a Q Fill interaction.
+  - Filling should transfer fuel from the equipped oil stack/item into the wall lamp and update persistent lamp state.
+  - No fill option should appear without equipped oil.
+- Pass 3: Review and polish.
+  - Recheck container loot generation after new items.
+  - Recheck item context stat lines for new food/tools/weapons.
+  - Recheck equipped-slot visuals and label spacing in inventory/container overlays.
+- Pass 4: Facing and action direction.
+  - Track mouse position during normal gameplay, outside inventory/container screens.
+  - If primary is empty, player facing follows movement direction.
+  - If primary holds a tool/weapon/shield, player facing follows mouse direction.
+  - Draw a small facing arrow from the player marker.
+  - Later tool attacks should use this facing direction for swing/thrust/block arcs.
+- Pass 5: Context category labels.
+  - Context menu info should show a short public category above stats.
+  - Suggested public categories: Equipment, Food, Medical, Light, Tool, Weapon, Armor, Key, Document, Container, Utility.
+  - Current implementation maps equipment to Equipment and item categories to public labels in the context info panel.
+- Pass 6: Pushable map objects.
+  - Pushable objects: chest, barrel, crate, empty_crate, table, empty_table, bookshelf, empty_bookshelf, future empty_barrel, and pallet.
+  - Pallets should be flat: walkable, pushable, and Encumbered 0.9 when walked over.
+  - Push direction comes from mouse-facing direction, snapped to north/east/south/west.
+  - Player must be in an adjacent cell to push, even if normal interaction range sees farther.
+  - Push moves the object one cell with its state and contents.
+  - If a wall or item blocks the target cell, show "Cannot push in this direction." and leave it in place.
+  - Current implementation supports push for existing listed objects except future empty_barrel.
+  - Pushed seed objects are deleted at their seed cell and re-added as placed persistent items at the new cell.
+  - Pushed placed objects rewrite their placed persistent entry to the new cell.
+  - Container persistent state is moved to the new cell key immediately.
+- Pass 7: Terrain area effects and steam vent.
+  - Water and oil apply Encumbered in a 3x3 area centered on the puddle/slick.
+  - Add a steam vent map item.
+  - Water and oil draw transparent highlighted 3x3 effect cells.
+  - Steam vent is a passive hazard for now, draws a pale transparent 4x4 area, and applies delayed/ramping Asphyxiation without Toxic Exposure.

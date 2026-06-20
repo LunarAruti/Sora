@@ -13,6 +13,90 @@
 Database Module (DBM)
 ========================
 
+========================
+Config Module
+========================
+
+ConfigManager.initialize()
+- Return: boolean
+- Purpose: Load runtime config into memory at startup; false means defaults/fallback were used.
+
+ConfigManager.reload()
+- Return: boolean
+- Purpose: Re-read runtime config from disk into memory using the same validation/fallback rules.
+
+ConfigManager.isInitialized()
+- Return: boolean
+- Purpose: Check whether runtime config has been initialized in this process.
+
+ConfigManager.wasLoadedFromFile()
+- Return: boolean
+- Purpose: Check whether the most recent config load succeeded from the on-disk file.
+
+ConfigManager.getConfigPath()
+- Return: Path
+- Purpose: Get the canonical runtime config file path.
+
+ConfigManager.snapshot()
+- Return: JSONObject
+- Purpose: Get a defensive copy of the full in-memory runtime config root.
+
+ConfigManager.snapshotValues()
+- Return: JSONObject
+- Purpose: Get a defensive copy of the in-memory `values` object only.
+
+ConfigManager.getVersion()
+- Return: int
+- Purpose: Get the runtime config schema version currently stored in memory.
+
+ConfigManager.getValue(String valuePath)
+- Return: Object
+- Purpose: Read a config value by dot path under `values`; JSON containers are defensive copies.
+
+ConfigManager.getString(String valuePath, String fallback)
+- Return: String
+- Purpose: Read a string config value with coded fallback.
+
+ConfigManager.getBoolean(String valuePath, boolean fallback)
+- Return: boolean
+- Purpose: Read a boolean config value with coded fallback.
+
+ConfigManager.getInt(String valuePath, int fallback)
+- Return: int
+- Purpose: Read an int config value with coded fallback.
+
+ConfigManager.getLong(String valuePath, long fallback)
+- Return: long
+- Purpose: Read a long config value with coded fallback.
+
+ConfigManager.getDouble(String valuePath, double fallback)
+- Return: double
+- Purpose: Read a double config value with coded fallback.
+
+ConfigManager.getStringList(String valuePath, List<String> fallback)
+- Return: List<String>
+- Purpose: Read a string-list config value with coded fallback.
+
+ConfigManager.getFlags(String valuePath)
+- Return: int
+- Purpose: Read the bitmap flags for a config leaf.
+
+ConfigManager.doesNotUpdateRuntime(String valuePath)
+- Return: boolean
+- Purpose: Check whether the config leaf is marked as non-live-updating.
+
+ConfigManager.requiresExplicitApply(String valuePath)
+- Return: boolean
+- Purpose: Check whether the config leaf is marked as requiring explicit manual apply.
+
+ConfigManager.setValueInMemory(String valuePath, Object value)
+- Return: void
+- Purpose: Change a runtime config value in memory only; does not write to disk or apply module updates.
+
+ConfigManager.setFlagsInMemory(String valuePath, int flags)
+- Return: void
+- Purpose: Change a runtime config leaf's flags bitmap in memory only.
+
 initialize()
 - Return: void
 - Purpose: Initialize DB structure and logging hooks.
@@ -88,6 +172,10 @@ createJSON(String path, JSONObject defaultContent)
 ensureJSONIntegrity(String path, boolean enforceObject, boolean autoRepair)
 - Return: IntegrityReport
 - Purpose: Validate JSON file and optionally repair.
+
+readJSONObject(String filePath)
+- Return: JSONObject
+- Purpose: Read the full validated JSON object from cached JSON as a defensive copy.
 
 readJSONPath(String filePath, String jsonPath)
 - Return: Object

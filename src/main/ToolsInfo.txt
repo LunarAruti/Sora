@@ -1,6 +1,6 @@
-UC_Admin Tools Library Reference
+Sora Tools Library Reference
 
-This file documents the public API surface in `ucadmin.tools`, including the
+This file documents the public API surface in `sora.tools`, including the
 `pixelgenerator` and `qrgenerator` packages.
 
 General notes:
@@ -11,7 +11,7 @@ General notes:
 
 ========================================
 AMath
-Package: `ucadmin.tools`
+Package: `sora.tools`
 ========================================
 
 Purpose:
@@ -80,7 +80,7 @@ Usage example:
 
 ========================================
 AString
-Package: `ucadmin.tools`
+Package: `sora.tools`
 ========================================
 
 Purpose:
@@ -131,7 +131,7 @@ Usage example:
 
 ========================================
 Colors
-Package: `ucadmin.tools`
+Package: `sora.tools`
 ========================================
 
 Purpose:
@@ -198,7 +198,7 @@ Usage example:
 
 ========================================
 Lists
-Package: `ucadmin.tools`
+Package: `sora.tools`
 ========================================
 
 Purpose:
@@ -263,7 +263,7 @@ Usage example:
 
 ========================================
 Time
-Package: `ucadmin.tools`
+Package: `sora.tools`
 ========================================
 
 Purpose:
@@ -317,7 +317,7 @@ Usage example:
 
 ========================================
 Pixel Generator
-Package: `ucadmin.tools.pixelgenerator`
+Package: `sora.tools.pixelgenerator`
 ========================================
 
 Purpose:
@@ -492,7 +492,7 @@ Palette behavior:
 - `.` is transparent.
 - `null` and empty/blank strings are transparent.
 - Unknown tokens throw `PixelGeneratorException`.
-- Full token reference lives in `src/main/java/ucadmin/tools/pixelgenerator/palette.txt`.
+- Full token reference lives in `src/main/java/sora/tools/pixelgenerator/palette.txt`.
 
 Border behavior:
 - Border is outside the content area.
@@ -511,7 +511,7 @@ Usage example:
 
 ========================================
 QR Generator
-Package: `ucadmin.tools.qrgenerator`
+Package: `sora.tools.qrgenerator`
 ========================================
 
 Purpose:

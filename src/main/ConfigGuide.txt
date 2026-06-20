@@ -1,0 +1,481 @@
+Sora Config Manager Guide
+=============================
+
+Purpose
+-------
+This file explains how to add new runtime constants to the Sora config
+system for future modules.
+
+This is not a planning file anymore. It is the operational guide for:
+- editing `database/utility/config.json`
+- choosing the correct flag bitmap
+- reading config values from code
+- handling flag `2` values that require explicit manual apply
+- using the public `ConfigManager` methods safely
+
+
+Core Model
+----------
+There are two config layers in this project:
+
+1. Bootstrap config
+- Class: `sora.config.BootstrapConfig`
+- Hardcoded only
+- Used before runtime config load is possible
+- Intended for startup pathing, process identity, and early boot behavior
+
+2. Runtime config
+- File: `database/utility/config.json`
+- Loaded once at startup by `sora.config.ConfigManager`
+- Stored fully in memory after load
+- Read by other modules through `ConfigManager`
+- Does not write back to disk in the current version
+
+
+When To Use Bootstrap vs Runtime Config
+---------------------------------------
+Use `BootstrapConfig` when a value:
+- must exist before `ConfigManager.initialize()`
+- is needed to locate the config file itself
+- is a process identity value
+- is a path/layout value that should not live-update
+- should still exist if runtime config file is missing or malformed
+
+Use runtime config when a value:
+- is a normal module constant
+- is a tuning value
+- may need to be changed later without editing code
+- belongs to a subsystem rather than global process bootstrap
+
+
+Runtime Config File Structure
+-----------------------------
+The runtime config file is:
+- `database/utility/config.json`
+
+The root structure is:
+
+```json
+{
+  "version": 1,
+  "values": {
+    "module_name": {
+      "constant_name": {
+        "value": 123,
+        "flags": 0
+      }
+    }
+  }
+}
+```
+
+Rules:
+- `version` must be numeric
+- `values` must be a JSON object
+- each module section should be a JSON object
+- each constant leaf must be a JSON object containing:
+  - `value`
+  - `flags`
+
+Leaf example:
+
+```json
+"queue_manager": {
+  "worker_idle_poll_ms": {
+    "value": 5000,
+    "flags": 2
+  }
+}
+```
+
+
+How To Add A New Constant To config.json
+----------------------------------------
+Example target:
+- module: `example_module`
+- constant: `max_batch_size`
+- coded fallback in Java: `250`
+
+Step 1
+- decide the module group name
+- use an existing module section when the constant clearly belongs there
+- otherwise create a new section under `values`
+
+Step 2
+- add the leaf in JSON
+
+```json
+"example_module": {
+  "max_batch_size": {
+    "value": 250,
+    "flags": 0
+  }
+}
+```
+
+Step 3
+- choose the correct flag bitmap
+
+Step 4
+- read it from code using the appropriate `ConfigManager` getter
+
+Step 5
+- if the value is a flag `2` value, make sure the module has an explicit
+  apply/update method and that the read path uses that cached runtime field
+  rather than reading directly every time
+
+
+Flag Bitmap Rules
+-----------------
+Current supported bitmaps are:
+
+- `0` = no flags
+- `1` = value does not update live runtime
+- `2` = value requires explicit manual apply
+
+In current v1 semantics:
+
+Flag `0`
+- Use this when the value is safe to read dynamically or is naturally reflected
+  immediately because the code consults `ConfigManager` at the point of use.
+- Changing the in-memory value can affect runtime immediately if the code path
+  reads it on demand.
+
+Flag `1`
+- Use this when the value is stored in config memory but changing it does not
+  update actual runtime behavior.
+- Typical cases:
+  - startup-only values
+  - constructor-only values
+  - values cached once and never refreshed
+  - values intentionally kept static during a run
+
+Flag `2`
+- Use this when the value is runtime-editable in principle, but the module
+  should not auto-apply every change immediately.
+- Typical cases:
+  - cached module runtime fields
+  - values that should refresh only when a module apply method is called
+  - values where repeated automatic reconfiguration would be noisy or unsafe
+
+Important:
+- current v1 only allows `0`, `1`, or `2`
+- do not use `3`
+- mixed flag combinations are not currently supported
+
+
+How To Choose The Correct Flag
+------------------------------
+Use `flags: 0` if:
+- the code will read `ConfigManager` directly every time the value is needed
+- changing the in-memory value should affect future behavior immediately
+
+Use `flags: 1` if:
+- the module only uses the value at startup
+- the value is intentionally read once
+- a runtime edit would not do anything meaningful right now
+
+Use `flags: 2` if:
+- the module keeps a cached runtime field
+- the module has or should have `applyRuntimeConfig()` or similar
+- you want runtime edits to be possible, but only after an explicit apply step
+
+
+How To Read Config Values In Code
+---------------------------------
+Use the public `ConfigManager` getters from:
+- `sora.config.ConfigManager`
+
+Available public read methods:
+- `getValue(String path)`
+- `getString(String path, String fallback)`
+- `getBoolean(String path, boolean fallback)`
+- `getInt(String path, int fallback)`
+- `getLong(String path, long fallback)`
+- `getDouble(String path, double fallback)`
+- `getStringList(String path, List<String> fallback)`
+- `getFlags(String path)`
+- `doesNotUpdateRuntime(String path)`
+- `requiresExplicitApply(String path)`
+- `snapshot()`
+- `snapshotValues()`
+- `getVersion()`
+- `isInitialized()`
+- `wasLoadedFromFile()`
+- `getConfigPath()`
+
+
+Typed Getter Examples
+---------------------
+String:
+
+```java
+String mode = ConfigManager.getString("example_module.mode", "DEFAULT");
+```
+
+Boolean:
+
+```java
+boolean enabled = ConfigManager.getBoolean("example_module.enabled", true);
+```
+
+Int:
+
+```java
+int count = ConfigManager.getInt("example_module.count", 10);
+```
+
+Long:
+
+```java
+long timeoutMs = ConfigManager.getLong("example_module.timeout_ms", 5000L);
+```
+
+Double:
+
+```java
+double factor = ConfigManager.getDouble("example_module.factor", 1.5d);
+```
+
+String list:
+
+```java
+List<String> names = ConfigManager.getStringList(
+        "example_module.allowed_names",
+        List.of()
+);
+```
+
+Raw JSON object/array:
+
+```java
+Object raw = ConfigManager.getValue("example_module.mapping");
+```
+
+Notes:
+- `getValue(...)` returns defensive copies for `JSONObject` and `JSONArray`
+- for primitive-like values it returns the normal boxed value
+
+
+Pattern 1: Flag 0 Constants
+---------------------------
+Use this when the value should be read directly and reflected immediately.
+
+Example:
+
+```java
+private static int maxQueueSize() {
+    return Math.max(1,
+            ConfigManager.getInt("network_manager.max_queue_size", 10_000));
+}
+```
+
+Why this is flag `0`:
+- the code reads the value when needed
+- there is no cached field that must be refreshed manually
+
+
+Pattern 2: Flag 1 Constants
+---------------------------
+Use this when the runtime can store the value, but changing it mid-run should
+not update behavior.
+
+Example:
+
+```java
+private static final int DEFAULT_WORKER_COUNT = 2;
+private static volatile int runtimeDefaultWorkerCount = DEFAULT_WORKER_COUNT;
+
+public static synchronized void applyRuntimeConfig() {
+    runtimeDefaultWorkerCount = Math.max(1,
+            ConfigManager.getInt("network_manager.default_worker_count",
+                    DEFAULT_WORKER_COUNT));
+}
+```
+
+Why this is flag `1`:
+- the worker count is applied during startup/start logic
+- changing the config memory later does not automatically rebuild worker threads
+- the stored runtime value exists, but changing it during an active run does not
+  directly change current worker count
+
+
+Pattern 3: Flag 2 Constants
+---------------------------
+Use this when the value should be runtime-editable, but only after explicitly
+refreshing the module.
+
+Standard pattern:
+
+```java
+private static final int DEFAULT_BUFFER = 1024;
+private static volatile int runtimeBuffer = DEFAULT_BUFFER;
+
+public static synchronized void applyRuntimeConfig() {
+    runtimeBuffer = Math.max(1,
+            ConfigManager.getInt("example_module.buffer_size", DEFAULT_BUFFER));
+}
+```
+
+The module should then use the cached runtime field:
+
+```java
+private static int bufferSize() {
+    return runtimeBuffer;
+}
+```
+
+Why this is flag `2`:
+- `ConfigManager` memory can change first
+- the module does not automatically re-read that value everywhere
+- a second explicit refresh step is needed
+
+Critical rule:
+- `ConfigManager` does not push flag `2` updates into modules by itself.
+- The owning module updates only on its own explicit refresh call.
+- In other words, the constant changes in config memory first, and the module
+  changes only if some caller deliberately invokes that module's
+  `applyRuntimeConfig()` method or equivalent refresh path.
+- This is intentional. `ConfigManager` is the storage/read layer, not the
+  module-update dispatcher.
+
+
+How To Manually Update Flag 2 Constants
+---------------------------------------
+The correct runtime sequence for a flag `2` value is:
+
+Step 1
+- update the in-memory config value through `ConfigManager`
+
+```java
+ConfigManager.setValueInMemory("example_module.buffer_size", 2048);
+```
+
+Step 2
+- explicitly refresh the owning module
+
+```java
+ExampleModule.applyRuntimeConfig();
+```
+
+Step 3
+- future module behavior now uses the updated cached runtime field
+
+Important:
+- `setValueInMemory(...)` alone does not refresh cached module fields
+- for flag `2`, the module apply method is the second required action
+- that second step is entirely on the caller's own volition
+- if nobody calls the owning module's refresh method, the module keeps using
+  its old cached runtime value
+
+
+How To Use setValueInMemory and setFlagsInMemory
+------------------------------------------------
+These methods only change `ConfigManager` memory.
+
+`setValueInMemory(...)`
+- updates the `value` part of a config leaf
+- creates missing intermediate objects if needed
+- does not write to disk
+- does not apply module changes automatically
+
+Example:
+
+```java
+ConfigManager.setValueInMemory("logger.log_max_lines", 100000);
+```
+
+`setFlagsInMemory(...)`
+- updates the `flags` bitmap for a config leaf
+- creates the leaf if it does not exist
+- does not write to disk
+
+Example:
+
+```java
+ConfigManager.setFlagsInMemory("logger.log_max_lines", 2);
+```
+
+
+Recommended Module Integration Pattern
+--------------------------------------
+When adding a new constant to a module:
+
+1. Add the coded fallback constant in the Java class.
+2. Add the entry to `database/utility/config.json`.
+3. Choose the correct `flags` value.
+4. Pick one of these read strategies:
+   - direct getter for flag `0`
+   - startup-only cached field for flag `1`
+   - cached field plus `applyRuntimeConfig()` for flag `2`
+5. Keep edits minimal and preserve current behavior when config value matches
+   the coded fallback.
+
+
+Validation / Fallback Rules
+---------------------------
+`ConfigManager` validates runtime config while loading.
+
+If a leaf is invalid:
+- it falls back to the coded default leaf if one exists
+- otherwise it is ignored
+
+If the file is missing, malformed, or unreadable:
+- the system falls back to coded defaults
+- startup diagnostics print directly to console because logger is not ready yet
+
+
+Adding A New Module Section Example
+-----------------------------------
+Suppose a future module named `cache_manager` needs three values:
+
+```json
+"cache_manager": {
+  "enabled": {
+    "value": true,
+    "flags": 0
+  },
+  "cleanup_interval_ms": {
+    "value": 30000,
+    "flags": 2
+  },
+  "startup_seed_capacity": {
+    "value": 256,
+    "flags": 1
+  }
+}
+```
+
+Interpretation:
+- `enabled`
+  - read dynamically
+  - immediate effect
+- `cleanup_interval_ms`
+  - cached runtime field
+  - requires explicit `applyRuntimeConfig()`
+- `startup_seed_capacity`
+  - read at startup only
+  - changing during runtime does not update behavior
+
+
+What Not To Do
+--------------
+- Do not put bootstrap-only pathing values into runtime config unless the runtime
+  can actually survive without them during early startup.
+- Do not use `flags: 3`.
+- Do not add values to `config.json` without wiring code to read them.
+- Do not read flag `2` values directly everywhere if the design is meant to
+  require explicit apply.
+- Do not use logger inside pre-logger config bootstrap flow.
+
+
+Quick Checklist For Adding A Constant
+-------------------------------------
+1. Decide bootstrap vs runtime.
+2. Add or update the JSON leaf under the right module section.
+3. Set `value`.
+4. Set the correct `flags`.
+5. Add the coded fallback in Java.
+6. Read via the correct `ConfigManager` getter.
+7. If flag `2`, add or use a module `applyRuntimeConfig()` refresh path.
+8. Preserve existing behavior when JSON matches fallback.

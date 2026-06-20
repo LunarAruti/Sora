@@ -1,0 +1,226 @@
+Sora Dungeon Effects
+========================
+
+Purpose
+- Effects are temporary or environmental modifiers applied to the player.
+- Items, hazards, lights, enemies, and future scripted events can apply effects by effect_id.
+- The runtime effect engine should keep active effects in a player-owned list.
+- Each update, active effects are evaluated and their results are applied to character properties.
+- The code-side effect package lives in sora.simulation.effects.
+- DungeonCharacterState owns base properties, current properties, and the active-effect list.
+- DungeonEffectLibrary owns known effect ids and public display names. Comfortable, Psychosis, Running, Eating, Restoration, Regeneration, Endurance Boost, Elevated Stamina, Starving, Food Poisoning, Toxic Exposure, and Asphyxiation have initial values; most other effects are placeholders until their behavior is decided.
+- Effects with randomized or intentionally unknown duration should show ? in player-facing effect lists instead of the exact timer.
+- Negative neutralizable effects can be removed by neutralization. Current examples include Food Poisoning, Poisoned, Toxic Exposure, Asphyxiation, Bleeding, Burning, Blinded, and Blast Trauma.
+
+Active Effect Data
+- effect_id: stable id for the effect definition.
+- display_name: public-facing name shown to the player.
+- duration: how long the effect remains active, in seconds.
+- strength: numeric scale for the effect.
+- mode: how the effect changes a property.
+
+Effect Modes
+- add: adds strength to the target property or rate while active.
+- set: sets the target property to a specific value while active.
+
+Character Properties Effects Can Touch
+- health: player life.
+- max_health: health cap.
+- stamina: sprint/action fuel.
+- max_stamina: stamina cap.
+- stamina_regen: stamina recovered per second.
+- movement_speed: movement multiplier.
+- hunger: food pressure value.
+- hunger_rate: hunger change per second.
+- sanity: mental stability value.
+- sanity_rate: sanity change per second.
+- vision_radius: multiplier for the player visibility radius. Standard value is 1.0.
+- noise: current sound output from 0 to 1000. Movement sets a fixed value while moving; interactions create short pulses. It does not accumulate as a meter.
+- interaction_speed: multiplier for searching, opening, prying, and similar actions.
+
+Baseline Character Rules
+- Health starts at 100 and is capped by max_health.
+- Stamina starts at 100, is capped by max_stamina, and currently regenerates at 6 per second.
+- Running applies the running effect and drains stamina at 6 per second net.
+- If stamina reaches 0 while running, running is blocked for 5 seconds.
+- Hunger starts at 50 and drains at 2.5 per minute.
+- If hunger is below 5, the player takes 5 health damage every 5 seconds.
+- Hunger below 5 applies the persistent starving effect; starving owns the health damage.
+- Food applies Eating, which restores hunger in 5 point chunks per second until that food's hunger_amount is spent.
+- Food cannot be consumed while hunger is already full.
+- When health is below max health, Restoration can start after 10 seconds without damage.
+- Restoration heals 1 health per second at 100 hunger and scales proportionally down to 25 hunger.
+- Restoration is disabled below 25 hunger, when health is full, or immediately after taking damage.
+- Sanity starts at 100.
+- Darkness drains sanity at 2.5 per minute.
+- Lit areas restore sanity at 10 per minute.
+- Sanity directly scales vision radius: 100 sanity is full radius, 0 sanity is 40 percent radius.
+- If health reaches 0, the game stops updating and shows the death screen.
+- Lit areas do not need a separate light exposure property.
+- Lights should apply effects directly through their effect_id.
+- Steady lights can apply lit.
+- Flickering broken lights should not restore sanity.
+
+Initial Effect Definitions
+- These ids exist in the code-side DungeonEffectLibrary.
+- Lit, darkness, running, eating, restoration, regeneration, elevated stamina, endurance boost, starving, sick, toxic exposure, and asphyxiation have initial behavior. Other effect modifiers are intentionally undecided until the effect behavior discussion is complete.
+
+- lit
+  - Display name: Comfortable.
+  - Purpose: restore or stabilize sanity while the player is in a valid steady light radius.
+  - Target: sanity_rate.
+  - Mode: add.
+  - Initial value: +10 sanity per minute.
+
+- darkness
+  - Display name: Psychosis.
+  - Purpose: drain sanity while the player is not in a valid steady light radius.
+  - Target: sanity_rate.
+  - Mode: add.
+  - Initial value: -2.5 sanity per minute.
+
+- running
+  - Display name: Running.
+  - Purpose: drain stamina while the player is actively running.
+  - Target: stamina_regen.
+  - Mode: add.
+  - Initial value: -12 stamina per second, which becomes -6 per second after the base +6 stamina regen.
+
+- eating
+  - Display name: Eating.
+  - Purpose: restore hunger after consuming food.
+  - Target: hunger.
+  - Mode: effect-owned periodic edit.
+  - Initial value: +5 hunger per second, capped by the consumed food's hunger_amount.
+
+- restoration
+  - Display name: Restoration.
+  - Purpose: natural health recovery when the player is fed and has avoided damage.
+  - Target: health.
+  - Mode: effect-owned periodic edit.
+  - Initial value: +1 health per second at 100 hunger, scaling by hunger percent down to 25 hunger.
+  - Conditions: health below max, hunger at least 25, and no damage taken for 10 seconds.
+
+- regeneration
+  - Display name: Regeneration.
+  - Purpose: unnatural healing from bandages or future healing items.
+  - Target: health.
+  - Mode: effect-owned periodic edit.
+  - Initial value: +10 health every 5 seconds. Bandages should apply this for 15 seconds.
+
+- elevated_stamina
+  - Display name: Elevated Stamina.
+  - Purpose: temporary stamina cap increase from endurance draught.
+  - Target: max_stamina.
+  - Mode: add.
+  - Initial value: +50 max stamina, allowing stamina to cap at 150 while active.
+  - Display timer: ? when duration is randomized.
+
+- endurance_boost
+  - Display name: Endurance Boost.
+  - Purpose: temporary stamina recovery support from endurance draught.
+  - Target: stamina_regen.
+  - Mode: add.
+  - Initial value: +5 stamina regen per second.
+  - Display timer: ? when duration is randomized.
+
+- elevated_health
+  - Display name: Elevated Health.
+  - Purpose: reserved for future temporary max-health increases.
+  - Current behavior: placeholder.
+
+- neutralization
+  - Display name: Neutralization.
+  - Purpose: antitoxin effect hook for removing neutralizable negative effects and restoring sanity.
+  - Current behavior: item-use code should call neutralization behavior directly in the character state.
+
+- starving
+  - Display name: Starving.
+  - Purpose: damage the player while hunger is below 5.
+  - Target: health.
+  - Mode: effect-owned periodic edit.
+  - Initial value: -5 health every 5 seconds.
+
+- sick
+  - Display name: Food Poisoning.
+  - Purpose: negative effect from spoiled food.
+  - Target: health.
+  - Mode: effect-owned periodic edit.
+  - Initial value: -2 health every 5 seconds.
+  - Display timer: ? because the duration is randomized.
+
+- poisoned
+  - Display name: Poisoned.
+  - Purpose: stronger damage-over-time effect from toxins, enemies, or traps.
+  - Suggested targets: health and stamina_regen.
+  - Suggested mode: add.
+
+- toxic_exposure
+  - Display name: Toxic Exposure.
+  - Purpose: environmental hazard from gas vents.
+  - Target: health.
+  - Mode: effect-owned periodic edit.
+  - Initial value: -1 health per second while active.
+  - Application: refreshed while the player is inside an active gas vent area.
+  - Compatibility alias: gas.
+
+- asphyxiation
+  - Display name: Asphyxiation.
+  - Purpose: stronger gas/smoke penalty after extended exposure.
+  - Target: health.
+  - Mode: effect-owned periodic edit.
+  - Initial value: starts at -1 health per second. Gas behavior should ramp strength upward over time.
+  - Application: starts after 10 continuous seconds in an active gas vent area and ramps slowly while exposure continues.
+  - Compatibility alias: choking.
+
+- bleeding
+  - Display name: Bleeding.
+  - Purpose: damage-over-time effect from wounds.
+  - Suggested target: health.
+  - Suggested mode: add.
+
+- slowed
+  - Display name: Encumbered.
+  - Purpose: movement penalty from puddles, debris, injury, or other terrain.
+  - Suggested target: movement_speed.
+  - Suggested mode: add or set depending on source.
+
+- stamina_boost
+  - Display name: Endurance Boost.
+  - Purpose: compatibility alias for endurance_boost until item data is migrated.
+
+- refreshed
+  - Display name: Refreshed.
+  - Purpose: small recovery from drinking water.
+  - Suggested targets: stamina, stamina_regen, or hunger_rate.
+  - Suggested mode: add.
+
+- bandaged
+  - Display name: Bandaged.
+  - Purpose: healing support and future bleeding removal.
+  - Suggested targets: health.
+  - Suggested mode: add.
+
+- burning
+  - Display name: Burning.
+  - Purpose: fire damage from oil, explosions, or future fire sources.
+  - Suggested target: health.
+  - Suggested mode: add.
+
+- blind
+  - Display name: Blinded.
+  - Purpose: temporary vision disruption, mostly for enemies later but supported for the player.
+  - Suggested target: vision_radius.
+  - Suggested mode: set or add.
+
+- explosion
+  - Display name: Blast Trauma.
+  - Purpose: immediate blast effect from bombs.
+  - Suggested behavior: applies health damage, noise, and possibly burning or choking.
+  - Suggested mode: add.
+
+- cure_poison
+  - Display name: Antitoxin.
+  - Purpose: removes or counteracts poisoned.
+  - Suggested target: poisoned active effects.
+  - Suggested mode: set or special-case removal.

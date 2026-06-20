@@ -27,10 +27,10 @@ Thumbs.db
 !src/**
 
 # Optional: keep the readme or notes
-src/main/java/ucadmin/notes.txt
+src/main/java/sora/notes.txt
 
 # Optional: keep any docs
 !src/main/README.md
 
 # EXCEPT: ignore Security.java specifically
-src/main/java/ucadmin/main/Security.java
+src/main/java/sora/main/Security.java
