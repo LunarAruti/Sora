@@ -34,3 +34,7 @@ src/main/java/sora/notes.txt
 
 # EXCEPT: ignore Security.java specifically
 src/main/java/sora/main/Security.java
+
+# Ignore large model files
+src/main/java/sora/sophon/models/
+
